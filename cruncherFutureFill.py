@@ -41,13 +41,13 @@ except mariadb.Error as e:
 cur = conn.cursor()
 
 def getRawTrades(market, end_ms, seconds):
-    pastTime = round(end_ms + (seconds * 1000 ))
-    cur.execute("SELECT price, amount, type FROM trades WHERE market = '{0:s}' AND date_ms < {1:d} AND date_ms > {2:d} ORDER BY date_ms DESC".format(market, pastTime, end_ms))
+    pastTime = math.floor(end_ms + (seconds * 1000 ))
+    cur.execute("SELECT price, amount, type FROM trades WHERE date_ms < {0:d} AND date_ms > {1:d} ORDER BY date_ms DESC".format(pastTime, end_ms))
     trades = cur.fetchall()
 
     if not len(trades):
         print("No rows found, selecting most recent")
-        cur.execute("SELECT price, amount, type FROM trades WHERE market = '{0:s}' AND date_ms < {1:d} ORDER BY date_ms DESC LIMIT 1".format(market, end_ms))
+        cur.execute("SELECT price, amount, type FROM trades WHERE date_ms < {0:d} ORDER BY date_ms DESC LIMIT 1".format(end_ms))
         trades = cur.fetchall()
 
     return trades
@@ -129,18 +129,25 @@ def getCalcTrades(market, period, id_col, end_ms):
     buysPrMin = buys / seconds * 60
     sellsPrMin = sells / seconds * 60
 
-    pastTime = round(end_ms / 1000) - seconds
+    pastTime = math.floor(end_ms / 1000)
 
     cur.execute(
-        "UPDATE trades SET f_{0:s}_changeReal = {1:0.8f}, f_{2:s}_changePercent = {3:0.8f}, f_{4:s}_endPrice = {5:0.8f}, f_{6:s}_lowPrice = {7:0.8f}, f_{8:s}_highPrice = {9:0.8f} WHERE id = {10:d}".format(period, changeReal, period, changePercent, period, endPrice, period, lowPrice, period, highPrice, id_col))
+        "UPDATE trades SET f_{0:s}_changeReal = {1:0.8f}, f_{2:s}_changePercent = {3:0.8f}, f_{4:s}_endPrice = {5:0.8f}, f_{6:s}_lowPrice = {7:0.8f}, f_{8:s}_highPrice = {9:0.8f} WHERE date = {10:d}".format(period, changeReal, period, changePercent, period, endPrice, period, lowPrice, period, highPrice, pastTime))
     conn.commit()
+    # print("updated "+period+" at date "+str(pastTime))
+
+previousDate_ms = 0
 
 while True:
-    cur.execute("SELECT id, date_ms, f_fiveSec_lowPrice, f_tenSec_lowPrice, f_thirtySec_lowPrice, f_oneMin_lowPrice, f_threeMin_lowPrice, f_fiveMin_lowPrice, f_tenMin_lowPrice, f_fifteenMin_lowPrice, f_thirtyMin_lowPrice, f_sixtyMin_lowPrice, f_oneTwentyMin_lowPrice FROM trades WHERE market = '" + market + "' AND p_oneTwentyMin_changePercent IS NOT NULL AND (f_oneTwentyMin_lowPrice IS NULL OR f_fiveSec_changeReal IS NULL OR f_tenSec_changeReal IS NULL OR f_thirtySec_changeReal IS NULL OR f_oneMin_changeReal IS NULL OR f_threeMin_changeReal IS NULL OR f_fiveMin_changeReal IS NULL OR f_tenMin_changeReal IS NULL OR f_fifteenMin_changeReal IS NULL OR f_thirtyMin_changeReal IS NULL OR f_sixtyMin_changeReal IS NULL OR f_oneTwentyMin_changeReal IS NULL OR f_fiveSec_changePercent IS NULL OR f_tenSec_changePercent IS NULL OR f_thirtySec_changePercent IS NULL OR f_oneMin_changePercent IS NULL OR f_threeMin_changePercent IS NULL OR f_fiveMin_changePercent IS NULL OR f_tenMin_changePercent IS NULL OR f_fifteenMin_changePercent IS NULL OR f_thirtyMin_changePercent IS NULL OR f_sixtyMin_changePercent IS NULL OR f_oneTwentyMin_changePercent IS NULL OR f_fiveSec_endPrice IS NULL OR f_tenSec_endPrice IS NULL OR f_thirtySec_endPrice IS NULL OR f_oneMin_endPrice IS NULL OR f_threeMin_endPrice IS NULL OR f_fiveMin_endPrice IS NULL OR f_tenMin_endPrice IS NULL OR f_fifteenMin_endPrice IS NULL OR f_thirtyMin_endPrice IS NULL OR f_sixtyMin_endPrice IS NULL OR f_oneTwentyMin_endPrice IS NULL) LIMIT 100")
+    updatedTime = datetime.now() - timedelta(minutes=125)
+    twoHrsAgo = updatedTime.timestamp() * 1000
+    cur.execute("SELECT id, date_ms, f_fiveSec_lowPrice, f_tenSec_lowPrice, f_thirtySec_lowPrice, f_oneMin_lowPrice, f_threeMin_lowPrice, f_fiveMin_lowPrice, f_tenMin_lowPrice, f_fifteenMin_lowPrice, f_thirtyMin_lowPrice, f_sixtyMin_lowPrice, f_oneTwentyMin_lowPrice FROM trades WHERE p_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NULL AND date_ms < "+str(twoHrsAgo)+" ORDER BY date_ms DESC LIMIT 1")
     rows = cur.fetchall()
 
+
+
     for row in rows:
-        print(datetime.fromtimestamp(round(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p"))
+        print(datetime.fromtimestamp(math.floor(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p")+" "+str(math.floor(row[1] / 1000)))
         if row[2] is None or row[2] == 0:
             getCalcTrades(market, 'fiveSec', row[0], row[1])
         if row[3] is None or row[3] == 0:
@@ -164,9 +171,10 @@ while True:
         if row[12] is None or row[12] == 0:
             getCalcTrades(market, 'oneTwentyMin', row[0], row[1])
 
-    print("Future Filler Takin a break.")
+    previousDate_ms=row[1]
+    # print("Future Filler Takin a break.")
 
-    time.sleep(60)
+    # time.sleep(60)
 
 
 

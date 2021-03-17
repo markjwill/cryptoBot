@@ -17,6 +17,11 @@ import pprint
 from pytz import timezone
 import math
 
+import liveCruncher
+import categories
+
+import credentials
+
 # cur.execute(
 #     "SELECT first_name,last_name FROM employees WHERE first_name=?", 
 #     (some_name,))
@@ -66,11 +71,11 @@ callTime = {
 
 try:
     conn = mariadb.connect(
-        user="MrBot",
-        password="8fdvaoivposriong",
-        host="127.0.0.1",
-        port=3306,
-        database="botscape"
+        user=credentials.dbUser,
+        password=credentials.dbPassword,
+        host=credentials.dbHost,
+        port=credentials.dbPort,
+        database=credentials.dbName
     )
 except mariadb.Error as e:
     print(f"Error connecting to MariaDB Platform: {e}")
@@ -87,8 +92,8 @@ class RequestClient(object):
     }
 
     def __init__(self, headers={}):
-        self.access_id = '<secret>'
-        self.secret_key = '<secret>'
+        self.access_id = credentials.coinEc2AccessId
+        self.secret_key = credentials.coinExSecretKey
         self.url = 'https://api.coinex.com'
         self.headers = self.__headers
         self.headers.update(headers)
@@ -169,6 +174,8 @@ class Bot:
     currencyLean=1.0 # If buyCoin is worth more, lean > 1.0
              # If sellCoin is worth more, lean < 1.0
 
+    trades = []
+
     actionTaken=''
     actionValue=0.0
     completedTradeId=""
@@ -189,8 +196,9 @@ class Bot:
     lowStartPercent=0.3
     highStartPercent=0.7
 
+    feeAsPercent=0.25
     fee=0.00126
-    startPeakFeeMultiple=3.5
+    startPeakFeeMultiple=2
 
     tradeId="0"
     remaining="0"
@@ -215,6 +223,14 @@ class Bot:
     cetSellHistory = {}
     cetBuyHistory = {}
     currentPrice = {}
+
+    avgSets = []
+    predictionString = ''
+    predictionValue = 0.0
+    predictionSets = []
+    avgPricePrediction = 0.0
+    avgPrediction = 0.0
+    avgPricePredictionSets = []
 
     lastFirstTrade = 0
 
@@ -336,6 +352,7 @@ class Bot:
             self.calculateLean(self.priceData)
             # pp.pprint(currentData['currentPrice'])
             self.addCurrentPrice(self.priceData)
+            self.predictPrice()
             self.printDebug()
         self.previousCurrentPrice = self.priceData['currentPrice']
         if self.first or self.second:
@@ -351,7 +368,53 @@ class Bot:
         except mariadb.Error as e:
             print(f"Error: {e}", flush=True)
 
+    def predictPrice(self):
+        while len(self.avgSets) > 5:
+            oldSet = self.avgSets.pop(0)
+            print(oldSet)
+            newSet = self.avgSets[-1]
+            print(newSet)
+            self.tSecSlope = newSet['tSecAvg'] - oldSet['tSecAvg']
+            self.fiveSlope = newSet['fiveAvg'] - oldSet['fiveAvg']
+            self.thirtySlope = newSet['thirtyAvg'] - oldSet['thirtyAvg']
+            self.oneTwentySlope = newSet['oneTwentyAvg'] - oldSet['oneTwentyAvg']
+            print(self.priceData['currentPrice'])
+            print(self.tSecSlope)
+            print(self.fiveSlope )
+            print(self.thirtySlope)
+            print(self.oneTwentySlope)
+            self.predictionString = categories.getRollingString(self.priceData['currentPrice'], newSet['tSecAvg'], newSet['fiveAvg'], newSet['thirtyAvg'], newSet['oneTwentyAvg'])+'-'+categories.getSlopeString(self.tSecSlope, self.fiveSlope, self.thirtySlope, self.oneTwentySlope)
+            cur.execute('SELECT value FROM predictions WHERE predictions.key = "{0:s}"'.format(self.predictionString))
+            values = cur.fetchall()
+            self.predictionValue = 0
+            for value in values:
+                self.predictionValue = value[0]
+            now = datetime.now()
+            then = now + timedelta(minutes=10)
+            self.predictionSets.append({
+                'string' : self.predictionString,
+                'value' : self.predictionValue,
+                'time' : now.astimezone(timezone('US/Central')).strftime("%I:%M:%S%p"),
+                'pValue' : self.predictionToPrice(self.predictionValue),
+                'pTime' : then.astimezone(timezone('US/Central')).strftime("%I:%M:%S%p")
+            })
+            while len(self.predictionSets) > 12:
+                self.predictionSets.pop(0)
+            total = 0.0
+            for vals in self.predictionSets:
+                total += vals['value']
+            avg = 0 if ( len(self.predictionSets) == 0 ) else ( total / len(self.predictionSets) )
+            self.avgPrediction = 0 if (len(self.predictionSets) > 5 ) else avg
+            self.avgPricePrediction = self.predictionToPrice(avg)
+            self.avgPricePredictionSets.append({
+                'value' : self.avgPricePrediction,
+                'expires' : then
+            })
+            filter(isStillValid, self.avgPricePredictionSets)
 
+
+    def predictionToPrice(self, prediction):
+        return self.priceData['currentPrice'] * ( prediction + 100 ) / 100
 
     def topCet(self):
         if self.cetBuyTime < datetime.now() - timedelta(minutes=10):
@@ -582,8 +645,8 @@ class Bot:
 
         if result['orderUp'] == False:
             if self.lastPrice == 0.0:
-                print("No previous price to set new price, exiting", flush=True)
-                exit()
+                print("No previous price to set new price", flush=True)
+                self.pickNewLastPrice()
             self.mode = 'wait'
             self.tradeId = "0"
             # get price
@@ -648,6 +711,14 @@ class Bot:
                 self.priceData['currentPrice'] < self.greenPrice):
             self.mode = 'green'
 
+        cTo = self.priceData['highPrice'] - self.priceData['currentPrice']
+        if self.nextActionType() == 'sell':
+            cTo = self.priceData['currentPrice'] - self.priceData['lowPrice']
+        lowHighDiff = self.priceData['highPrice'] - self.priceData['lowPrice']
+
+        currentRangePerc = ( cTo * 100 / lowHighDiff )
+        # print('currentRangePerc {0:0.8f}'.format(currentRangePerc))
+
         if ( datetime.now() - self.lastTime > timedelta(hours=self.redTimeHours) and
                 self.mode != 'green'):
             self.mode = 'red'
@@ -662,8 +733,9 @@ class Bot:
             lowHighDiff = self.priceData['highPrice'] - self.priceData['lowPrice']
 
             currentRangePerc = ( cTo * 100 / lowHighDiff )
-            print('lossGainPerc {0:5.2f} currentRangePerc {1:5.2f}'.format(lossGainPerc, currentRangePerc), flush=True)
-            if lossGainPerc < -1.0 and lossGainPerc > -2.0 and currentRangePerc > 97.0:
+            # print('lossGainPerc {0:5.2f} currentRangePerc {1:5.2f}'.format(lossGainPerc, currentRangePerc), flush=True)
+            if lossGainPerc < -1.0 and ( lossGainPerc > -2.0 or self.lastAction == 'sell' ) and currentRangePerc > 95.0:
+                print("RED TRADE")
                 self.setRedTrade()
 
             # Rewrite red mode to look for a new good entry point and make a red sale
@@ -699,25 +771,27 @@ class Bot:
 
         self.goalPercent = self.getGoalPercent()
 
-        if self.previousCurrentPrice > self.priceData['currentPrice'] and self.lastAction == 'sell':
-            diff = self.previousCurrentPrice - self.priceData['currentPrice']
-            perc = diff * 100 / self.previousCurrentPrice
-            if perc != 100.00 and perc > 0.9 and self.priceData['currentPrice'] < self.greenPrice:
-                # price jumped way down
-                print("PRICE JUMP TRIGGER")
+        if self.lastAction == 'sell' and self.priceData['currentPrice'] < self.greenPrice:
+            # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
+            if self.avgPrediction > self.feeAsPercent:
+                # print("IN GREEN TRIGGER BUY", flush=True)
                 self.actionPrice = self.priceData['currentPrice'] - (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * .001)
                 self.setActionTrade()
                 return
-        elif self.previousCurrentPrice < self.priceData['currentPrice'] and self.lastAction == 'buy':
-            diff = self.priceData['currentPrice'] - self.previousCurrentPrice
-            perc = diff * 100 / self.priceData['currentPrice']
-            if perc != 100.00 and perc > 0.9 and self.priceData['currentPrice'] > self.greenPrice:
-                # Price jumped way up
-                print("PRICE JUMP TRIGGER")
+        elif self.lastAction == 'sell' and self.avgPrediction > 3.75:
+                print("PRICE IS LEAVING, GO FOR CATCH IT", flush=True)
+                self.setRedTrade()
+        elif self.lastAction == 'buy' and self.priceData['currentPrice'] > self.greenPrice:
+            # print("CHECKING IN GREEN SELL PREDICTION", flush=True)
+            if self.avgPrediction < 0 - self.feeAsPercent:
+                # print("IN GREEN TRIGGER SELL", flush=True)
                 self.actionPrice = self.priceData['currentPrice'] + (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * .001)
                 self.setActionTrade()
                 return
-        if self.lastAction == 'buy':
+        elif self.lastAction == 'buy' and self.avgPrediction < -3.75:
+                print("PRICE IS LEAVING, GO FOR CATCH IT", flush=True)
+                self.setRedTrade()
+        elif self.lastAction == 'buy':
             self.latestPrice = self.priceData['sellActionPrice']
             if self.latestPrice > self.guidePrice:
                 self.updateGuidePrice(self.latestPrice)
@@ -922,10 +996,10 @@ class Bot:
             cf = getFloatFormat(change)
             currency = currency + " {0:{1}.{2}f} {3:4s}".format(cf[0], cf[1], cf[2], coin)
         if round(val, 2) == 0.0:
-            return bcolors.ENDC+'{0:5.2f}%'.format(0)+'      0'+bcolors.ENDC
+            return bcolors.ENDC+'{0:6.2f}%'.format(0)+'      0'+bcolors.ENDC
         elif val > 0:
-            return bcolors.OKGREEN+'{0:5.2f}%'.format(val)+' '+currency+bcolors.ENDC
-        return bcolors.FAIL+'{0:5.2f}%'.format(val)+' '+currency+bcolors.ENDC
+            return bcolors.OKGREEN+'{0:6.2f}%'.format(val)+' '+currency+bcolors.ENDC
+        return bcolors.FAIL+'{0:6.2f}%'.format(val)+' '+currency+bcolors.ENDC
 
 
     def printDebug(self):
@@ -962,7 +1036,7 @@ class Bot:
         startAmount12 = 0.0 
         endDealMoney = 0.0
         endAmount = 0.0
-        self.debugPrintRotation = 1 + self.debugPrintRotation
+        self.debugPrintRotation = 10
         now = datetime.now() - timedelta(hours = 48)
         if len(self.history) != 0: 
             for trade in self.history[::-1]:
@@ -1111,6 +1185,7 @@ class Bot:
             if self.nextActionType() == 'buy':
                 change = self.changeFormat(findAmount(self.priceData['currentPrice'], endDealMoney), endAmount, self.buyCoin, False)
             color=''
+
             if self.mode == 'green':
                 color=bcolors.OKGREEN
             if self.mode == 'in-progress':
@@ -1126,75 +1201,120 @@ class Bot:
                 change = self.changeFormat(findAmount(self.greenPrice, endDealMoney), endAmount, self.buyCoin, False)
 
             print(bcolors.OKGREEN+"G R E E N Price: {0:0.8f} {1:s}".format(self.greenPrice, change)) # price most recently placed in a trade
-            print('{0:>15s}: {1:f}'.format(self.listedType, self.actionPrice), flush=True)
-            print(bcolors.ENDC+"  green touches: "+str(self.greenTouches))
-            print("    red touches: "+str(self.redTouches))
-            toGreen = getFloatFormat(abs(self.greenPrice - self.priceData['currentPrice']))
-            print("distanceToGreen: {0:{1}.{2}f}".format(toGreen[0], toGreen[1], toGreen[2]))
+            print('{0:>15s}: {1:f}'.format("listed "+self.listedType, self.listedPrice), flush=True)
+            
+            if self.nextActionType() == 'sell':
+                if self.actionPrice > self.greenPrice:
+                    color=bcolors.OKGREEN
+                else:
+                    color=bcolors.WARNING
+            else:
+                if self.actionPrice < self.greenPrice:
+                    color=bcolors.OKGREEN
+                else:
+                    color=bcolors.WARNING
+            change = self.changeFormat(findDealMoney(self.actionPrice, endAmount), endDealMoney, self.sellCoin)
+            if self.nextActionType() == 'buy':
+                change = self.changeFormat(findAmount(self.actionPrice, endDealMoney), endAmount, self.buyCoin, False)
+            print("{0:s}    actionPrice: {1:0.8f} {2:s}{3:s}".format(color, self.actionPrice, change, bcolors.ENDC)) # price we will sell at post hook
+            change = self.changeFormat(findDealMoney(self.guidePrice, endAmount), endDealMoney, self.sellCoin)
+            if self.nextActionType() == 'buy':
+                change = self.changeFormat(findAmount(self.guidePrice, endDealMoney), endAmount, self.buyCoin, False)
+            print("     guidePrice: {0:0.8f} {1:s}".format(self.guidePrice, change))
+            change = self.changeFormat(findDealMoney(self.goalPrice, endAmount), endDealMoney, self.sellCoin)
+            if self.nextActionType() == 'buy':
+                change = self.changeFormat(findAmount(self.goalPrice, endDealMoney), endAmount, self.buyCoin, False)
+            goalPercent = self.goalPercent * 100
+            print("      goalPrice: {0:0.8f} {1:s} {2:0.2f}%".format(self.goalPrice, change, goalPercent))
 
-            if self.previousCurrentPrice > self.priceData['currentPrice']:
-                diff = self.previousCurrentPrice - self.priceData['currentPrice']
-                print("     price down: %0.8f" %diff)
-                perc = diff * 100 / self.previousCurrentPrice
-                print("     price down: %0.2f percent" %perc)
-            elif self.previousCurrentPrice < self.priceData['currentPrice']:
-                diff = self.priceData['currentPrice'] - self.previousCurrentPrice
-                print("       price up: %0.8f" %diff)
-                perc = diff * 100 / self.priceData['currentPrice']
-                print("       price up: %0.2f percent" %perc)
-            else:
-                print("price didn't move")
-            unscaledLean = buyTime / sellTime
-            print("buy min: {0:0.0f} sell min: {1:0.0f}  unscaledLean: {2:0.2f}".format(buyTime, sellTime, unscaledLean))
-            if self.USDTlean != 1.0:
-                if self.USDTlean > 1.0:
-                    toward = 'up / ' + self.buyCoin
-                else:
-                    toward = 'down / ' + self.sellCoin
-                print("      USDT lean: %0.8f toward %s" %(self.USDTlean, toward))
-            if self.BTClean != 1.0:
-                if self.BTClean > 1.0:
-                    toward = 'up / ' + self.buyCoin
-                else:
-                    toward = 'down / ' + self.sellCoin
-                print("       BTC lean: %0.8f toward %s" %(self.BTClean, toward))
-            if self.BCHlean != 1.0:
-                if self.BCHlean > 1.0:
-                    toward = 'up / ' + self.buyCoin
-                else:
-                    toward = 'down / ' + self.sellCoin
-                print("       BCH lean: %0.8f toward %s" %(self.BCHlean, toward))
-            if self.ETHlean != 1.0:
-                if self.ETHlean > 1.0:
-                    toward = 'up / ' + self.buyCoin
-                else:
-                    toward = 'down / ' + self.sellCoin
-                print("       ETH lean: %0.8f toward %s" %(self.ETHlean, toward))
-            if self.currencyLean > 1.0:
-                toward = ' wait for profit'
-            else:
-                toward = ' faster trade '
-            print("currencyLean: {0:0.6f} toward {1:s}".format(self.currencyLean, toward))
-            if self.historyLean > 1.0:
-                toward = ' wait for profit'
-            else:
-                toward = ' faster trade '
-            print(" historyLean: {0:0.6f} toward {1:s}".format(self.historyLean, toward))
-            if self.recentRangeLean > 1.0:
-                toward = ' wait for profit'
-            else:
-                toward = ' faster trade '
-            print("  rRangeLean: {0:0.6f} toward {1:s}".format(self.recentRangeLean, toward))
-            if self.timeLean > 1.0:
-                toward = ' wait for profit'
-            else:
-                toward = ' faster trade '
-            print("    timeLean: {0:0.6f} toward {1:s}".format(self.timeLean, toward))
-            if self.greenTouchesLean > 1.0:
-                toward = ' wait for profit'
-            else:
-                toward = ' faster trade '
-            print("  greenTLean: {0:0.6f} toward {1:s}".format(self.greenTouchesLean, toward))
+            print("  green touches: "+str(self.greenTouches))
+            print("    red touches: "+str(self.redTouches))
+            print("predictions:")
+            for prediction in self.predictionSets[::-1]:
+                change = self.changeFormat(findDealMoney(prediction['pValue'], endAmount), endDealMoney, self.sellCoin)
+                if self.nextActionType() == 'buy':
+                    change = self.changeFormat(findAmount(prediction['pValue'], endDealMoney), endAmount, self.buyCoin, False)
+                # change = self.changeFormat(prediction['pValue'], self.priceData['currentPrice'], self.sellCoin)
+                print('{0:s}: {1:5.2f} {2:s}     {3:5.2f} {4:s} {5:s}'.format(prediction['string'], prediction['value'], prediction['time'], prediction['pValue'], change, prediction['pTime']))
+            
+            change = self.changeFormat(findDealMoney(self.avgPricePrediction, endAmount), endDealMoney, self.sellCoin)
+            if self.nextActionType() == 'buy':
+                change = self.changeFormat(findAmount(self.avgPricePrediction, endDealMoney), endAmount, self.buyCoin, False)
+            # change = self.changeFormat(self.avgPricePrediction, self.priceData['currentPrice'], self.sellCoin)
+            print("1 min avg prediction: {0:6.2f}     {1:5.2f} {2:s}".format(self.avgPrediction, self.avgPricePrediction, change))
+
+            for prediction in self.avgPricePredictionSets[::-1]:
+                change = self.changeFormat(findDealMoney(prediction['value'], endAmount), endDealMoney, self.sellCoin)
+                if self.nextActionType() == 'buy':
+                    change = self.changeFormat(findAmount(prediction['value'], endDealMoney), endAmount, self.buyCoin, False)
+                # change = self.changeFormat(prediction['pValue'], self.priceData['currentPrice'], self.sellCoin)
+                print('     avg : {0:5.2f} {1:s} {2:s}'.format(prediction['value'], change, prediction['expires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p")))
+            # toGreen = getFloatFormat(abs(self.greenPrice - self.priceData['currentPrice']))
+            # print("distanceToGreen: {0:{1}.{2}f}".format(toGreen[0], toGreen[1], toGreen[2]))
+
+            # if self.previousCurrentPrice > self.priceData['currentPrice']:
+            #     diff = self.previousCurrentPrice - self.priceData['currentPrice']
+            #     print("     price down: %0.8f" %diff)
+            #     perc = diff * 100 / self.previousCurrentPrice
+            #     print("     price down: %0.2f percent" %perc)
+            # elif self.previousCurrentPrice < self.priceData['currentPrice']:
+            #     diff = self.priceData['currentPrice'] - self.previousCurrentPrice
+            #     print("       price up: %0.8f" %diff)
+            #     perc = diff * 100 / self.priceData['currentPrice']
+            #     print("       price up: %0.2f percent" %perc)
+            # else:
+            #     print("price didn't move")
+            # unscaledLean = buyTime / sellTime
+            # print("buy min: {0:0.0f} sell min: {1:0.0f}  unscaledLean: {2:0.2f}".format(buyTime, sellTime, unscaledLean))
+            # if self.USDTlean != 1.0:
+            #     if self.USDTlean > 1.0:
+            #         toward = 'up / ' + self.buyCoin
+            #     else:
+            #         toward = 'down / ' + self.sellCoin
+            #     print("      USDT lean: %0.8f toward %s" %(self.USDTlean, toward))
+            # if self.BTClean != 1.0:
+            #     if self.BTClean > 1.0:
+            #         toward = 'up / ' + self.buyCoin
+            #     else:
+            #         toward = 'down / ' + self.sellCoin
+            #     print("       BTC lean: %0.8f toward %s" %(self.BTClean, toward))
+            # if self.BCHlean != 1.0:
+            #     if self.BCHlean > 1.0:
+            #         toward = 'up / ' + self.buyCoin
+            #     else:
+            #         toward = 'down / ' + self.sellCoin
+            #     print("       BCH lean: %0.8f toward %s" %(self.BCHlean, toward))
+            # if self.ETHlean != 1.0:
+            #     if self.ETHlean > 1.0:
+            #         toward = 'up / ' + self.buyCoin
+            #     else:
+            #         toward = 'down / ' + self.sellCoin
+            #     print("       ETH lean: %0.8f toward %s" %(self.ETHlean, toward))
+            # if self.currencyLean > 1.0:
+            #     toward = ' wait for profit'
+            # else:
+            #     toward = ' faster trade '
+            # print("currencyLean: {0:0.6f} toward {1:s}".format(self.currencyLean, toward))
+            # if self.historyLean > 1.0:
+            #     toward = ' wait for profit'
+            # else:
+            #     toward = ' faster trade '
+            # print(" historyLean: {0:0.6f} toward {1:s}".format(self.historyLean, toward))
+            # if self.recentRangeLean > 1.0:
+            #     toward = ' wait for profit'
+            # else:
+            #     toward = ' faster trade '
+            # print("  rRangeLean: {0:0.6f} toward {1:s}".format(self.recentRangeLean, toward))
+            # if self.timeLean > 1.0:
+            #     toward = ' wait for profit'
+            # else:
+            #     toward = ' faster trade '
+            # print("    timeLean: {0:0.6f} toward {1:s}".format(self.timeLean, toward))
+            # if self.greenTouchesLean > 1.0:
+            #     toward = ' wait for profit'
+            # else:
+            #     toward = ' faster trade '
+            # print("  greenTLean: {0:0.6f} toward {1:s}".format(self.greenTouchesLean, toward))
             # since = now - self.lastTime
             # s1 = since.total_seconds()
             # hours1, remainder = divmod(s1, 3600)
@@ -1220,74 +1340,74 @@ class Bot:
             # hours5, remainder = divmod(s5, 3600)
             # minutes5, seconds = divmod(remainder, 60)
             # print('{:02}hr {:02}m since last '.format(int(hours5), int(minutes5)) + 'resetTime ')
-            if self.latestPrice > self.lastPrice:
-                print("price is up since last trade by:")
-                change = self.latestPrice - self.lastPrice
-                print("      %0.8f" %change)
-            else:
-                print("price is down since last trade by:")
-                change = self.lastPrice - self.latestPrice
-                print("      %0.8f" %change)
+            # if self.latestPrice > self.lastPrice:
+            #     print("price is up since last trade by:")
+            #     change = self.latestPrice - self.lastPrice
+            #     print("      %0.8f" %change)
+            # else:
+            #     print("price is down since last trade by:")
+            #     change = self.lastPrice - self.latestPrice
+            #     print("      %0.8f" %change)
 
-            if self.nextActionType() == 'sell':
-                print("sellActionPrice: %0.8f" %self.priceData['sellActionPrice'])
-            else:
-                print(" buyActionPrice: %0.8f" %self.priceData['buyActionPrice'])
-            print(" avgActionPrice: %0.8f %d trades" %(self.priceData['avgActionPrice'], self.priceData['actionCount'])) # current price farthest toward profit
-            print("    latestPrice: %0.8f" %self.latestPrice) # current price farthest toward profit
+            # if self.nextActionType() == 'sell':
+            #     print("sellActionPrice: %0.8f" %self.priceData['sellActionPrice'])
+            # else:
+            #     print(" buyActionPrice: %0.8f" %self.priceData['buyActionPrice'])
+            # print(" avgActionPrice: %0.8f %d trades" %(self.priceData['avgActionPrice'], self.priceData['actionCount'])) # current price farthest toward profit
+            # print("    latestPrice: %0.8f" %self.latestPrice) # current price farthest toward profit
 
-            print("      lastPrice: %0.8f" %self.lastPrice) # price most recently completed in a trade
-            color=''
-            if self.nextActionType() == 'sell':
-                if self.actionPrice > self.greenPrice:
-                    color=bcolors.OKGREEN
-                else:
-                    color=bcolors.WARNING
-            else:
-                if self.actionPrice < self.greenPrice:
-                    color=bcolors.OKGREEN
-                else:
-                    color=bcolors.WARNING
-            print("%s    actionPrice: %0.8f %0.1fp %s" %(color, self.actionPrice, self.percToGreen(self.actionPrice), bcolors.ENDC)) # price we will sell at post hook
-            print("     guidePrice: %0.8f %0.1fp" %(self.guidePrice, self.percToGreen(self.guidePrice))) # price farthest toward profit since last action
-            goalPercent = self.goalPercent * 100
-            print("      goalPrice: {0:0.8f} {1:0.1f}p {2:0.2f}%".format(self.goalPrice, self.percToGreen(self.goalPrice), goalPercent)) # price we will sit at pre hook
-            formatted = getFloatFormat(self.listedPrice)
-            print("    listedPrice: {0:{1}.{2}f} {3:0.1f}p".format(formatted[0], formatted[1], formatted[2], self.percToGreen(self.listedPrice))) # price most recently placed in a trade
+            # print("      lastPrice: %0.8f" %self.lastPrice) # price most recently completed in a trade
+            # color=''
+            # if self.nextActionType() == 'sell':
+            #     if self.actionPrice > self.greenPrice:
+            #         color=bcolors.OKGREEN
+            #     else:
+            #         color=bcolors.WARNING
+            # else:
+            #     if self.actionPrice < self.greenPrice:
+            #         color=bcolors.OKGREEN
+            #     else:
+            #         color=bcolors.WARNING
+            # print("%s    actionPrice: %0.8f %0.1fp %s" %(color, self.actionPrice, self.percToGreen(self.actionPrice), bcolors.ENDC)) # price we will sell at post hook
+            # print("     guidePrice: %0.8f %0.1fp" %(self.guidePrice, self.percToGreen(self.guidePrice))) # price farthest toward profit since last action
+            # goalPercent = self.goalPercent * 100
+            # print("      goalPrice: {0:0.8f} {1:0.1f}p {2:0.2f}%".format(self.goalPrice, self.percToGreen(self.goalPrice), goalPercent)) # price we will sit at pre hook
+            # formatted = getFloatFormat(self.listedPrice)
+            # print("    listedPrice: {0:{1}.{2}f} {3:0.1f}p".format(formatted[0], formatted[1], formatted[2], self.percToGreen(self.listedPrice))) # price most recently placed in a trade
             
-            goalDebug = self.goalPercentReset
-            print("goalDebug {0:0.5f} inital ".format(goalDebug))
-            goalDebug = goalDebug * self.timeLean
-            print("goalDebug {0:0.5f} timeLean {1:0.5f} DISABLED".format(goalDebug, self.timeLean))
-            goalDebug = goalDebug * self.currencyLean
-            print("goalDebug {0:0.5f} currencyLean {1:0.5f}".format(goalDebug, self.currencyLean))
-            goalDebug = goalDebug * self.historyLean
-            print("goalDebug {0:0.5f} historyLean {1:0.5f}".format(goalDebug, self.historyLean))
-            goalDebug = goalDebug * self.recentRangeLean
-            print("goalDebug {0:0.5f} recentRangeLean {1:0.5f}".format(goalDebug, self.recentRangeLean))
-            # goalDebug = goalDebug * self.greenTouchesLean
-            print("goalDebug {0:0.5f} greenTouchesLean {1:0.5f} DISABLED final".format(goalDebug, self.greenTouchesLean))
+            # goalDebug = self.goalPercentReset
+            # print("goalDebug {0:0.5f} inital ".format(goalDebug))
+            # goalDebug = goalDebug * self.timeLean
+            # print("goalDebug {0:0.5f} timeLean {1:0.5f} DISABLED".format(goalDebug, self.timeLean))
+            # goalDebug = goalDebug * self.currencyLean
+            # print("goalDebug {0:0.5f} currencyLean {1:0.5f}".format(goalDebug, self.currencyLean))
+            # goalDebug = goalDebug * self.historyLean
+            # print("goalDebug {0:0.5f} historyLean {1:0.5f}".format(goalDebug, self.historyLean))
+            # goalDebug = goalDebug * self.recentRangeLean
+            # print("goalDebug {0:0.5f} recentRangeLean {1:0.5f}".format(goalDebug, self.recentRangeLean))
+            # # goalDebug = goalDebug * self.greenTouchesLean
+            # print("goalDebug {0:0.5f} greenTouchesLean {1:0.5f} DISABLED final".format(goalDebug, self.greenTouchesLean))
 
-            period = getCalcTrades(self.market, 10)
-            oneMin = getCalcTrades(self.market, 'oneMin')
-            threeMin = getCalcTrades(self.market, 'threeMin')
-            fiveMin = getCalcTrades(self.market, 'fiveMin')
-            tenMin = getCalcTrades(self.market, 'tenMin')
-            fifteenMin = getCalcTrades(self.market, 'fifteenMin')
-            thirtyMin = getCalcTrades(self.market, 'thirtyMin')
+            # period = getCalcTrades(self.market, 10)
+            # oneMin = getCalcTrades(self.market, 'oneMin')
+            # threeMin = getCalcTrades(self.market, 'threeMin')
+            # fiveMin = getCalcTrades(self.market, 'fiveMin')
+            # tenMin = getCalcTrades(self.market, 'tenMin')
+            # fifteenMin = getCalcTrades(self.market, 'fifteenMin')
+            # thirtyMin = getCalcTrades(self.market, 'thirtyMin')
 
-            print('      {0:15s} {1:15s} {2:15s} {3:15s} {4:15s} {5:15s} {6:15s}'.format('period', 'oneMin', 'threeMin', 'fiveMin', 'tenMin', 'fifteenMin', 'thirtyMin'),flush=True)
-            print('  avg {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['avgPrice'], oneMin['avgPrice'], threeMin['avgPrice'], fiveMin['avgPrice'], tenMin['avgPrice'], fifteenMin['avgPrice'], thirtyMin['avgPrice']),flush=True)
-            print(' high {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['highPrice'], oneMin['highPrice'], threeMin['highPrice'], fiveMin['highPrice'], tenMin['highPrice'], fifteenMin['highPrice'], thirtyMin['highPrice']),flush=True)
-            print('  low {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['lowPrice'], oneMin['lowPrice'], threeMin['lowPrice'], fiveMin['lowPrice'], tenMin['lowPrice'], fifteenMin['lowPrice'], thirtyMin['lowPrice']),flush=True)
-            print('start {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['startPrice'], oneMin['startPrice'], threeMin['startPrice'], fiveMin['startPrice'], tenMin['startPrice'], fifteenMin['startPrice'], thirtyMin['startPrice']),flush=True)
-            print('  end {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['endPrice'], oneMin['endPrice'], threeMin['endPrice'], fiveMin['endPrice'], tenMin['endPrice'], fifteenMin['endPrice'], thirtyMin['endPrice']),flush=True)
-            print('rChng {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['changeReal'], oneMin['changeReal'], threeMin['changeReal'], fiveMin['changeReal'], tenMin['changeReal'], fifteenMin['changeReal'], thirtyMin['changeReal']),flush=True)
-            print('pChng {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['changePercent'], oneMin['changePercent'], threeMin['changePercent'], fiveMin['changePercent'], tenMin['changePercent'], fifteenMin['changePercent'], thirtyMin['changePercent']),flush=True)
-            print('rTrvl {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['travelReal'], oneMin['travelReal'], threeMin['travelReal'], fiveMin['travelReal'], tenMin['travelReal'], fifteenMin['travelReal'], thirtyMin['travelReal']),flush=True)
-            print('pTrvl {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['travelPercent'], oneMin['travelPercent'], threeMin['travelPercent'], fiveMin['travelPercent'], tenMin['travelPercent'], fifteenMin['travelPercent'], thirtyMin['travelPercent']),flush=True)
-            print('  vol {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['volumeAvg'], oneMin['volumeAvg'], threeMin['volumeAvg'], fiveMin['volumeAvg'], tenMin['volumeAvg'], fifteenMin['volumeAvg'], thirtyMin['volumeAvg']),flush=True)
-            print('tPmin {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['tradesPrMin'], oneMin['tradesPrMin'], threeMin['tradesPrMin'], fiveMin['tradesPrMin'], tenMin['tradesPrMin'], fifteenMin['tradesPrMin'], thirtyMin['tradesPrMin']),flush=True)
+            # print('      {0:15s} {1:15s} {2:15s} {3:15s} {4:15s} {5:15s} {6:15s}'.format('period', 'oneMin', 'threeMin', 'fiveMin', 'tenMin', 'fifteenMin', 'thirtyMin'),flush=True)
+            # print('  avg {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['avgPrice'], oneMin['avgPrice'], threeMin['avgPrice'], fiveMin['avgPrice'], tenMin['avgPrice'], fifteenMin['avgPrice'], thirtyMin['avgPrice']),flush=True)
+            # print(' high {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['highPrice'], oneMin['highPrice'], threeMin['highPrice'], fiveMin['highPrice'], tenMin['highPrice'], fifteenMin['highPrice'], thirtyMin['highPrice']),flush=True)
+            # print('  low {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['lowPrice'], oneMin['lowPrice'], threeMin['lowPrice'], fiveMin['lowPrice'], tenMin['lowPrice'], fifteenMin['lowPrice'], thirtyMin['lowPrice']),flush=True)
+            # print('start {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['startPrice'], oneMin['startPrice'], threeMin['startPrice'], fiveMin['startPrice'], tenMin['startPrice'], fifteenMin['startPrice'], thirtyMin['startPrice']),flush=True)
+            # print('  end {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['endPrice'], oneMin['endPrice'], threeMin['endPrice'], fiveMin['endPrice'], tenMin['endPrice'], fifteenMin['endPrice'], thirtyMin['endPrice']),flush=True)
+            # print('rChng {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['changeReal'], oneMin['changeReal'], threeMin['changeReal'], fiveMin['changeReal'], tenMin['changeReal'], fifteenMin['changeReal'], thirtyMin['changeReal']),flush=True)
+            # print('pChng {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['changePercent'], oneMin['changePercent'], threeMin['changePercent'], fiveMin['changePercent'], tenMin['changePercent'], fifteenMin['changePercent'], thirtyMin['changePercent']),flush=True)
+            # print('rTrvl {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['travelReal'], oneMin['travelReal'], threeMin['travelReal'], fiveMin['travelReal'], tenMin['travelReal'], fifteenMin['travelReal'], thirtyMin['travelReal']),flush=True)
+            # print('pTrvl {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['travelPercent'], oneMin['travelPercent'], threeMin['travelPercent'], fiveMin['travelPercent'], tenMin['travelPercent'], fifteenMin['travelPercent'], thirtyMin['travelPercent']),flush=True)
+            # print('  vol {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['volumeAvg'], oneMin['volumeAvg'], threeMin['volumeAvg'], fiveMin['volumeAvg'], tenMin['volumeAvg'], fifteenMin['volumeAvg'], thirtyMin['volumeAvg']),flush=True)
+            # print('tPmin {0:15.4f} {1:15.4f} {2:15.4f} {3:15.4f} {4:15.4f} {5:15.4f} {6:15.4f}'.format(period['tradesPrMin'], oneMin['tradesPrMin'], threeMin['tradesPrMin'], fiveMin['tradesPrMin'], tenMin['tradesPrMin'], fifteenMin['tradesPrMin'], thirtyMin['tradesPrMin']),flush=True)
             # period + 'avgPrice' : avgPrice,
             # period + 'highPrice' : highPrice,
             # period + 'lowPrice' : lowPrice,
@@ -1311,7 +1431,7 @@ class Bot:
         print(now.strftime("%Y-%m-%d %H:%M:%S"), flush=True)
 
     def percToGreen(self, price):
-        return price * 100 / self.greenPrice
+        return 0 if (self.greenPrice == 0) else (price * 100 / self.greenPrice)
 
 def percChange(end, start):
     if start == 0:
@@ -1330,10 +1450,10 @@ def findDealMoney(price, amount):
     return amount * price
 
 def findAmount(price, dealMoney):
-    return dealMoney / price
+    return 0 if ( price == 0 ) else ( dealMoney / price )
 
 def findPrice(dealMoney, amount):
-    return dealMoney / amount
+    return 0 if ( amount == 0 ) else ( dealMoney / amount )
 
 def getFloatFormat(value, desired = 8):
     if value > 0:
@@ -1350,6 +1470,10 @@ def getFloatFormat(value, desired = 8):
 def scale(unscaledNum, minAllowed, maxAllowed, min, max):
     return (maxAllowed - minAllowed) * (unscaledNum - min) / (max - min) + minAllowed
 
+def isStillValid(predictionSet):
+    if predictionSet['expires'] > datetime.now() - timedelta(minutes=10):
+        return True
+    return False
 
 class bcolors:
     HEADER = '\033[95m'
@@ -1418,8 +1542,10 @@ def get_latest(trader, market, limit=1000):
     thisFirstTrade = 0
     thisTime=str(time.time())
 
+    if market == trader.market:
+        addTrades(latest['data'], trader)
+
     for array in latest['data']:
-        addTrade(array, market)
         if currentPrice == 0:
             currentPrice = float(array['price'])
             currentTime = int(array['date'])
@@ -1485,109 +1611,25 @@ def get_latest(trader, market, limit=1000):
         'currentPrice': currentPrice
     }
 
-def getRawTrades(market, seconds = 0, quantity = 0):
-    limit = ""
-    andWhere = ""
-    if quantity != 0:
-        limit = " LIMIT 0,{0d}".format(quantity)
-    if seconds != 0:
-        targetDate = datetime.now() - timedelta(seconds=seconds)
-        andWhere = " AND date > {0:0.0f}".format(targetDate.timestamp())
-    if quantity == 0 and limit == 0:
-        limit = " LIMIT 0,200"
-    cur.execute("SELECT price, amount FROM trades WHERE market = '" + market + "'" + andWhere + " ORDER BY date DESC" + limit)
-    return cur.fetchall()
+# 
 
-def getCalcTrades(market, period):
-    if period == 'oneMin':
-        seconds = 60
-    elif period == 'threeMin':
-        seconds = 180
-    elif period == 'fiveMin':
-        seconds = 300
-    elif period == 'tenMin':
-        seconds = 600
-    elif period == 'fifteenMin':
-        seconds = 900
-    elif period == 'thirtyMin':
-        seconds = 1800
-    else:
-        seconds = period
-        period = 'period'
-    trades = getRawTrades(market, seconds)
-
-    avgPrice = 0.0 #avg Price
-    highPrice = 0.0 #high price
-    lowPrice = 0.0 #low price
-    startPrice = 0.0 #start price
-    endPrice = 0.0 #end price, Current Price
-    changeReal = 0.0 #start to end change price
-    changePercent = 0.0 #start to end change price percent
-    travelReal = 0.0 #max travel in price
-    travelPercent = 0.0 #max travel in price percent
-    volume = 0.0 #total volume
-    volumeAvg = 0.0 #
-    totalPrice = 0.0 #total
-    tradeCount = len(trades)
-
-    try:
-        endPrice = trades[0][0]
-        startPrice = trades[-1][0]
-
-        for trade in trades:
-            if trade[0] > highPrice:
-                highPrice = trade[0]
-
-            if trade[0] < lowPrice or lowPrice == 0.0:
-                lowPrice = trade[0]
-
-            totalPrice += trade[0]
-            volume += trade[1]
-
-        avgPrice = totalPrice / tradeCount
-        volumeAvg = volume / tradeCount
-
-        changeReal = endPrice - startPrice
-        changePercent = changeReal * 100 / startPrice
-
-        travelReal = highPrice - lowPrice
-        travelPercent = travelReal * 100 / lowPrice
-
-        tradesPrMin = tradeCount / seconds * 60
-    except IndexError:
-        avgPrice = 0.0 #avg Price
-        highPrice = 0.0 #high price
-        lowPrice = 0.0 #low price
-        startPrice = 0.0 #start price
-        endPrice = 0.0 #end price, Current Price
-        changeReal = 0.0 #start to end change price
-        changePercent = 0.0 #start to end change price percent
-        travelReal = 0.0 #max travel in price
-        travelPercent = 0.0 #max travel in price percent
-        volumeAvg = 0.0 #total volume
-        totalPrice = 0.0 #total
-        tradesPrMin = 0.0 #
-
-    return {
-        'avgPrice' : avgPrice,
-        'highPrice' : highPrice,
-        'lowPrice' : lowPrice,
-        'startPrice' : startPrice,
-        'endPrice' : endPrice,
-        'changeReal' : changeReal,
-        'changePercent' : changePercent,
-        'travelReal' : travelReal,
-        'travelPercent' : travelPercent,
-        'volumeAvg' : volumeAvg,
-        'tradesPrMin' : tradesPrMin
-    }
-
-def addTrade(trade, market):
-    # print(complex_json.dumps(trade, indent = 4, sort_keys=True))
+def addTrades(newTrades, trader):
+    values = ''
+    for trade in newTrades:
+        values += '({0:d},"{1:s}",{2:d},{3:d},"{4:s}","{5:s}","{6:s}"),'.format(trade['id'], trade['amount'], trade['date'], trade['date_ms'], trade['price'], trade['type'], trader.market)
     cur.execute(
-        "REPLACE INTO trades (id, amount, date, date_ms, price, type, market) VALUES (?,?,?,?,?,?,?)",
-        (trade['id'], trade['amount'], trade['date'], trade['date_ms'], trade['price'], trade['type'], market))
+        "INSERT IGNORE INTO trades(id, amount, date, date_ms, price, type, market) VALUES " + values[:-1])
     conn.commit()
+    (trades, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg) = liveCruncher.getLatestNumbers(trader.trades)
+    trader.trades = trades
+    trader.avgSets.append({
+        'tSecAvg' : float(tSecAvg),
+        'fiveAvg' : float(fiveAvg),
+        'thirtyAvg' : float(thirtyAvg),
+        'oneTwentyAvg' : float(oneTwentyAvg)
+    })
+
+
 
 def order_pending(market):
     request_client = RequestClient()
@@ -1607,6 +1649,7 @@ def order_pending(market):
     except AttributeError:
         print("Internet connectivity error, order_pending", flush=True)
         exit()
+
 
     result = {
         'orderUp': False,
@@ -1828,6 +1871,101 @@ if __name__ == '__main__':
 
     # print 'avg', (time.time() * 1000 - a) / 50.0
 
+# def getRawTrades(market, seconds = 0, quantity = 0):
+#     limit = ""
+#     andWhere = ""
+#     if quantity != 0:
+#         limit = " LIMIT 0,{0d}".format(quantity)
+#     if seconds != 0:
+#         targetDate = datetime.now() - timedelta(seconds=seconds)
+#         andWhere = " AND date > {0:0.0f}".format(targetDate.timestamp())
+#     if quantity == 0 and limit == 0:
+#         limit = " LIMIT 0,200"
+#     cur.execute("SELECT price, amount FROM trades WHERE market = '" + market + "'" + andWhere + " ORDER BY date DESC" + limit)
+#     return cur.fetchall()
 
+# def getCalcTrades(market, period):
+#     if period == 'oneMin':
+#         seconds = 60
+#     elif period == 'threeMin':
+#         seconds = 180
+#     elif period == 'fiveMin':
+#         seconds = 300
+#     elif period == 'tenMin':
+#         seconds = 600
+#     elif period == 'fifteenMin':
+#         seconds = 900
+#     elif period == 'thirtyMin':
+#         seconds = 1800
+#     else:
+#         seconds = period
+#         period = 'period'
+#     trades = getRawTrades(market, seconds)
+
+#     avgPrice = 0.0 #avg Price
+#     highPrice = 0.0 #high price
+#     lowPrice = 0.0 #low price
+#     startPrice = 0.0 #start price
+#     endPrice = 0.0 #end price, Current Price
+#     changeReal = 0.0 #start to end change price
+#     changePercent = 0.0 #start to end change price percent
+#     travelReal = 0.0 #max travel in price
+#     travelPercent = 0.0 #max travel in price percent
+#     volume = 0.0 #total volume
+#     volumeAvg = 0.0 #
+#     totalPrice = 0.0 #total
+#     tradeCount = len(trades)
+
+#     try:
+#         endPrice = trades[0][0]
+#         startPrice = trades[-1][0]
+
+#         for trade in trades:
+#             if trade[0] > highPrice:
+#                 highPrice = trade[0]
+
+#             if trade[0] < lowPrice or lowPrice == 0.0:
+#                 lowPrice = trade[0]
+
+#             totalPrice += trade[0]
+#             volume += trade[1]
+
+#         avgPrice = totalPrice / tradeCount
+#         volumeAvg = volume / tradeCount
+
+#         changeReal = endPrice - startPrice
+#         changePercent = changeReal * 100 / startPrice
+
+#         travelReal = highPrice - lowPrice
+#         travelPercent = travelReal * 100 / lowPrice
+
+#         tradesPrMin = tradeCount / seconds * 60
+#     except IndexError:
+#         avgPrice = 0.0 #avg Price
+#         highPrice = 0.0 #high price
+#         lowPrice = 0.0 #low price
+#         startPrice = 0.0 #start price
+#         endPrice = 0.0 #end price, Current Price
+#         changeReal = 0.0 #start to end change price
+#         changePercent = 0.0 #start to end change price percent
+#         travelReal = 0.0 #max travel in price
+#         travelPercent = 0.0 #max travel in price percent
+#         volumeAvg = 0.0 #total volume
+#         totalPrice = 0.0 #total
+#         tradesPrMin = 0.0 #
+
+#     return {
+#         'avgPrice' : avgPrice,
+#         'highPrice' : highPrice,
+#         'lowPrice' : lowPrice,
+#         'startPrice' : startPrice,
+#         'endPrice' : endPrice,
+#         'changeReal' : changeReal,
+#         'changePercent' : changePercent,
+#         'travelReal' : travelReal,
+#         'travelPercent' : travelPercent,
+#         'volumeAvg' : volumeAvg,
+#         'tradesPrMin' : tradesPrMin
+#     }
 
 

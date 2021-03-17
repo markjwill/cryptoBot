@@ -40,7 +40,7 @@ while true; do
     timeString=$(tail -n 1 "${logPath}")
     time=$(date -d "${timeString}" +"%s" 2>:)
     time=$(( ${time} + 0 ))
-    if [[ "${time}" -lt "1" && "${SKIP}" -gt "5" ]]; then
+    if [[ "${time}" -lt "1" && "${SKIP}" -gt "25" ]]; then
         SKIP=0
         now=$(date +%s)
         last=$(( $time + $(( 60 * 5 )) ))
