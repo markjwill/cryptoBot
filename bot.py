@@ -92,7 +92,7 @@ class RequestClient(object):
     }
 
     def __init__(self, headers={}):
-        self.access_id = credentials.coinEc2AccessId
+        self.access_id = credentials.coinExAccessId
         self.secret_key = credentials.coinExSecretKey
         self.url = 'https://api.coinex.com'
         self.headers = self.__headers
@@ -183,7 +183,7 @@ class Bot:
     timeLean=1.0
 
     historyLean=1.0
-    redTimeHours=24
+    redTimeHours=2
     resetHardTimeHours=3
     recentRangeLean=1.0
     resetTime=datetime.now()
@@ -771,27 +771,28 @@ class Bot:
 
         self.goalPercent = self.getGoalPercent()
 
-        if self.lastAction == 'sell' and self.priceData['currentPrice'] < self.greenPrice:
-            # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
-            if self.avgPrediction > self.feeAsPercent:
-                # print("IN GREEN TRIGGER BUY", flush=True)
-                self.actionPrice = self.priceData['currentPrice'] - (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * .001)
-                self.setActionTrade()
-                return
-        elif self.lastAction == 'sell' and self.avgPrediction > 3.75:
-                print("PRICE IS LEAVING, GO FOR CATCH IT", flush=True)
-                self.setRedTrade()
-        elif self.lastAction == 'buy' and self.priceData['currentPrice'] > self.greenPrice:
-            # print("CHECKING IN GREEN SELL PREDICTION", flush=True)
-            if self.avgPrediction < 0 - self.feeAsPercent:
-                # print("IN GREEN TRIGGER SELL", flush=True)
-                self.actionPrice = self.priceData['currentPrice'] + (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * .001)
-                self.setActionTrade()
-                return
-        elif self.lastAction == 'buy' and self.avgPrediction < -3.75:
-                print("PRICE IS LEAVING, GO FOR CATCH IT", flush=True)
-                self.setRedTrade()
-        elif self.lastAction == 'buy':
+        # if self.lastAction == 'sell' and self.priceData['currentPrice'] < self.greenPrice:
+        #     # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
+        #     if self.avgPrediction > self.feeAsPercent:
+        #         # print("IN GREEN TRIGGER BUY", flush=True)
+        #         self.actionPrice = self.priceData['currentPrice'] - (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * .001)
+        #         self.setActionTrade()
+        #         return
+        # elif self.lastAction == 'sell' and self.avgPrediction > 3.75:
+        #         print("PRICE IS LEAVING, GO FOR CATCH IT", flush=True)
+        #         self.setRedTrade()
+        # elif self.lastAction == 'buy' and self.priceData['currentPrice'] > self.greenPrice:
+        #     # print("CHECKING IN GREEN SELL PREDICTION", flush=True)
+        #     if self.avgPrediction < 0 - self.feeAsPercent:
+        #         # print("IN GREEN TRIGGER SELL", flush=True)
+        #         self.actionPrice = self.priceData['currentPrice'] + (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * .001)
+        #         self.setActionTrade()
+        #         return
+        # elif self.lastAction == 'buy' and self.avgPrediction < -3.75:
+        #         print("PRICE IS LEAVING, GO FOR CATCH IT", flush=True)
+        #         self.setRedTrade()
+        # el
+        if self.lastAction == 'buy':
             self.latestPrice = self.priceData['sellActionPrice']
             if self.latestPrice > self.guidePrice:
                 self.updateGuidePrice(self.latestPrice)
@@ -1229,26 +1230,31 @@ class Bot:
 
             print("  green touches: "+str(self.greenTouches))
             print("    red touches: "+str(self.redTouches))
-            print("predictions:")
-            for prediction in self.predictionSets[::-1]:
-                change = self.changeFormat(findDealMoney(prediction['pValue'], endAmount), endDealMoney, self.sellCoin)
-                if self.nextActionType() == 'buy':
-                    change = self.changeFormat(findAmount(prediction['pValue'], endDealMoney), endAmount, self.buyCoin, False)
-                # change = self.changeFormat(prediction['pValue'], self.priceData['currentPrice'], self.sellCoin)
-                print('{0:s}: {1:5.2f} {2:s}     {3:5.2f} {4:s} {5:s}'.format(prediction['string'], prediction['value'], prediction['time'], prediction['pValue'], change, prediction['pTime']))
             
-            change = self.changeFormat(findDealMoney(self.avgPricePrediction, endAmount), endDealMoney, self.sellCoin)
-            if self.nextActionType() == 'buy':
-                change = self.changeFormat(findAmount(self.avgPricePrediction, endDealMoney), endAmount, self.buyCoin, False)
-            # change = self.changeFormat(self.avgPricePrediction, self.priceData['currentPrice'], self.sellCoin)
-            print("1 min avg prediction: {0:6.2f}     {1:5.2f} {2:s}".format(self.avgPrediction, self.avgPricePrediction, change))
 
-            for prediction in self.avgPricePredictionSets[::-1]:
-                change = self.changeFormat(findDealMoney(prediction['value'], endAmount), endDealMoney, self.sellCoin)
-                if self.nextActionType() == 'buy':
-                    change = self.changeFormat(findAmount(prediction['value'], endDealMoney), endAmount, self.buyCoin, False)
-                # change = self.changeFormat(prediction['pValue'], self.priceData['currentPrice'], self.sellCoin)
-                print('     avg : {0:5.2f} {1:s} {2:s}'.format(prediction['value'], change, prediction['expires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p")))
+            # print("predictions:")
+            # for prediction in self.predictionSets[::-1]:
+            #     change = self.changeFormat(findDealMoney(prediction['pValue'], endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         change = self.changeFormat(findAmount(prediction['pValue'], endDealMoney), endAmount, self.buyCoin, False)
+            #     # change = self.changeFormat(prediction['pValue'], self.priceData['currentPrice'], self.sellCoin)
+            #     print('{0:s}: {1:5.2f} {2:s}     {3:5.2f} {4:s} {5:s}'.format(prediction['string'], prediction['value'], prediction['time'], prediction['pValue'], change, prediction['pTime']))
+            
+            # change = self.changeFormat(findDealMoney(self.avgPricePrediction, endAmount), endDealMoney, self.sellCoin)
+            # if self.nextActionType() == 'buy':
+            #     change = self.changeFormat(findAmount(self.avgPricePrediction, endDealMoney), endAmount, self.buyCoin, False)
+            # # change = self.changeFormat(self.avgPricePrediction, self.priceData['currentPrice'], self.sellCoin)
+            # print("1 min avg prediction: {0:6.2f}     {1:5.2f} {2:s}".format(self.avgPrediction, self.avgPricePrediction, change))
+
+            # for prediction in self.avgPricePredictionSets[::-1]:
+            #     change = self.changeFormat(findDealMoney(prediction['value'], endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         change = self.changeFormat(findAmount(prediction['value'], endDealMoney), endAmount, self.buyCoin, False)
+            #     # change = self.changeFormat(prediction['pValue'], self.priceData['currentPrice'], self.sellCoin)
+            #     print('     avg : {0:5.2f} {1:s} {2:s}'.format(prediction['value'], change, prediction['expires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p")))
+            
+
+
             # toGreen = getFloatFormat(abs(self.greenPrice - self.priceData['currentPrice']))
             # print("distanceToGreen: {0:{1}.{2}f}".format(toGreen[0], toGreen[1], toGreen[2]))
 

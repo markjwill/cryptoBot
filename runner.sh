@@ -4,12 +4,26 @@ scriptName="bot.py"
 logName="BTCUSDT.log"
 path="/home/pi/"
 
+
+croncmd="bash ${path}runner.sh"
+cronjob="@reboot $croncmd"
+( crontab -l | grep -v -F "$croncmd" ; echo "$cronjob" ) | crontab -
+
 scriptPath="${path}${scriptName}"
 logPath="${path}${logName}"
 
 OLDTIME=15
 
 SKIP=0
+
+#start data crunders
+python3 ${path}cruncher.py >> cruncher.log 2>&1 &
+python3 ${path}cruncherFutureFill.py >> cruncher.log 2>&1 &
+
+#make sure db back is in the crontab
+croncmd="mysqldump --single-transaction --all-databases | pigz -1 > ${path}dbBackup.log > ${path}dbBackup.sql.gz 2>&1"
+cronjob="30 23 * * * $croncmd"
+( crontab -l | grep -v -F "$croncmd" ; echo "$cronjob" ) | crontab -
 
 function startTrader() {
     echo "###########   START  BOT   ###########" >>"${logPath}" 2>&1
@@ -40,7 +54,7 @@ while true; do
     timeString=$(tail -n 1 "${logPath}")
     time=$(date -d "${timeString}" +"%s" 2>:)
     time=$(( ${time} + 0 ))
-    if [[ "${time}" -lt "1" && "${SKIP}" -gt "25" ]]; then
+    if [[ "${time}" -lt "1" && "${SKIP}" -gt "5" ]]; then
         SKIP=0
         now=$(date +%s)
         last=$(( $time + $(( 60 * 5 )) ))
@@ -49,7 +63,8 @@ while true; do
             echo ">>>###########  BOT TIME OUT  ###########<<<"
             restartTrader
         fi
-    else
+    fi
+    if [[ "${time}" -lt "1" ]]; then
         SKIP=$(( $SKIP + 1))
     fi
     echo "lastLine: ${timeString} SKIP: ${SKIP} time: ${time}"

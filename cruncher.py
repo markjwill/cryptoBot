@@ -461,7 +461,7 @@ while True:
 
 
     for row in rows:
-        print(datetime.fromtimestamp(round(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p"))
+        print("PastCruncher "+datetime.fromtimestamp(round(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p"))
         getCalcAllTrades(market, row[0], row[1])
         # getCalcTrades(market, 'fiveSec', row[0], row[1])
         # getCalcTrades(market, 'tenSec', row[0], row[1])

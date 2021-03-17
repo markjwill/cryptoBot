@@ -147,7 +147,7 @@ while True:
 
 
     for row in rows:
-        print(datetime.fromtimestamp(math.floor(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p")+" "+str(math.floor(row[1] / 1000)))
+        print("FutureCruncher "+datetime.fromtimestamp(math.floor(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p")+" "+str(math.floor(row[1] / 1000)))
         if row[2] is None or row[2] == 0:
             getCalcTrades(market, 'fiveSec', row[0], row[1])
         if row[3] is None or row[3] == 0:
@@ -171,10 +171,10 @@ while True:
         if row[12] is None or row[12] == 0:
             getCalcTrades(market, 'oneTwentyMin', row[0], row[1])
 
-    previousDate_ms=row[1]
-    # print("Future Filler Takin a break.")
-
-    # time.sleep(60)
+    if len(rows):
+        previousDate_ms=row[1]
+    print("Future Filler Takin a break.")
+    time.sleep(0.5)
 
 
 
