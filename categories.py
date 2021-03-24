@@ -5,12 +5,21 @@
 def getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope):
     string = ''
 
+    # D = Down a lot
+    # L = Down a little
+    # C = Near 0 but less than 0
+    # Q = Near 0 but more than 0
+    # H = Up a little
+    # U = Up a lot
+
     if tSecSlope < -28:
         string += 'D'
     elif tSecSlope < -9:
         string += 'L'
+    elif tSecSlope < 0:
+        string += 'C'
     elif tSecSlope < 9:
-        string += 'F'
+        string += 'Q'
     elif tSecSlope < 28:
         string += 'H'
     else:
@@ -20,8 +29,10 @@ def getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope):
         string += 'D'
     elif fiveSlope < -4:
         string += 'L'
+    elif fiveSlope < 0:
+        string += 'C'
     elif fiveSlope < 4:
-        string += 'F'
+        string += 'Q'
     elif fiveSlope < 10:
         string += 'H'
     else:
@@ -31,8 +42,10 @@ def getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope):
         string += 'D'
     elif thirtySlope < -1.5:
         string += 'L'
+    elif thirtySlope < 0:
+        string += 'C'
     elif thirtySlope < 1.5:
-        string += 'F'
+        string += 'Q'
     elif thirtySlope < 5:
         string += 'H'
     else:
@@ -42,8 +55,10 @@ def getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope):
         string += 'D'
     elif oneTwentySlope < -0.75:
         string += 'L'
+    elif oneTwentySlope < 0:
+        string += 'C'
     elif oneTwentySlope < 0.75:
-        string += 'F'
+        string += 'Q'
     elif oneTwentySlope < 2:
         string += 'H'
     else:

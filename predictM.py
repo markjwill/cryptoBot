@@ -13,6 +13,7 @@ import pprint
 from pytz import timezone
 import math
 import plotext as plt
+import numpy as np
 
 import categories
 
@@ -22,9 +23,8 @@ date_ms = None
 if len(sys.argv) > 1:
     date_ms = sys.argv[1]
 
-startTime = 1614723828 #Tue Mar 02 2021 16:23:48 GMT-0600 (CST)
-# endTime   = 1614725028 #Tue Mar 02 2021 16:43:48 GMT-0600 (CST)
-endTime = 1614837600 #Thu Mar 04 2021 06:00:00 GMT+0000
+dateExcludes = 'AND ( date > 1616282088 OR ( date < 1616243798 AND date > 1616004584 ) )'
+
 class col:
     maxg = '\033[30m\033[42m'
     midg = '\033[32m\033[40m'
@@ -51,7 +51,7 @@ except mariadb.Error as e:
 cur = conn.cursor()
 
 if date_ms is None:
-    cur.execute("SELECT p_oneTwentyMin_changePercent,p_sixtyMin_changePercent,p_thirtyMin_changePercent,p_fifteenMin_changePercent,p_tenMin_changePercent,p_fiveMin_changePercent,p_threeMin_changePercent,p_oneMin_changePercent,p_thirtySec_changePercent,p_tenSec_changePercent,p_fiveSec_changePercent,price,f_fiveSec_changePercent,f_tenSec_changePercent,f_thirtySec_changePercent,f_oneMin_changePercent,f_threeMin_changePercent,f_fiveMin_changePercent,f_tenMin_changePercent,f_fifteenMin_changePercent,f_thirtyMin_changePercent,f_sixtyMin_changePercent,f_oneTwentyMin_changePercent, date_ms,f_fiveSec_lowPrice,f_tenSec_lowPrice,f_thirtySec_lowPrice,f_oneMin_lowPrice,f_threeMin_lowPrice,f_fiveMin_lowPrice,f_tenMin_lowPrice,f_fifteenMin_lowPrice,f_thirtyMin_lowPrice,f_sixtyMin_lowPrice,f_oneTwentyMin_lowPrice,f_fiveSec_highPrice,f_tenSec_highPrice,f_thirtySec_highPrice,f_oneMin_highPrice,f_threeMin_highPrice,f_fiveMin_highPrice,f_tenMin_highPrice,f_fifteenMin_highPrice,f_thirtyMin_highPrice,f_sixtyMin_highPrice,f_oneTwentyMin_highPrice,p_fiveMin_avgPrice,p_thirtyMin_avgPrice,p_fiveSec_avgPrice,p_oneTwentyMin_avgPrice, p_thirtySec_avgPrice FROM trades WHERE market = '{0:s}' AND p_oneTwentyMin_changePercent IS NOT NULL AND p_sixtyMin_changePercent IS NOT NULL AND p_thirtyMin_changePercent IS NOT NULL AND p_fifteenMin_changePercent IS NOT NULL AND p_tenMin_changePercent IS NOT NULL AND p_fiveMin_changePercent IS NOT NULL AND p_threeMin_changePercent IS NOT NULL AND p_oneMin_changePercent IS NOT NULL AND p_thirtySec_changePercent IS NOT NULL AND p_tenSec_changePercent IS NOT NULL AND p_fiveSec_changePercent IS NOT NULL AND price IS NOT NULL AND f_fiveSec_changePercent IS NOT NULL AND f_tenSec_changePercent IS NOT NULL AND f_thirtySec_changePercent IS NOT NULL AND f_oneMin_changePercent IS NOT NULL AND f_threeMin_changePercent IS NOT NULL AND f_fiveMin_changePercent IS NOT NULL AND f_tenMin_changePercent IS NOT NULL AND f_fifteenMin_changePercent IS NOT NULL AND f_thirtyMin_changePercent IS NOT NULL AND f_sixtyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_lowPrice IS NOT NULL ORDER BY date_ms ASC".format(market, startTime, endTime))
+    cur.execute("SELECT p_oneTwentyMin_changePercent,p_sixtyMin_changePercent,p_thirtyMin_changePercent,p_fifteenMin_changePercent,p_tenMin_changePercent,p_fiveMin_changePercent,p_threeMin_changePercent,p_oneMin_changePercent,p_thirtySec_changePercent,p_tenSec_changePercent,p_fiveSec_changePercent,price,f_fiveSec_changePercent,f_tenSec_changePercent,f_thirtySec_changePercent,f_oneMin_changePercent,f_threeMin_changePercent,f_fiveMin_changePercent,f_tenMin_changePercent,f_fifteenMin_changePercent,f_thirtyMin_changePercent,f_sixtyMin_changePercent,f_oneTwentyMin_changePercent, date_ms,f_fiveSec_lowPrice,f_tenSec_lowPrice,f_thirtySec_lowPrice,f_oneMin_lowPrice,f_threeMin_lowPrice,f_fiveMin_lowPrice,f_tenMin_lowPrice,f_fifteenMin_lowPrice,f_thirtyMin_lowPrice,f_sixtyMin_lowPrice,f_oneTwentyMin_lowPrice,f_fiveSec_highPrice,f_tenSec_highPrice,f_thirtySec_highPrice,f_oneMin_highPrice,f_threeMin_highPrice,f_fiveMin_highPrice,f_tenMin_highPrice,f_fifteenMin_highPrice,f_thirtyMin_highPrice,f_sixtyMin_highPrice,f_oneTwentyMin_highPrice,p_fiveMin_avgPrice,p_thirtyMin_avgPrice,p_fiveSec_avgPrice,p_oneTwentyMin_avgPrice, p_thirtySec_avgPrice FROM trades WHERE market = '{0:s}' AND p_oneTwentyMin_changePercent IS NOT NULL AND p_sixtyMin_changePercent IS NOT NULL AND p_thirtyMin_changePercent IS NOT NULL AND p_fifteenMin_changePercent IS NOT NULL AND p_tenMin_changePercent IS NOT NULL AND p_fiveMin_changePercent IS NOT NULL AND p_threeMin_changePercent IS NOT NULL AND p_oneMin_changePercent IS NOT NULL AND p_thirtySec_changePercent IS NOT NULL AND p_tenSec_changePercent IS NOT NULL AND p_fiveSec_changePercent IS NOT NULL AND price IS NOT NULL AND f_fiveSec_changePercent IS NOT NULL AND f_tenSec_changePercent IS NOT NULL AND f_thirtySec_changePercent IS NOT NULL AND f_oneMin_changePercent IS NOT NULL AND f_threeMin_changePercent IS NOT NULL AND f_fiveMin_changePercent IS NOT NULL AND f_tenMin_changePercent IS NOT NULL AND f_fifteenMin_changePercent IS NOT NULL AND f_thirtyMin_changePercent IS NOT NULL AND f_sixtyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_lowPrice IS NOT NULL {1:s} ORDER BY date_ms ASC".format(market, dateExcludes))
 else:
     cur.execute("SELECT p_oneTwentyMin_changePercent,p_sixtyMin_changePercent,p_thirtyMin_changePercent,p_fifteenMin_changePercent,p_tenMin_changePercent,p_fiveMin_changePercent,p_threeMin_changePercent,p_oneMin_changePercent,p_thirtySec_changePercent,p_tenSec_changePercent,p_fiveSec_changePercent,price,f_fiveSec_changePercent,f_tenSec_changePercent,f_thirtySec_changePercent,f_oneMin_changePercent,f_threeMin_changePercent,f_fiveMin_changePercent,f_tenMin_changePercent,f_fifteenMin_changePercent,f_thirtyMin_changePercent,f_sixtyMin_changePercent,f_oneTwentyMin_changePercent, date_ms,f_fiveSec_lowPrice,f_tenSec_lowPrice,f_thirtySec_lowPrice,f_oneMin_lowPrice,f_threeMin_lowPrice,f_fiveMin_lowPrice,f_tenMin_lowPrice,f_fifteenMin_lowPrice,f_thirtyMin_lowPrice,f_sixtyMin_lowPrice,f_oneTwentyMin_lowPrice,f_fiveSec_highPrice,f_tenSec_highPrice,f_thirtySec_highPrice,f_oneMin_highPrice,f_threeMin_highPrice,f_fiveMin_highPrice,f_tenMin_highPrice,f_fifteenMin_highPrice,f_thirtyMin_highPrice,f_sixtyMin_highPrice,f_oneTwentyMin_highPrice,p_fiveMin_avgPrice,p_thirtyMin_avgPrice,p_fiveSec_avgPrice,p_oneTwentyMin_avgPrice, p_thirtySec_avgPrice FROM trades WHERE market = '{0:s}' AND date_ms <= '{1:s}' AND p_oneTwentyMin_changePercent IS NOT NULL AND p_sixtyMin_changePercent IS NOT NULL AND p_thirtyMin_changePercent IS NOT NULL AND p_fifteenMin_changePercent IS NOT NULL AND p_tenMin_changePercent IS NOT NULL AND p_fiveMin_changePercent IS NOT NULL AND p_threeMin_changePercent IS NOT NULL AND p_oneMin_changePercent IS NOT NULL AND p_thirtySec_changePercent IS NOT NULL AND p_tenSec_changePercent IS NOT NULL AND p_fiveSec_changePercent IS NOT NULL AND price IS NOT NULL AND f_fiveSec_changePercent IS NOT NULL AND f_tenSec_changePercent IS NOT NULL AND f_thirtySec_changePercent IS NOT NULL AND f_oneMin_changePercent IS NOT NULL AND f_threeMin_changePercent IS NOT NULL AND f_fiveMin_changePercent IS NOT NULL AND f_tenMin_changePercent IS NOT NULL AND f_fifteenMin_changePercent IS NOT NULL AND f_thirtyMin_changePercent IS NOT NULL AND f_sixtyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_lowPrice IS NOT NULL ORDER BY date_ms DESC LIMIT 2".format(market, date_ms))
 
@@ -124,34 +124,73 @@ def tradeBuyLikelyhood(trade, low):
 
 def tradeLikelyhood(trade, high, low):
     likelihood = 0;
-    likelihood += (high[0] / sellPercent)
+    # likelihood += (high[0] / sellPercent)
     likelihood += (high[1] / sellPercent)
-    likelihood += (high[2] / sellPercent)
-    likelihood += (high[3] / sellPercent)
-    likelihood += (high[4] / sellPercent)
-    likelihood += (high[5] / sellPercent)
-    likelihood += (high[6] / sellPercent) # 10 min or less ^
+    # likelihood += (high[2] / sellPercent)
+    # likelihood += (high[3] / sellPercent)
+    # likelihood += (high[4] / sellPercent)
+    # likelihood += (high[5] / sellPercent)
+    # likelihood += (high[6] / sellPercent) # 10 min or less ^
     # likelihood += (high[7] / sellPercent)
     # likelihood += (high[8] / sellPercent)
     # likelihood += (high[9] / sellPercent)
     # likelihood += (high[10] / sellPercent)
-    likelihood += (low[0] / sellPercent)
+    # likelihood += (low[0] / sellPercent)
     likelihood += (low[1] / sellPercent)
-    likelihood += (low[2] / sellPercent)
-    likelihood += (low[3] / sellPercent)
-    likelihood += (low[4] / sellPercent)
-    likelihood += (low[5] / sellPercent)
-    likelihood += (low[6] / sellPercent) # 10 min or less ^
+    # likelihood += (low[2] / sellPercent)
+    # likelihood += (low[3] / sellPercent)
+    # likelihood += (low[4] / sellPercent)
+    # likelihood += (low[5] / sellPercent)
+    # likelihood += (low[6] / sellPercent) # 10 min or less ^
     # likelihood += (low[7] / sellPercent)
     # likelihood += (low[8] / sellPercent)
     # likelihood += (low[9] / sellPercent)
     # likelihood += (low[10] / sellPercent)
 
+    return likelihood
+
+def changetSec(trade, high, low):
+    return high[2] + low[2]
+
+def changeFive(trade, high, low):
+    return high[5] + low[5]
+
+def changeThirty(trade, high, low):
+    return high[8] + low[8]
+
+def changeOneTwenty(trade, high, low):
+    return high[10] + low[10]
+
+def tradeLikelyhoodLongTerm(trade, high, low):
+    likelihood = 0;
+    # likelihood += (high[0] / sellPercent)
+    # likelihood += (high[1] / sellPercent)
+    # likelihood += (high[2] / sellPercent)
+    # likelihood += (high[3] / sellPercent)
+    # likelihood += (high[4] / sellPercent)
+    # likelihood += (high[5] / sellPercent)
+    # likelihood += (high[6] / sellPercent) # 10 min or less ^
+    # likelihood += (high[7] / sellPercent)
+    # likelihood += (high[8] / sellPercent)
+    # likelihood += (high[9] / sellPercent)
+    likelihood += (high[10] / sellPercent)
+    # likelihood += (low[0] / sellPercent)
+    # likelihood += (low[1] / sellPercent)
+    # likelihood += (low[2] / sellPercent)
+    # likelihood += (low[3] / sellPercent)
+    # likelihood += (low[4] / sellPercent)
+    # likelihood += (low[5] / sellPercent)
+    # likelihood += (low[6] / sellPercent) # 10 min or less ^
+    # likelihood += (low[7] / sellPercent)
+    # likelihood += (low[8] / sellPercent)
+    # likelihood += (low[9] / sellPercent)
+    likelihood += (low[10] / sellPercent)
+
     # Adjust extreme edge cases
-    if likelihood > 9.99:
-        return 9.99
-    if likelihood < -9.99:
-        return -9.99
+    if likelihood > 50:
+        return 50
+    if likelihood < -50:
+        return -50
 
     return likelihood
 
@@ -423,8 +462,8 @@ incorrect = 0
 unknown = 0
 total = 0
 
-sellPercent=0.32
-buyPercent=-0.32
+sellPercent=0.14
+buyPercent=-0.14
 
 previousFiveAvg = None
 
@@ -591,766 +630,43 @@ X = []
 # 120min avg is tredngin high ( up )
 #
 ###
-# M = {
-#     'PFTO-LLL' : [],
-#     'PFTO-FLL' : [],
-#     'PFTO-HLL' : [],
-#     'PFTO-LFL' : [],
-#     'PFTO-FFL' : [],
-#     'PFTO-HFL' : [],
-#     'PFTO-LHL' : [],
-#     'PFTO-FHL' : [],
-#     'PFTO-HHL' : [],
-#     'PFTO-LLF' : [],
-#     'PFTO-FLF' : [],
-#     'PFTO-HLF' : [],
-#     'PFTO-LFF' : [],
-#     'PFTO-FFF' : [],
-#     'PFTO-HFF' : [],
-#     'PFTO-LHF' : [],
-#     'PFTO-FHF' : [],
-#     'PFTO-HHF' : [],
-#     'PFTO-LLH' : [],
-#     'PFTO-FLH' : [],
-#     'PFTO-HLH' : [],
-#     'PFTO-LFH' : [],
-#     'PFTO-FFH' : [],
-#     'PFTO-HFH' : [],
-#     'PFTO-LHH' : [],
-#     'PFTO-FHH' : [],
-#     'PFTO-HHH' : [],
-#     'PFOT-LLL' : [],
-#     'PFOT-FLL' : [],
-#     'PFOT-HLL' : [],
-#     'PFOT-LFL' : [],
-#     'PFOT-FFL' : [],
-#     'PFOT-HFL' : [],
-#     'PFOT-LHL' : [],
-#     'PFOT-FHL' : [],
-#     'PFOT-HHL' : [],
-#     'PFOT-LLF' : [],
-#     'PFOT-FLF' : [],
-#     'PFOT-HLF' : [],
-#     'PFOT-LFF' : [],
-#     'PFOT-FFF' : [],
-#     'PFOT-HFF' : [],
-#     'PFOT-LHF' : [],
-#     'PFOT-FHF' : [],
-#     'PFOT-HHF' : [],
-#     'PFOT-LLH' : [],
-#     'PFOT-FLH' : [],
-#     'PFOT-HLH' : [],
-#     'PFOT-LFH' : [],
-#     'PFOT-FFH' : [],
-#     'PFOT-HFH' : [],
-#     'PFOT-LHH' : [],
-#     'PFOT-FHH' : [],
-#     'PFOT-HHH' : [],
-#     'PTFO-LLL' : [],
-#     'PTFO-FLL' : [],
-#     'PTFO-HLL' : [],
-#     'PTFO-LFL' : [],
-#     'PTFO-FFL' : [],
-#     'PTFO-HFL' : [],
-#     'PTFO-LHL' : [],
-#     'PTFO-FHL' : [],
-#     'PTFO-HHL' : [],
-#     'PTFO-LLF' : [],
-#     'PTFO-FLF' : [],
-#     'PTFO-HLF' : [],
-#     'PTFO-LFF' : [],
-#     'PTFO-FFF' : [],
-#     'PTFO-HFF' : [],
-#     'PTFO-LHF' : [],
-#     'PTFO-FHF' : [],
-#     'PTFO-HHF' : [],
-#     'PTFO-LLH' : [],
-#     'PTFO-FLH' : [],
-#     'PTFO-HLH' : [],
-#     'PTFO-LFH' : [],
-#     'PTFO-FFH' : [],
-#     'PTFO-HFH' : [],
-#     'PTFO-LHH' : [],
-#     'PTFO-FHH' : [],
-#     'PTFO-HHH' : [],
-#     'PTOF-LLL' : [],
-#     'PTOF-FLL' : [],
-#     'PTOF-HLL' : [],
-#     'PTOF-LFL' : [],
-#     'PTOF-FFL' : [],
-#     'PTOF-HFL' : [],
-#     'PTOF-LHL' : [],
-#     'PTOF-FHL' : [],
-#     'PTOF-HHL' : [],
-#     'PTOF-LLF' : [],
-#     'PTOF-FLF' : [],
-#     'PTOF-HLF' : [],
-#     'PTOF-LFF' : [],
-#     'PTOF-FFF' : [],
-#     'PTOF-HFF' : [],
-#     'PTOF-LHF' : [],
-#     'PTOF-FHF' : [],
-#     'PTOF-HHF' : [],
-#     'PTOF-LLH' : [],
-#     'PTOF-FLH' : [],
-#     'PTOF-HLH' : [],
-#     'PTOF-LFH' : [],
-#     'PTOF-FFH' : [],
-#     'PTOF-HFH' : [],
-#     'PTOF-LHH' : [],
-#     'PTOF-FHH' : [],
-#     'PTOF-HHH' : [],
-#     'POFT-LLL' : [],
-#     'POFT-FLL' : [],
-#     'POFT-HLL' : [],
-#     'POFT-LFL' : [],
-#     'POFT-FFL' : [],
-#     'POFT-HFL' : [],
-#     'POFT-LHL' : [],
-#     'POFT-FHL' : [],
-#     'POFT-HHL' : [],
-#     'POFT-LLF' : [],
-#     'POFT-FLF' : [],
-#     'POFT-HLF' : [],
-#     'POFT-LFF' : [],
-#     'POFT-FFF' : [],
-#     'POFT-HFF' : [],
-#     'POFT-LHF' : [],
-#     'POFT-FHF' : [],
-#     'POFT-HHF' : [],
-#     'POFT-LLH' : [],
-#     'POFT-FLH' : [],
-#     'POFT-HLH' : [],
-#     'POFT-LFH' : [],
-#     'POFT-FFH' : [],
-#     'POFT-HFH' : [],
-#     'POFT-LHH' : [],
-#     'POFT-FHH' : [],
-#     'POFT-HHH' : [],
-#     'POTF-LLL' : [],
-#     'POTF-FLL' : [],
-#     'POTF-HLL' : [],
-#     'POTF-LFL' : [],
-#     'POTF-FFL' : [],
-#     'POTF-HFL' : [],
-#     'POTF-LHL' : [],
-#     'POTF-FHL' : [],
-#     'POTF-HHL' : [],
-#     'POTF-LLF' : [],
-#     'POTF-FLF' : [],
-#     'POTF-HLF' : [],
-#     'POTF-LFF' : [],
-#     'POTF-FFF' : [],
-#     'POTF-HFF' : [],
-#     'POTF-LHF' : [],
-#     'POTF-FHF' : [],
-#     'POTF-HHF' : [],
-#     'POTF-LLH' : [],
-#     'POTF-FLH' : [],
-#     'POTF-HLH' : [],
-#     'POTF-LFH' : [],
-#     'POTF-FFH' : [],
-#     'POTF-HFH' : [],
-#     'POTF-LHH' : [],
-#     'POTF-FHH' : [],
-#     'POTF-HHH' : [],
-#     'FPTO-LLL' : [],
-#     'FPTO-FLL' : [],
-#     'FPTO-HLL' : [],
-#     'FPTO-LFL' : [],
-#     'FPTO-FFL' : [],
-#     'FPTO-HFL' : [],
-#     'FPTO-LHL' : [],
-#     'FPTO-FHL' : [],
-#     'FPTO-HHL' : [],
-#     'FPTO-LLF' : [],
-#     'FPTO-FLF' : [],
-#     'FPTO-HLF' : [],
-#     'FPTO-LFF' : [],
-#     'FPTO-FFF' : [],
-#     'FPTO-HFF' : [],
-#     'FPTO-LHF' : [],
-#     'FPTO-FHF' : [],
-#     'FPTO-HHF' : [],
-#     'FPTO-LLH' : [],
-#     'FPTO-FLH' : [],
-#     'FPTO-HLH' : [],
-#     'FPTO-LFH' : [],
-#     'FPTO-FFH' : [],
-#     'FPTO-HFH' : [],
-#     'FPTO-LHH' : [],
-#     'FPTO-FHH' : [],
-#     'FPTO-HHH' : [],
-#     'FPOT-LLL' : [],
-#     'FPOT-FLL' : [],
-#     'FPOT-HLL' : [],
-#     'FPOT-LFL' : [],
-#     'FPOT-FFL' : [],
-#     'FPOT-HFL' : [],
-#     'FPOT-LHL' : [],
-#     'FPOT-FHL' : [],
-#     'FPOT-HHL' : [],
-#     'FPOT-LLF' : [],
-#     'FPOT-FLF' : [],
-#     'FPOT-HLF' : [],
-#     'FPOT-LFF' : [],
-#     'FPOT-FFF' : [],
-#     'FPOT-HFF' : [],
-#     'FPOT-LHF' : [],
-#     'FPOT-FHF' : [],
-#     'FPOT-HHF' : [],
-#     'FPOT-LLH' : [],
-#     'FPOT-FLH' : [],
-#     'FPOT-HLH' : [],
-#     'FPOT-LFH' : [],
-#     'FPOT-FFH' : [],
-#     'FPOT-HFH' : [],
-#     'FPOT-LHH' : [],
-#     'FPOT-FHH' : [],
-#     'FPOT-HHH' : [],
-#     'FTPO-LLL' : [],
-#     'FTPO-FLL' : [],
-#     'FTPO-HLL' : [],
-#     'FTPO-LFL' : [],
-#     'FTPO-FFL' : [],
-#     'FTPO-HFL' : [],
-#     'FTPO-LHL' : [],
-#     'FTPO-FHL' : [],
-#     'FTPO-HHL' : [],
-#     'FTPO-LLF' : [],
-#     'FTPO-FLF' : [],
-#     'FTPO-HLF' : [],
-#     'FTPO-LFF' : [],
-#     'FTPO-FFF' : [],
-#     'FTPO-HFF' : [],
-#     'FTPO-LHF' : [],
-#     'FTPO-FHF' : [],
-#     'FTPO-HHF' : [],
-#     'FTPO-LLH' : [],
-#     'FTPO-FLH' : [],
-#     'FTPO-HLH' : [],
-#     'FTPO-LFH' : [],
-#     'FTPO-FFH' : [],
-#     'FTPO-HFH' : [],
-#     'FTPO-LHH' : [],
-#     'FTPO-FHH' : [],
-#     'FTPO-HHH' : [],
-#     'FTOP-LLL' : [],
-#     'FTOP-FLL' : [],
-#     'FTOP-HLL' : [],
-#     'FTOP-LFL' : [],
-#     'FTOP-FFL' : [],
-#     'FTOP-HFL' : [],
-#     'FTOP-LHL' : [],
-#     'FTOP-FHL' : [],
-#     'FTOP-HHL' : [],
-#     'FTOP-LLF' : [],
-#     'FTOP-FLF' : [],
-#     'FTOP-HLF' : [],
-#     'FTOP-LFF' : [],
-#     'FTOP-FFF' : [],
-#     'FTOP-HFF' : [],
-#     'FTOP-LHF' : [],
-#     'FTOP-FHF' : [],
-#     'FTOP-HHF' : [],
-#     'FTOP-LLH' : [],
-#     'FTOP-FLH' : [],
-#     'FTOP-HLH' : [],
-#     'FTOP-LFH' : [],
-#     'FTOP-FFH' : [],
-#     'FTOP-HFH' : [],
-#     'FTOP-LHH' : [],
-#     'FTOP-FHH' : [],
-#     'FTOP-HHH' : [],
-#     'FOPT-LLL' : [],
-#     'FOPT-FLL' : [],
-#     'FOPT-HLL' : [],
-#     'FOPT-LFL' : [],
-#     'FOPT-FFL' : [],
-#     'FOPT-HFL' : [],
-#     'FOPT-LHL' : [],
-#     'FOPT-FHL' : [],
-#     'FOPT-HHL' : [],
-#     'FOPT-LLF' : [],
-#     'FOPT-FLF' : [],
-#     'FOPT-HLF' : [],
-#     'FOPT-LFF' : [],
-#     'FOPT-FFF' : [],
-#     'FOPT-HFF' : [],
-#     'FOPT-LHF' : [],
-#     'FOPT-FHF' : [],
-#     'FOPT-HHF' : [],
-#     'FOPT-LLH' : [],
-#     'FOPT-FLH' : [],
-#     'FOPT-HLH' : [],
-#     'FOPT-LFH' : [],
-#     'FOPT-FFH' : [],
-#     'FOPT-HFH' : [],
-#     'FOPT-LHH' : [],
-#     'FOPT-FHH' : [],
-#     'FOPT-HHH' : [],
-#     'FOTP-LLL' : [],
-#     'FOTP-FLL' : [],
-#     'FOTP-HLL' : [],
-#     'FOTP-LFL' : [],
-#     'FOTP-FFL' : [],
-#     'FOTP-HFL' : [],
-#     'FOTP-LHL' : [],
-#     'FOTP-FHL' : [],
-#     'FOTP-HHL' : [],
-#     'FOTP-LLF' : [],
-#     'FOTP-FLF' : [],
-#     'FOTP-HLF' : [],
-#     'FOTP-LFF' : [],
-#     'FOTP-FFF' : [],
-#     'FOTP-HFF' : [],
-#     'FOTP-LHF' : [],
-#     'FOTP-FHF' : [],
-#     'FOTP-HHF' : [],
-#     'FOTP-LLH' : [],
-#     'FOTP-FLH' : [],
-#     'FOTP-HLH' : [],
-#     'FOTP-LFH' : [],
-#     'FOTP-FFH' : [],
-#     'FOTP-HFH' : [],
-#     'FOTP-LHH' : [],
-#     'FOTP-FHH' : [],
-#     'FOTP-HHH' : [],
-#     'TPFO-LLL' : [],
-#     'TPFO-FLL' : [],
-#     'TPFO-HLL' : [],
-#     'TPFO-LFL' : [],
-#     'TPFO-FFL' : [],
-#     'TPFO-HFL' : [],
-#     'TPFO-LHL' : [],
-#     'TPFO-FHL' : [],
-#     'TPFO-HHL' : [],
-#     'TPFO-LLF' : [],
-#     'TPFO-FLF' : [],
-#     'TPFO-HLF' : [],
-#     'TPFO-LFF' : [],
-#     'TPFO-FFF' : [],
-#     'TPFO-HFF' : [],
-#     'TPFO-LHF' : [],
-#     'TPFO-FHF' : [],
-#     'TPFO-HHF' : [],
-#     'TPFO-LLH' : [],
-#     'TPFO-FLH' : [],
-#     'TPFO-HLH' : [],
-#     'TPFO-LFH' : [],
-#     'TPFO-FFH' : [],
-#     'TPFO-HFH' : [],
-#     'TPFO-LHH' : [],
-#     'TPFO-FHH' : [],
-#     'TPFO-HHH' : [],
-#     'TPOF-LLL' : [],
-#     'TPOF-FLL' : [],
-#     'TPOF-HLL' : [],
-#     'TPOF-LFL' : [],
-#     'TPOF-FFL' : [],
-#     'TPOF-HFL' : [],
-#     'TPOF-LHL' : [],
-#     'TPOF-FHL' : [],
-#     'TPOF-HHL' : [],
-#     'TPOF-LLF' : [],
-#     'TPOF-FLF' : [],
-#     'TPOF-HLF' : [],
-#     'TPOF-LFF' : [],
-#     'TPOF-FFF' : [],
-#     'TPOF-HFF' : [],
-#     'TPOF-LHF' : [],
-#     'TPOF-FHF' : [],
-#     'TPOF-HHF' : [],
-#     'TPOF-LLH' : [],
-#     'TPOF-FLH' : [],
-#     'TPOF-HLH' : [],
-#     'TPOF-LFH' : [],
-#     'TPOF-FFH' : [],
-#     'TPOF-HFH' : [],
-#     'TPOF-LHH' : [],
-#     'TPOF-FHH' : [],
-#     'TPOF-HHH' : [],
-#     'TFPO-LLL' : [],
-#     'TFPO-FLL' : [],
-#     'TFPO-HLL' : [],
-#     'TFPO-LFL' : [],
-#     'TFPO-FFL' : [],
-#     'TFPO-HFL' : [],
-#     'TFPO-LHL' : [],
-#     'TFPO-FHL' : [],
-#     'TFPO-HHL' : [],
-#     'TFPO-LLF' : [],
-#     'TFPO-FLF' : [],
-#     'TFPO-HLF' : [],
-#     'TFPO-LFF' : [],
-#     'TFPO-FFF' : [],
-#     'TFPO-HFF' : [],
-#     'TFPO-LHF' : [],
-#     'TFPO-FHF' : [],
-#     'TFPO-HHF' : [],
-#     'TFPO-LLH' : [],
-#     'TFPO-FLH' : [],
-#     'TFPO-HLH' : [],
-#     'TFPO-LFH' : [],
-#     'TFPO-FFH' : [],
-#     'TFPO-HFH' : [],
-#     'TFPO-LHH' : [],
-#     'TFPO-FHH' : [],
-#     'TFPO-HHH' : [],
-#     'TFOP-LLL' : [],
-#     'TFOP-FLL' : [],
-#     'TFOP-HLL' : [],
-#     'TFOP-LFL' : [],
-#     'TFOP-FFL' : [],
-#     'TFOP-HFL' : [],
-#     'TFOP-LHL' : [],
-#     'TFOP-FHL' : [],
-#     'TFOP-HHL' : [],
-#     'TFOP-LLF' : [],
-#     'TFOP-FLF' : [],
-#     'TFOP-HLF' : [],
-#     'TFOP-LFF' : [],
-#     'TFOP-FFF' : [],
-#     'TFOP-HFF' : [],
-#     'TFOP-LHF' : [],
-#     'TFOP-FHF' : [],
-#     'TFOP-HHF' : [],
-#     'TFOP-LLH' : [],
-#     'TFOP-FLH' : [],
-#     'TFOP-HLH' : [],
-#     'TFOP-LFH' : [],
-#     'TFOP-FFH' : [],
-#     'TFOP-HFH' : [],
-#     'TFOP-LHH' : [],
-#     'TFOP-FHH' : [],
-#     'TFOP-HHH' : [],
-#     'TOPF-LLL' : [],
-#     'TOPF-FLL' : [],
-#     'TOPF-HLL' : [],
-#     'TOPF-LFL' : [],
-#     'TOPF-FFL' : [],
-#     'TOPF-HFL' : [],
-#     'TOPF-LHL' : [],
-#     'TOPF-FHL' : [],
-#     'TOPF-HHL' : [],
-#     'TOPF-LLF' : [],
-#     'TOPF-FLF' : [],
-#     'TOPF-HLF' : [],
-#     'TOPF-LFF' : [],
-#     'TOPF-FFF' : [],
-#     'TOPF-HFF' : [],
-#     'TOPF-LHF' : [],
-#     'TOPF-FHF' : [],
-#     'TOPF-HHF' : [],
-#     'TOPF-LLH' : [],
-#     'TOPF-FLH' : [],
-#     'TOPF-HLH' : [],
-#     'TOPF-LFH' : [],
-#     'TOPF-FFH' : [],
-#     'TOPF-HFH' : [],
-#     'TOPF-LHH' : [],
-#     'TOPF-FHH' : [],
-#     'TOPF-HHH' : [],
-#     'TOFP-LLL' : [],
-#     'TOFP-FLL' : [],
-#     'TOFP-HLL' : [],
-#     'TOFP-LFL' : [],
-#     'TOFP-FFL' : [],
-#     'TOFP-HFL' : [],
-#     'TOFP-LHL' : [],
-#     'TOFP-FHL' : [],
-#     'TOFP-HHL' : [],
-#     'TOFP-LLF' : [],
-#     'TOFP-FLF' : [],
-#     'TOFP-HLF' : [],
-#     'TOFP-LFF' : [],
-#     'TOFP-FFF' : [],
-#     'TOFP-HFF' : [],
-#     'TOFP-LHF' : [],
-#     'TOFP-FHF' : [],
-#     'TOFP-HHF' : [],
-#     'TOFP-LLH' : [],
-#     'TOFP-FLH' : [],
-#     'TOFP-HLH' : [],
-#     'TOFP-LFH' : [],
-#     'TOFP-FFH' : [],
-#     'TOFP-HFH' : [],
-#     'TOFP-LHH' : [],
-#     'TOFP-FHH' : [],
-#     'TOFP-HHH' : [],
-#     'OPFT-LLL' : [],
-#     'OPFT-FLL' : [],
-#     'OPFT-HLL' : [],
-#     'OPFT-LFL' : [],
-#     'OPFT-FFL' : [],
-#     'OPFT-HFL' : [],
-#     'OPFT-LHL' : [],
-#     'OPFT-FHL' : [],
-#     'OPFT-HHL' : [],
-#     'OPFT-LLF' : [],
-#     'OPFT-FLF' : [],
-#     'OPFT-HLF' : [],
-#     'OPFT-LFF' : [],
-#     'OPFT-FFF' : [],
-#     'OPFT-HFF' : [],
-#     'OPFT-LHF' : [],
-#     'OPFT-FHF' : [],
-#     'OPFT-HHF' : [],
-#     'OPFT-LLH' : [],
-#     'OPFT-FLH' : [],
-#     'OPFT-HLH' : [],
-#     'OPFT-LFH' : [],
-#     'OPFT-FFH' : [],
-#     'OPFT-HFH' : [],
-#     'OPFT-LHH' : [],
-#     'OPFT-FHH' : [],
-#     'OPFT-HHH' : [],
-#     'OPTF-LLL' : [],
-#     'OPTF-FLL' : [],
-#     'OPTF-HLL' : [],
-#     'OPTF-LFL' : [],
-#     'OPTF-FFL' : [],
-#     'OPTF-HFL' : [],
-#     'OPTF-LHL' : [],
-#     'OPTF-FHL' : [],
-#     'OPTF-HHL' : [],
-#     'OPTF-LLF' : [],
-#     'OPTF-FLF' : [],
-#     'OPTF-HLF' : [],
-#     'OPTF-LFF' : [],
-#     'OPTF-FFF' : [],
-#     'OPTF-HFF' : [],
-#     'OPTF-LHF' : [],
-#     'OPTF-FHF' : [],
-#     'OPTF-HHF' : [],
-#     'OPTF-LLH' : [],
-#     'OPTF-FLH' : [],
-#     'OPTF-HLH' : [],
-#     'OPTF-LFH' : [],
-#     'OPTF-FFH' : [],
-#     'OPTF-HFH' : [],
-#     'OPTF-LHH' : [],
-#     'OPTF-FHH' : [],
-#     'OPTF-HHH' : [],
-#     'OFPT-LLL' : [],
-#     'OFPT-FLL' : [],
-#     'OFPT-HLL' : [],
-#     'OFPT-LFL' : [],
-#     'OFPT-FFL' : [],
-#     'OFPT-HFL' : [],
-#     'OFPT-LHL' : [],
-#     'OFPT-FHL' : [],
-#     'OFPT-HHL' : [],
-#     'OFPT-LLF' : [],
-#     'OFPT-FLF' : [],
-#     'OFPT-HLF' : [],
-#     'OFPT-LFF' : [],
-#     'OFPT-FFF' : [],
-#     'OFPT-HFF' : [],
-#     'OFPT-LHF' : [],
-#     'OFPT-FHF' : [],
-#     'OFPT-HHF' : [],
-#     'OFPT-LLH' : [],
-#     'OFPT-FLH' : [],
-#     'OFPT-HLH' : [],
-#     'OFPT-LFH' : [],
-#     'OFPT-FFH' : [],
-#     'OFPT-HFH' : [],
-#     'OFPT-LHH' : [],
-#     'OFPT-FHH' : [],
-#     'OFPT-HHH' : [],
-#     'OFTP-LLL' : [],
-#     'OFTP-FLL' : [],
-#     'OFTP-HLL' : [],
-#     'OFTP-LFL' : [],
-#     'OFTP-FFL' : [],
-#     'OFTP-HFL' : [],
-#     'OFTP-LHL' : [],
-#     'OFTP-FHL' : [],
-#     'OFTP-HHL' : [],
-#     'OFTP-LLF' : [],
-#     'OFTP-FLF' : [],
-#     'OFTP-HLF' : [],
-#     'OFTP-LFF' : [],
-#     'OFTP-FFF' : [],
-#     'OFTP-HFF' : [],
-#     'OFTP-LHF' : [],
-#     'OFTP-FHF' : [],
-#     'OFTP-HHF' : [],
-#     'OFTP-LLH' : [],
-#     'OFTP-FLH' : [],
-#     'OFTP-HLH' : [],
-#     'OFTP-LFH' : [],
-#     'OFTP-FFH' : [],
-#     'OFTP-HFH' : [],
-#     'OFTP-LHH' : [],
-#     'OFTP-FHH' : [],
-#     'OFTP-HHH' : [],
-#     'OTPF-LLL' : [],
-#     'OTPF-FLL' : [],
-#     'OTPF-HLL' : [],
-#     'OTPF-LFL' : [],
-#     'OTPF-FFL' : [],
-#     'OTPF-HFL' : [],
-#     'OTPF-LHL' : [],
-#     'OTPF-FHL' : [],
-#     'OTPF-HHL' : [],
-#     'OTPF-LLF' : [],
-#     'OTPF-FLF' : [],
-#     'OTPF-HLF' : [],
-#     'OTPF-LFF' : [],
-#     'OTPF-FFF' : [],
-#     'OTPF-HFF' : [],
-#     'OTPF-LHF' : [],
-#     'OTPF-FHF' : [],
-#     'OTPF-HHF' : [],
-#     'OTPF-LLH' : [],
-#     'OTPF-FLH' : [],
-#     'OTPF-HLH' : [],
-#     'OTPF-LFH' : [],
-#     'OTPF-FFH' : [],
-#     'OTPF-HFH' : [],
-#     'OTPF-LHH' : [],
-#     'OTPF-FHH' : [],
-#     'OTPF-HHH' : [],
-#     'OTFP-LLL' : [],
-#     'OTFP-FLL' : [],
-#     'OTFP-HLL' : [],
-#     'OTFP-LFL' : [],
-#     'OTFP-FFL' : [],
-#     'OTFP-HFL' : [],
-#     'OTFP-LHL' : [],
-#     'OTFP-FHL' : [],
-#     'OTFP-HHL' : [],
-#     'OTFP-LLF' : [],
-#     'OTFP-FLF' : [],
-#     'OTFP-HLF' : [],
-#     'OTFP-LFF' : [],
-#     'OTFP-FFF' : [],
-#     'OTFP-HFF' : [],
-#     'OTFP-LHF' : [],
-#     'OTFP-FHF' : [],
-#     'OTFP-HHF' : [],
-#     'OTFP-LLH' : [],
-#     'OTFP-FLH' : [],
-#     'OTFP-HLH' : [],
-#     'OTFP-LFH' : [],
-#     'OTFP-FFH' : [],
-#     'OTFP-HFH' : [],
-#     'OTFP-LHH' : [],
-#     'OTFP-FHH' : [],
-#     'OTFP-HHH' : [],
-#     'WRONG   ' : []
-# }
-
-# def getSlopeString(fiveSlope, thirtySlope, oneTwentySlope):
-#     string = ''
-#     if fiveSlope <= slopeLowCut:
-#         string += 'L'
-#     elif fiveSlope <= slopeHighCut:
-#         string += 'F'
-#     else:
-#         string += 'H'
-
-#     if thirtySlope <= slopeLowCut:
-#         string += 'L'
-#     elif thirtySlope <= slopeHighCut:
-#         string += 'F'
-#     else:
-#         string += 'H'
-
-#     if oneTwentySlope <= slopeLowCut:
-#         string += 'L'
-#     elif oneTwentySlope <= slopeHighCut:
-#         string += 'F'
-#     else:
-#         string += 'H'
-
-#     return string
-
-# def getRollingString(price, fiveAvg, thirtyAvg, oneTwentyAvg):
-#     if price >= fiveAvg and fiveAvg >= thirtyAvg and thirtyAvg >= oneTwentyAvg:
-#         return 'PFTO'
-#     if price >= fiveAvg and fiveAvg >= oneTwentyAvg and oneTwentyAvg >= thirtyAvg:
-#         return 'PFOT'
-#     if price >= thirtyAvg and thirtyAvg >= fiveAvg and fiveAvg >= oneTwentyAvg:
-#         return 'PTFO'
-#     if price >= thirtyAvg and thirtyAvg >= oneTwentyAvg and oneTwentyAvg >= fiveAvg:
-#         return 'PTOF'
-#     if price >= oneTwentyAvg and oneTwentyAvg >= fiveAvg and fiveAvg >= thirtyAvg:
-#         return 'POFT'
-#     if price >= oneTwentyAvg and oneTwentyAvg >= thirtyAvg and thirtyAvg >= fiveAvg:
-#         return 'POTF'
-
-#     if fiveAvg >= price and price >= thirtyAvg and thirtyAvg >= oneTwentyAvg:
-#         return 'FPTO'
-#     if fiveAvg >= price and price >= oneTwentyAvg and oneTwentyAvg >= thirtyAvg:
-#         return 'FPOT'
-#     if fiveAvg >= thirtyAvg and thirtyAvg >= price and price >= oneTwentyAvg:
-#         return 'FTPO'
-#     if fiveAvg >= thirtyAvg and thirtyAvg >= oneTwentyAvg and oneTwentyAvg >= price:
-#         return 'FTOP'
-#     if fiveAvg >= oneTwentyAvg and oneTwentyAvg >= price and price >= thirtyAvg:
-#         return 'FOPT'
-#     if fiveAvg >= oneTwentyAvg and oneTwentyAvg >= thirtyAvg and thirtyAvg >= price:
-#         return 'FOTP'
-
-#     if thirtyAvg >= price and price >= fiveAvg and fiveAvg >= oneTwentyAvg:
-#         return 'TPFO'
-#     if thirtyAvg >= price and price >= oneTwentyAvg and oneTwentyAvg >= fiveAvg:
-#         return 'TPOF'
-#     if thirtyAvg >= fiveAvg and fiveAvg >= price and price >= oneTwentyAvg:
-#         return 'TFPO'
-#     if thirtyAvg >= fiveAvg and fiveAvg >= oneTwentyAvg and oneTwentyAvg >= price:
-#         return 'TFOP'
-#     if thirtyAvg >= oneTwentyAvg and oneTwentyAvg >= price and price >= fiveAvg:
-#         return 'TOPF'
-#     if thirtyAvg >= oneTwentyAvg and oneTwentyAvg >= fiveAvg and fiveAvg >= price:
-#         return 'TOFP'
-
-#     if oneTwentyAvg >= price and price >= fiveAvg and fiveAvg >= thirtyAvg:
-#         return 'OPFT'
-#     if oneTwentyAvg >= price and price >= thirtyAvg and thirtyAvg >= fiveAvg:
-#         return 'OPTF'
-#     if oneTwentyAvg >= fiveAvg and fiveAvg >= price and price >= thirtyAvg:
-#         return 'OFPT'
-#     if oneTwentyAvg >= fiveAvg and fiveAvg >= thirtyAvg and thirtyAvg >= price:
-#         return 'OFTP'
-#     if oneTwentyAvg >= thirtyAvg and thirtyAvg >= price and price >= fiveAvg:
-#         return 'OTPF'
-#     if oneTwentyAvg >= thirtyAvg and thirtyAvg >= fiveAvg and fiveAvg >= price:
-#         return 'OTFP'
-#     return 'WRNG'
 
 sSlope = {
     'D' :[],
     'L' :[],
-    'F' :[],
+    'C' :[],
+    'Q' :[],
     'H' :[],
     'U' :[]
 }
 fSlope = {
     'D' :[],
     'L' :[],
-    'F' :[],
+    'C' :[],
+    'Q' :[],
     'H' :[],
     'U' :[]
 }
 tSlope = {
     'D' :[],
     'L' :[],
-    'F' :[],
+    'C' :[],
+    'Q' :[],
     'H' :[],
     'U' :[]
 }
 oSlope = {
     'D' :[],
     'L' :[],
-    'F' :[],
+    'C' :[],
+    'Q' :[],
     'H' :[],
     'U' :[]
 }
-M = {}
+S = {}
+F = {}
+T = {}
+O = {}
 previousOneTwentyAvgSet = []
 previousThirtyAvgSet = []
 previousFiveAvgSet = []
@@ -1387,8 +703,6 @@ for trade in trades:
         fiveSlope = ((fiveAvg - previousFiveAvg) / (2 - 1))
         tSecSlope = ((tSecAvg - previousTSecAvg) / (2 - 1))
 
-    likelihood = tradeLikelyhood(trade, high, low)
-
     slopeString = categories.getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope)
     rollingString = categories.getRollingString(price, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg)
 
@@ -1397,10 +711,24 @@ for trade in trades:
     tSlope[slopeString[2]].append(thirtySlope)
     oSlope[slopeString[3]].append(oneTwentySlope)
 
-    if rollingString+'-'+slopeString not in M:
-        M[rollingString+'-'+slopeString] = []
+    if rollingString+'-'+slopeString not in S:
+        S[rollingString+'-'+slopeString] = []
+        F[rollingString+'-'+slopeString] = []
+        T[rollingString+'-'+slopeString] = []
+        O[rollingString+'-'+slopeString] = []
 
-    M[rollingString+'-'+slopeString].append(likelihood)
+    change = changetSec(trade, high, low)
+    if change not in S[rollingString+'-'+slopeString]:
+        S[rollingString+'-'+slopeString].append(change)
+    change = changeFive(trade, high, low)
+    if change not in F[rollingString+'-'+slopeString]:
+        F[rollingString+'-'+slopeString].append(change)
+    change = changeThirty(trade, high, low)
+    if change not in T[rollingString+'-'+slopeString]:
+        T[rollingString+'-'+slopeString].append(change)
+    change = changeOneTwenty(trade, high, low)
+    if change not in O[rollingString+'-'+slopeString]:
+        O[rollingString+'-'+slopeString].append(change)
 
     total += 1
 
@@ -1432,28 +760,83 @@ def sortCategories(a, b):
     else:
         return -1
 
-M = {key: value for key, value in sorted(M.items(), key=lambda item: ( 0 if (not len(item[1])) else (sum(item[1]) / len(item[1]))) )}
+F = {key: value for key, value in sorted(F.items(), key=lambda item: ( 0 if (not len(item[1])) else ( max(0, ((sum(item[1]) / len(item[1])) - np.std(item[1]))) if ( ( sum(item[1]) / len(item[1]) ) > 0 ) else ( min(0,( sum(item[1]) / len(item[1]) ) + np.std(item[1]) ) ) ) ) )}
 
-for rank in M:
-    thisTot = len(M[rank])
+gtFiveTot = 0
+gtFiveLong = 0
+gtFiveShort = 0
+
+for rank in F:
+    thisTot = len(S[rank])
     mTotal += thisTot
-    avg = 0
-    thisPercent = 0.0
-    tMax = 0
-    tMin = 0
-    mid = 0
+
+    Savg = 0
+    SthisPercent = 0.0
+    StMax = 0
+    StMin = 0
+    Smid = 0
     if thisTot > 0:
-        avg = sum(M[rank]) / thisTot
-        mid = M[rank][round(thisTot / 2)]
-        tMin = min(M[rank])
-        tMax = max(M[rank])
-    cur.execute(
-            'REPLACE INTO predictions VALUES ("{0:s}",{1:0.8f})'.format(rank, avg))
-    conn.commit()
+        Sstd = np.std(S[rank])
+        Savg = sum(S[rank]) / thisTot
+        # Smid = S[rank][round(thisTot / 2)]
+        StMin = min(S[rank])
+        StMax = max(S[rank])
+        SbetAvg = max(0, (Savg - ( 0.25 * Sstd ))) if ( sum(S[rank]) > 0 ) else min(0, ( Savg + ( 0.25 * Sstd ) ) )
 
-    print('{0:s} min: {1:5.2f}     mid: {2:5.2f}     max: {3:5.2f}     count: {4:6d} avgL: {5:4.2f}'.format(rank, tMin, mid, tMax, thisTot, avg))
+    thisTot = len(F[rank])
+    Favg = 0
+    FthisPercent = 0.0
+    FtMax = 0
+    FtMin = 0
+    Fmid = 0
+    if thisTot > 0:
+        Fstd = np.std(F[rank])
+        Favg = sum(F[rank]) / thisTot
+        # Fmid = F[rank][round(thisTot / 2)]
+        FtMin = min(F[rank])
+        FtMax = max(F[rank])
+        FbetAvg = max(0, (Favg - ( 0.25 * Fstd ))) if ( sum(F[rank]) > 0 ) else min(0, ( Favg + ( 0.25 * Fstd ) ) )
 
-print('mTotal {0:d} total {1:d}'.format(mTotal, total))
+    thisTot = len(T[rank])
+    Tavg = 0
+    TthisPercent = 0.0
+    TtMax = 0
+    TtMin = 0
+    Tmid = 0
+    if thisTot > 0:
+        Tstd = np.std(T[rank])
+        Tavg = sum(T[rank]) / thisTot
+        # Tmid = T[rank][round(thisTot / 2)]
+        TtMin = min(T[rank])
+        TtMax = max(T[rank])
+        TbetAvg = max(0, (Tavg - ( 0.25 * Tstd ))) if ( sum(T[rank]) > 0 ) else min(0, ( Tavg + ( 0.25 * Tstd ) ) )
+
+    thisTot = len(O[rank])
+    Oavg = 0
+    OthisPercent = 0.0
+    OtMax = 0
+    OtMin = 0
+    Omid = 0
+    if thisTot > 0:
+        Ostd = np.std(O[rank])
+        Oavg = sum(O[rank]) / thisTot
+        # Omid = O[rank][round(thisTot / 2)]
+        OtMin = min(O[rank])
+        OtMax = max(O[rank])
+        ObetAvg = max(0, (Oavg - ( 0.25 * Ostd ))) if ( sum(O[rank]) > 0 ) else min(0, ( Oavg + ( 0.25 * Ostd ) ) )
+
+    if len(S[rank]) >= 3 or len(F[rank]) >= 3 or len(T[rank]) >= 3 or len(O[rank]) >= 3:
+        cur.execute(
+                'REPLACE INTO predictions VALUES ("{0:s}",{1:0.8f}, {2:0.8f}, {3:0.8f}, {4:0.8f})'.format(rank, SbetAvg, FbetAvg, TbetAvg, ObetAvg))
+        conn.commit()
+
+    if thisTot >= 3:
+        gtFiveTot += 1
+
+        print('{0:s} count: {1:6d}   -: {2:5.3f}  +: {4:5.3f}   a: {5:4.2f}   b: {6:5.3f}   s:{7:5.3f}    -: {8:5.3f}   +: {10:5.3f}   a: {11:4.2f}   b: {12:5.3f}   s:{13:5.3f}    -: {14:5.3f}   +: {16:5.3f}   a: {17:4.2f}   b: {18:5.3f}   s:{19:5.3f}    -: {20:5.3f}   +: {22:5.3f}   a: {23:4.2f}   b: {24:5.3f}   s:{25:5.3f} '.format(rank, thisTot, StMin, 'Smid', Savg, StMax, SbetAvg, Sstd, FtMin, 'Fmid', Favg, FtMax, FbetAvg, Fstd, TtMin, 'Tmid', Tavg, TtMax, TbetAvg, Tstd, OtMin, 'Omid', Oavg, OtMax, ObetAvg, Ostd))
+        # print('{0:s} count: {1:6d}   -: {2:5.3f}   : {3:5.3f}   +: {4:5.3f}   a: {5:4.2f}   b: {6:5.3f}   s:{7:5.3f}    -: {8:5.3f}   : {9:5.3f}   +: {10:5.3f}   a: {11:4.2f}   b: {12:5.3f}   s:{13:5.3f}    -: {14:5.3f}   : {15:5.3f}   +: {16:5.3f}   a: {17:4.2f}   b: {18:5.3f}   s:{19:5.3f}    -: {20:5.3f}   : {21:5.3f}   +: {22:5.3f}   a: {23:4.2f}   b: {24:5.3f}   s:{25:5.3f} '.format(rank, thisTot, StMin, Smid, Savg, StMax, SbetAvg, Sstd, FtMin, Fmid, Favg, FtMax, FbetAvg, Fstd, TtMin, Tmid, Tavg, TtMax, TbetAvg, Tstd, OtMin, Omid, Oavg, OtMax, ObetAvg, Ostd))
+
+print('mTotal {0:d} total {1:d} gt5 {2:d} gt5short {3:d} gt5long {4:d}'.format(mTotal, total, gtFiveTot, gtFiveShort, gtFiveLong))
 
 print("30 sec")
 for slopes in sSlope:
@@ -1469,7 +852,7 @@ for slopes in sSlope:
         mid = sSlope[slopes][round(thisTot / 2)]
         tMin = min(sSlope[slopes])
         tMax = max(sSlope[slopes])
-    print('{0:s} min: {1:5.2f}     mid: {2:5.2f}     max: {3:5.2f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
+    print('{0:s} min: {1:5.3f}     mid: {2:5.3f}     max: {3:5.3f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
 
 print("5 min")
 for slopes in fSlope:
@@ -1485,7 +868,7 @@ for slopes in fSlope:
         mid = fSlope[slopes][round(thisTot / 2)]
         tMin = min(fSlope[slopes])
         tMax = max(fSlope[slopes])
-    print('{0:s} min: {1:5.2f}     mid: {2:5.2f}     max: {3:5.2f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
+    print('{0:s} min: {1:5.3f}     mid: {2:5.3f}     max: {3:5.3f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
 
 print("30 min")
 for slopes in tSlope:
@@ -1501,7 +884,7 @@ for slopes in tSlope:
         mid = tSlope[slopes][round(thisTot / 2)]
         tMin = min(tSlope[slopes])
         tMax = max(tSlope[slopes])
-    print('{0:s} min: {1:5.2f}     mid: {2:5.2f}     max: {3:5.2f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
+    print('{0:s} min: {1:5.3f}     mid: {2:5.3f}     max: {3:5.3f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
 
 print("120 min")
 for slopes in oSlope:
@@ -1517,7 +900,7 @@ for slopes in oSlope:
         mid = oSlope[slopes][round(thisTot / 2)]
         tMin = min(oSlope[slopes])
         tMax = max(oSlope[slopes])
-    print('{0:s} min: {1:5.2f}     mid: {2:5.2f}     max: {3:5.2f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
+    print('{0:s} min: {1:5.3f}     mid: {2:5.3f}     max: {3:5.3f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
 
 
 # print(sSlope)

@@ -16,6 +16,10 @@ import mariadb
 import pprint
 from pytz import timezone
 import math
+import numpy as np
+import redis
+import pickle
+
 
 import liveCruncher
 import categories
@@ -159,8 +163,8 @@ class Bot:
     goalTimeSince=0
     actionTime=datetime.now()
 
-    goalPercent=5
-    goalPercentReset=5
+    goalPercent=10
+    goalPercentReset=10
     goalPercentTime=datetime.now()
     guidePercent=1.0
     actionPercent=0.5
@@ -183,7 +187,7 @@ class Bot:
     timeLean=1.0
 
     historyLean=1.0
-    redTimeHours=2
+    redTimeHours=48
     resetHardTimeHours=3
     recentRangeLean=1.0
     resetTime=datetime.now()
@@ -196,9 +200,9 @@ class Bot:
     lowStartPercent=0.3
     highStartPercent=0.7
 
-    feeAsPercent=0.25
+    feeAsPercent=0.14
     fee=0.00126
-    startPeakFeeMultiple=2
+    startPeakFeeMultiple=1.1
 
     tradeId="0"
     remaining="0"
@@ -227,10 +231,81 @@ class Bot:
     avgSets = []
     predictionString = ''
     predictionValue = 0.0
+    predictionLongValue = 0.0
     predictionSets = []
     avgPricePrediction = 0.0
+    avgLongPricePrediction = 0.0
     avgPrediction = 0.0
+    avgLongPrediction = 0.0
     avgPricePredictionSets = []
+    minPrediction = {}
+    midPrediction = {}
+    maxPrediction = {}
+    minLongPrediction = {}
+    midLongPrediction = {}
+    maxLongPrediction = {}
+    avgLongPredictionValue = 0.0
+    avgPredictionValue = 0.0
+
+    tSecPrediction = 0.0
+    fivePrediction = 0.0
+    thirtyPrediction = 0.0
+    oneTwentyPrediction = 0.0
+    tSecPredictionSet = []
+    fivePredictionSet = []
+    thirtyPredictionSet = []
+    oneTwentyPredictionSet = []
+    tSecPredictionSpread = {
+        'min' : 0.0,
+        'mid' : 0.0,
+        'avg' : 0.0,
+        'max' : 0.0,
+        'std' : 0.0,
+        'betAvg' : 0.0
+    }
+    fivePredictionSpread = {
+        'min' : 0.0,
+        'mid' : 0.0,
+        'avg' : 0.0,
+        'max' : 0.0,
+        'std' : 0.0,
+        'betAvg' : 0.0
+    }
+    thirtyPredictionSpread = {
+        'min' : 0.0,
+        'mid' : 0.0,
+        'avg' : 0.0,
+        'max' : 0.0,
+        'std' : 0.0,
+        'betAvg' : 0.0
+    }
+    sixtyPredictionCount = 0
+    sixtyPredictionSpread = {
+        'min' : 0.0,
+        'mid' : 0.0,
+        'avg' : 0.0,
+        'max' : 0.0,
+        'std' : 0.0,
+        'betAvg' : 0.0
+    }
+    ninetyPredictionCount = 0
+    ninetyPredictionSpread = {
+        'min' : 0.0,
+        'mid' : 0.0,
+        'avg' : 0.0,
+        'max' : 0.0,
+        'std' : 0.0,
+        'betAvg' : 0.0
+    }
+    oneTwentyPredictionCount = 0
+    oneTwentyPredictionSpread = {
+        'min' : 0.0,
+        'mid' : 0.0,
+        'avg' : 0.0,
+        'max' : 0.0,
+        'std' : 0.0,
+        'betAvg' : 0.0
+    }
 
     lastFirstTrade = 0
 
@@ -246,75 +321,10 @@ class Bot:
         'currentPrice': "0"
     }
 
-    BotRow = {
-        'timePeriod' : 0, # time to last row
-        'periodAvgPrice' : 0.0, #avg Price since last row
-        'periodHighPrice' : 0.0, #high price since last row
-        'periodLowPrice' : 0.0, #low price since last row
-        'periodStartPrice' : 0.0, #start price since last row
-        'periodEndPrice' : 0.0, #end price since last row, Current Price
-        'periodChangeReal' : 0.0, #change price since last row
-        'periodChangePercent' : 0.0, #change price percent since last row
-        'periodTravelReal' : 0.0, #max travel in price since last row
-        'periodTravelPercent' : 0.0, #max travel in price percent since last row
-        '1minAvgPrice' : 0.0, #avg Price in past 1 min
-        '1minHighPrice' : 0.0, #high price in past 1 min
-        '1minLowPrice' : 0.0, #low price in past 1 min
-        '1minStartPrice' : 0.0, #start price in past 1 min
-        '1minEndPrice' : 0.0, #end price in past 1 min, Current Price
-        '1minChangeReal' : 0.0, #change price in past 1 min
-        '1minChangePercent' : 0.0, #change price percent in past 1 min
-        '1minTravelReal' : 0.0, #max travel in price in 1 min
-        '1minTravelPercent' : 0.0, #max travel in price percent in 1 min
-        '3minAvgPrice' : 0.0, #avg Price in past 3 min
-        '3minHighPrice' : 0.0, #high price in past 3 min
-        '3minLowPrice' : 0.0, #low price in past 3 min
-        '3minStartPrice' : 0.0, #start price in past 3 min
-        '3minEndPrice' : 0.0, #end price in past 3 min, Current Price
-        '3minChangeReal' : 0.0, #change price in past 3 min
-        '3minChangePercent' : 0.0, #change price percent in past 3 min
-        '3minTravelReal' : 0.0, #max travel in price in 3 min
-        '3minTravelPercent' : 0.0, #max travel in price percent in 3 min
-        '5minAvgPrice' : 0.0, #avg Price in past 5 min
-        '5minHighPrice' : 0.0, #high price in past 5 min
-        '5minLowPrice' : 0.0, #low price in past 5 min
-        '5minStartPrice' : 0.0, #start price in past 5 min
-        '5minEndPrice' : 0.0, #end price in past 5 min, Current Price
-        '5minChangeReal' : 0.0, #change price in past 5 min
-        '5minChangePercent' : 0.0, #change price percent in past 5 min
-        '5minTravelReal' : 0.0, #max travel in price in 5 min
-        '5minTravelPercent' : 0.0, #max travel in price percent in 5 min
-        '10minAvgPrice' : 0.0, #avg Price in past 10 min
-        '10minHighPrice' : 0.0, #high price in past 10 min
-        '10minLowPrice' : 0.0, #low price in past 10 min
-        '10minStartPrice' : 0.0, #start price in past 10 min
-        '10minEndPrice' : 0.0, #end price in past 10 min, Current Price
-        '10minChangeReal' : 0.0, #change price in past 10 min
-        '10minChangePercent' : 0.0, #change price percent in past 10 min
-        '10minTravelReal' : 0.0, #max travel in price in 10 min
-        '10minTravelPercent' : 0.0, #max travel in price percent in 10 min
-        '15minAvgPrice' : 0.0, #avg Price in past 15 min
-        '15minHighPrice' : 0.0, #high price in past 15 min
-        '15minLowPrice' : 0.0, #low price in past 15 min
-        '15minStartPrice' : 0.0, #start price in past 15 min
-        '15minEndPrice' : 0.0, #end price in past 15 min, Current Price
-        '15minChangeReal' : 0.0, #change price in past 15 min
-        '15minChangePercent' : 0.0, #change price percent in past 15 min
-        '15minTravelReal' : 0.0, #max travel in price in 15 min
-        '15minTravelPercent' : 0.0, #max travel in price percent in 15 min
-        '30minAvgPrice' : 0.0, #avg Price in past 30 min
-        '30minHighPrice' : 0.0, #high price in past 30 min
-        '30minLowPrice' : 0.0, #low price in past 30 min
-        '30minStartPrice' : 0.0, #start price in past 30 min
-        '30minEndPrice' : 0.0, #end price in past 30 min, Current Price
-        '30minChangeReal' : 0.0, #change price in past 30 min
-        '30minChangePercent' : 0.0, #change price percent in past 30 min
-        '30minTravelReal' : 0.0, #max travel in price in 30 min
-        '30minTravelPercent' : 0.0, #max travel in price percent in 30 min
-    }
-
     first = True
     second = True
+
+    r = redis.StrictRedis(host='localhost',port=6377,db=0)
 
     def __init__(self, buyCoin, sellCoin, resetLevel):
         self.buyCoin = buyCoin
@@ -341,14 +351,17 @@ class Bot:
         # Get Cursor
         self.cur = self.conn.cursor()
 
+
+
     def go(self):
         self.actionTaken=''
         self.actionValue=0.0
         self.completedTradeId=0
-        self.priceData = get_latest(self, self.market, 1000)
+        self.priceData = get_latest(self, self.market, 200)
         if self.checkOrderPending():
             self.mode = 'in-progress'
         else:
+            self.checkExpiringTrades()
             self.calculateLean(self.priceData)
             # pp.pprint(currentData['currentPrice'])
             self.addCurrentPrice(self.priceData)
@@ -369,52 +382,148 @@ class Bot:
             print(f"Error: {e}", flush=True)
 
     def predictPrice(self):
-        while len(self.avgSets) > 5:
-            oldSet = self.avgSets.pop(0)
-            print(oldSet)
-            newSet = self.avgSets[-1]
-            print(newSet)
+        print("Count: {0:d}".format(self.r.llen('avgSets')))
+        # print(pickle.loads(self.r.rpop('avgSets')))
+        while self.r.llen('avgSets') > 5:
+            oldSet = pickle.loads(self.r.rpop('avgSets'))
+            # print(oldSet)
+            newSet = pickle.loads(self.r.lindex('avgSets', 0))
+            # print(newSet)
+
+        if self.r.llen('avgSets') == 5:
             self.tSecSlope = newSet['tSecAvg'] - oldSet['tSecAvg']
             self.fiveSlope = newSet['fiveAvg'] - oldSet['fiveAvg']
             self.thirtySlope = newSet['thirtyAvg'] - oldSet['thirtyAvg']
             self.oneTwentySlope = newSet['oneTwentyAvg'] - oldSet['oneTwentyAvg']
-            print(self.priceData['currentPrice'])
-            print(self.tSecSlope)
-            print(self.fiveSlope )
-            print(self.thirtySlope)
-            print(self.oneTwentySlope)
+            # print(self.priceData['currentPrice'])
+            # print(self.tSecSlope)
+            # print(self.fiveSlope )
+            # print(self.thirtySlope)
+            # print(self.oneTwentySlope)
             self.predictionString = categories.getRollingString(self.priceData['currentPrice'], newSet['tSecAvg'], newSet['fiveAvg'], newSet['thirtyAvg'], newSet['oneTwentyAvg'])+'-'+categories.getSlopeString(self.tSecSlope, self.fiveSlope, self.thirtySlope, self.oneTwentySlope)
-            cur.execute('SELECT value FROM predictions WHERE predictions.key = "{0:s}"'.format(self.predictionString))
+            cur.execute('SELECT tSecValue, fiveValue, thirtyValue, oneTwentyValue FROM predictions WHERE predictions.key = "{0:s}"'.format(self.predictionString))
             values = cur.fetchall()
-            self.predictionValue = 0
+            # self.predictionValue = 0
+            # self.predictionLongValue = 0
+            self.tSecPrediction = 0.0
+            self.fivePrediction = 0.0
+            self.thirtyPrediction = 0.0
+            self.oneTwentyPrediction = 0.0
             for value in values:
-                self.predictionValue = value[0]
+                # self.predictionValue = value[0]
+                # self.predictionLongValue = value[3]
+                self.tSecPrediction = value[0]
+                self.fivePrediction = value[1]
+                self.thirtyPrediction = value[2]
+                self.oneTwentyPrediction = value[3]
             now = datetime.now()
-            then = now + timedelta(minutes=10)
-            self.predictionSets.append({
-                'string' : self.predictionString,
-                'value' : self.predictionValue,
-                'time' : now.astimezone(timezone('US/Central')).strftime("%I:%M:%S%p"),
-                'pValue' : self.predictionToPrice(self.predictionValue),
-                'pTime' : then.astimezone(timezone('US/Central')).strftime("%I:%M:%S%p")
-            })
-            while len(self.predictionSets) > 12:
-                self.predictionSets.pop(0)
-            total = 0.0
-            for vals in self.predictionSets:
-                total += vals['value']
-            avg = 0 if ( len(self.predictionSets) == 0 ) else ( total / len(self.predictionSets) )
-            self.avgPrediction = 0 if (len(self.predictionSets) > 5 ) else avg
-            self.avgPricePrediction = self.predictionToPrice(avg)
-            self.avgPricePredictionSets.append({
-                'value' : self.avgPricePrediction,
-                'expires' : then
-            })
-            filter(isStillValid, self.avgPricePredictionSets)
+            tSecExpire = now + timedelta(seconds=30)
+            fiveExpire = now + timedelta(minutes=5)
+            thirtyExpire = now + timedelta(minutes=30)
+            oneTwentyExpire = now + timedelta(minutes=120)
 
+
+            while self.r.llen('tSecPredictionSet') > 1:
+                self.r.rpop('tSecPredictionSet')
+            self.tSecPredictionSet = pickle.loads(self.r.lindex('tSecPredictionSet', 0))
+            if self.tSecPrediction != 0.0:
+                self.tSecPredictionSet.append({
+                    'value' : self.tSecPrediction,
+                    'price' : self.predictionToPrice(self.tSecPrediction),
+                    'expires' : tSecExpire
+                })
+            self.tSecPredictionSet = list(filter(isStillValid, self.tSecPredictionSet))
+            self.r.lpush('tSecPredictionSet', pickle.dumps(self.tSecPredictionSet))
+            self.tSecPredictionSpread = self.calculateSpread(self.tSecPredictionSet)
+
+
+            while self.r.llen('fivePredictionSet') > 1:
+                self.r.rpop('fivePredictionSet')
+            self.fivePredictionSet = pickle.loads(self.r.lindex('fivePredictionSet', 0))
+            if self.fivePrediction != 0.0:
+                self.fivePredictionSet.append({
+                    'value' : self.fivePrediction,
+                    'price' : self.predictionToPrice(self.fivePrediction),
+                    'expires' : fiveExpire
+                })
+            self.fivePredictionSet = list(filter(isStillValid, self.fivePredictionSet))
+            self.r.lpush('fivePredictionSet', pickle.dumps(self.fivePredictionSet))
+            self.fivePredictionSpread = self.calculateSpread(self.fivePredictionSet)
+
+
+            while self.r.llen('thirtyPredictionSet') > 1:
+                self.r.rpop('thirtyPredictionSet')
+            self.thirtyPredictionSet = pickle.loads(self.r.lindex('thirtyPredictionSet', 0))
+            if self.thirtyPrediction != 0.0:
+                self.thirtyPredictionSet.append({
+                    'value' : self.thirtyPrediction,
+                    'price' : self.predictionToPrice(self.thirtyPrediction),
+                    'expires' : thirtyExpire
+                })
+            self.thirtyPredictionSet = list(filter(isStillValid, self.thirtyPredictionSet))
+            self.r.lpush('thirtyPredictionSet', pickle.dumps(self.thirtyPredictionSet))
+            self.thirtyPredictionSpread = self.calculateSpread(self.thirtyPredictionSet)
+
+
+            while self.r.llen('oneTwentyPredictionSet') > 1:
+                self.r.rpop('oneTwentyPredictionSet')
+            self.oneTwentyPredictionSet = pickle.loads(self.r.lindex('oneTwentyPredictionSet', 0))
+            if self.oneTwentyPrediction != 0.0:
+                self.oneTwentyPredictionSet.append({
+                    'value' : self.oneTwentyPrediction,
+                    'price' : self.predictionToPrice(self.oneTwentyPrediction),
+                    'expires' : oneTwentyExpire
+                })
+            self.oneTwentyPredictionSet = list(filter(isStillValid, self.oneTwentyPredictionSet))
+            self.r.lpush('oneTwentyPredictionSet', pickle.dumps(self.oneTwentyPredictionSet))
+
+            sixtySet = list(filter(isStillValidSixty, self.oneTwentyPredictionSet))
+            ninetySet = list(filter(isStillValidNinety, self.oneTwentyPredictionSet))
+            oneTwentySet = list(filter(isStillValidOneTwenty, self.oneTwentyPredictionSet))
+
+            self.sixtyPredictionCount = len(sixtySet)
+            self.ninetyPredictionCount = len(ninetySet)
+            self.oneTwentyPredictionCount = len(oneTwentySet)
+            self.sixtyPredictionSpread = self.calculateSpread(sixtySet)
+            self.ninetyPredictionSpread = self.calculateSpread(ninetySet)
+            self.oneTwentyPredictionSpread = self.calculateSpread(oneTwentySet)
+
+    def getPossibleNextGreen(self, price):
+        return self.feeCalc(price, self.fee, self.startPeakFeeMultiple, self.lastAction)
+
+    def calculateSpread(self, tSet):
+        spread = {
+            'min' : self.priceData['currentPrice'],
+            'mid' : self.priceData['currentPrice'],
+            'avg' : self.priceData['currentPrice'],
+            'max' : self.priceData['currentPrice'],
+            'std' : 0.0,
+            'betAvg' : self.priceData['currentPrice']
+        }
+        count = len(tSet)
+        if count:
+            tSet.sort(key=lambda item: item['price'] )
+            totVal = sum(p['price'] for p in tSet)
+            spread['avg'] = totVal / count
+            spread['min'] = tSet[0]['price']
+            spread['mid'] = tSet[round(count/2)]['price']
+            spread['max'] = tSet[-1]['price']
+            spread['std'] = np.std([p['price'] for p in tSet])
+            if spread['avg'] > self.priceData['currentPrice']:
+                spread['betAvg'] = max(self.priceData['currentPrice'], (spread['avg'] - spread['std']))
+            else:
+                spread['betAvg'] = min(self.priceData['currentPrice'], (spread['avg'] + spread['std']))
+
+        return spread
+
+    def priceToPrediction(self, price):
+        prediction = ( price / self.priceData['currentPrice'] * 100 ) - 100
+        if prediction == -100:
+            return 0.0
+        return prediction
 
     def predictionToPrice(self, prediction):
-        return self.priceData['currentPrice'] * ( prediction + 100 ) / 100
+        return self.priceData['currentPrice'] * (( prediction + 100 ) / 100)
 
     def topCet(self):
         if self.cetBuyTime < datetime.now() - timedelta(minutes=10):
@@ -605,12 +714,12 @@ class Bot:
 
         goal = self.goalPercentReset
         # goal = goal * self.timeLean
-        goal = goal * self.currencyLean
-        goal = goal * self.historyLean
-        goal = goal * self.recentRangeLean
+        # goal = goal * self.currencyLean
+        # goal = goal * self.historyLean
+        # goal = goal * self.recentRangeLean
         # goal = goal * self.greenTouchesLean
-        if goal < 1.00001:
-            goal = 1.00001
+        # if goal < 1.00001:
+        #     goal = 1.00001
         return goal
 
 
@@ -692,7 +801,6 @@ class Bot:
                 self.lastPrice = newLastPrice
         # print('<><><><><><>pick new last price: '+str(self.lastPrice))
 
-
     def addCurrentPrice(self, priceData):
         self.priceData=priceData
         modeWas = self.mode
@@ -734,9 +842,9 @@ class Bot:
 
             currentRangePerc = ( cTo * 100 / lowHighDiff )
             # print('lossGainPerc {0:5.2f} currentRangePerc {1:5.2f}'.format(lossGainPerc, currentRangePerc), flush=True)
-            if lossGainPerc < -1.0 and ( lossGainPerc > -2.0 or self.lastAction == 'sell' ) and currentRangePerc > 95.0:
-                print("RED TRADE")
-                self.setRedTrade()
+            if lossGainPerc < -1.0 and ( lossGainPerc > -1.5 or self.lastAction == 'sell' ) and currentRangePerc > 95.0:
+                print("RED TRADE - DISABLED")
+                # self.setRedTrade()
 
             # Rewrite red mode to look for a new good entry point and make a red sale
             #  return to the "never move green price" maxium
@@ -767,32 +875,64 @@ class Bot:
 
         if ( datetime.now() - self.listedTime > timedelta(minutes=5)
                 and self.listedType == 'action' ):
-            self.updateGuidePrice(self.latestPrice)
+            self.updateGuidePrice(self.guidePrice)
 
         self.goalPercent = self.getGoalPercent()
 
+
+
+        if self.lastAction == 'sell':
+            if self.tSecPredictionSpread['betAvg'] < self.greenPrice:
+                # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
+                # We should be able to buy within 30 seconds.
+                if self.fivePredictionSpread['betAvg'] > self.getPossibleNextGreen(self.tSecPredictionSpread['betAvg']):
+                    print('30 Sec is IN Now Green, 5 min is IN next Green', flush=True)
+                    self.setExpiringTrade({
+                        'price': self.tSecPredictionSpread['betAvg'],
+                        'expires': datetime.now() + timedelta(seconds=60)
+                    })
+        elif self.lastAction == 'buy':
+            if self.tSecPredictionSpread['betAvg'] > self.greenPrice:
+                # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
+                # We should be able to buy within 30 seconds.
+                if self.fivePredictionSpread['betAvg'] < self.getPossibleNextGreen(self.tSecPredictionSpread['betAvg']):
+                    print('30 Sec is IN Now Green, 5 min is IN next Green', flush=True)
+                    self.setExpiringTrade({
+                        'price': self.tSecPredictionSpread['betAvg'],
+                        'expires': datetime.now() + timedelta(seconds=60)
+                    })
+
+
         # if self.lastAction == 'sell' and self.priceData['currentPrice'] < self.greenPrice:
         #     # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
-        #     if self.avgPrediction > self.feeAsPercent:
+        #     if ( ( self.priceToPrediction(self.tSecPredictionSpread['betAvg']) > self.feeAsPercent or self.priceToPrediction(self.fivePredictionSpread['betAvg']) > self.feeAsPercent )
+        #         and self.avgLongPrediction > 0):
         #         # print("IN GREEN TRIGGER BUY", flush=True)
         #         self.actionPrice = self.priceData['currentPrice'] - (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * .001)
         #         self.setActionTrade()
         #         return
-        # elif self.lastAction == 'sell' and self.avgPrediction > 3.75:
-        #         print("PRICE IS LEAVING, GO FOR CATCH IT", flush=True)
+        #     else:
+        #         self.updateGuidePrice(self.priceData['currentPrice'])
+        # elif self.lastAction == 'sell':
+        #     if ( ( self.priceToPrediction(self.tSecPredictionSpread['betAvg'])  > (2 * self.feeAsPercent) or self.priceToPrediction(self.fivePredictionSpread['betAvg'])  > (2 * self.feeAsPercent) )
+        #         and self.minLongPrediction > self.feeAsPercent):
+        #         print("PRICE IS RIPE FOR A SELL, LEAVE THIS POTENTIAL AND BUY NOW TO CATCH IT", flush=True)
         #         self.setRedTrade()
+        #     # else:
+        #     #     self.updateGuidePrice(self.priceData['currentPrice'])
         # elif self.lastAction == 'buy' and self.priceData['currentPrice'] > self.greenPrice:
         #     # print("CHECKING IN GREEN SELL PREDICTION", flush=True)
-        #     if self.avgPrediction < 0 - self.feeAsPercent:
+        #     if ( ( self.priceToPrediction(self.tSecPredictionSpread['betAvg']) < 0 - ( 2 * self.feeAsPercent ) or self.priceToPrediction(self.fivePredictionSpread['betAvg']) < 0 - ( 2 * self.feeAsPercent ) )
+        #         and self.avgLongPrediction < 0 - ( 2 * self.feeAsPercent )):
         #         # print("IN GREEN TRIGGER SELL", flush=True)
         #         self.actionPrice = self.priceData['currentPrice'] + (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * .001)
         #         self.setActionTrade()
         #         return
+            # else:
+            #     self.updateGuidePrice(self.priceData['currentPrice'])
         # elif self.lastAction == 'buy' and self.avgPrediction < -3.75:
-        #         print("PRICE IS LEAVING, GO FOR CATCH IT", flush=True)
-        #         self.setRedTrade()
-        # el
-        if self.lastAction == 'buy':
+        #         We don't red sell
+        elif self.lastAction == 'buy':
             self.latestPrice = self.priceData['sellActionPrice']
             if self.latestPrice > self.guidePrice:
                 self.updateGuidePrice(self.latestPrice)
@@ -843,6 +983,9 @@ class Bot:
             #     exit()
             change=self.guidePrice - self.lastPrice
             actionPrice=self.lastPrice + ((change * ( self.actionPercent * 100 ) ) / 100 )
+            minAction = self.guidePrice * .995
+            if minAction > actionPrice:
+                actionPrice = minAction
             if actionPrice > self.actionPrice:
                 self.actionPrice = actionPrice
             self.goalPrice=self.lastPrice + ((change * ( self.goalPercent * 100 ) ) / 100 )
@@ -854,6 +997,9 @@ class Bot:
             #     exit()
             change=self.lastPrice - self.guidePrice
             actionPrice=self.lastPrice - ((change * ( self.actionPercent * 100 ) ) / 100 )
+            maxAction = self.guidePrice * 1.005
+            if maxAction < actionPrice:
+                actionPrice = maxAction
             if actionPrice < self.actionPrice:
                 self.actionPrice = actionPrice
             self.goalPrice=self.lastPrice - ((change * ( self.goalPercent * 100 ) ) / 100 )
@@ -909,10 +1055,49 @@ class Bot:
         self.listedType = 'red'
         self.actionTaken='red'
         self.actionValue=self.listedPrice
-        print("Action trade")
+        print("RED Action trade")
         newId=put_limit(data)
         self.tradeId=newId
         get_account(self.buyCoin, self.sellCoin)
+
+    def setExpiringTrade(self, info):
+        if self.tradeId != "0":
+            print(" Cancel existing order for Expiring Trade ")
+            cancel_order(self.tradeId, self)
+        self.listedPrice = self.finalPriceSet(info['price'])
+        data = {
+            "amount": self.nextAmount(self.listedPrice),
+            "price": self.listedPrice,
+            "type": self.nextActionType(),
+            "market": self.market
+        }
+        self.listedTime = datetime.now()
+        self.listedType = 'expiring'
+        self.actionTaken = 'expiring'
+        self.actionValue = self.listedPrice
+        print("Expiring trade")
+        newId = put_limit(data)
+        self.tradeId=newId
+        self.r.lpush('expiringTrades', pickle.dumps({
+            'tradeId': newId,
+            'price': info['price'],
+            'expires': info['expires']
+        }))
+        get_account(self.buyCoin, self.sellCoin)
+
+    def checkExpiringTrades(self):
+        tradeRemoved = False
+        # tradeReplaced = False
+        for i in range(0, self.r.llen('expiringTrades')):
+            trade = pickle.loads(self.r.lindex('expiringTrades', i))
+            if trade['expires'] < datetime.now():
+                if self.tradeId == trade['tradeId']:
+                    cancel_order(self.tradeId, self)
+                    tradeRemoved = True
+                self.r.lrem('expiringTrades', 1, pickle.dumps(trade))
+        if tradeRemoved:
+            self.replaceGoalTrade()
+
 
     def setActionTrade(self):
         if self.tradeId != "0":
@@ -1141,8 +1326,8 @@ class Bot:
         print(' deal money: '+totalChangeDeal24 +' amount: '+totalChangeAmount24)
         print('in 12hr '+str(total12)+' trades '+str(buys12)+' buys '+str(sells12)+' sells')
         print(' deal money: '+totalChangeDeal12 +' amount: '+totalChangeAmount12)
-        monthDeal = self.changeFormat(endDealMoney, 1775.0, self.sellCoin)
-        print('Rockport Goal: '+monthDeal, flush=True)
+        monthDeal = self.changeFormat(endDealMoney, 600.0, self.sellCoin)
+        print('SPI Goal: '+monthDeal, flush=True)
         since = datetime.now() - now
         s1 = since.total_seconds()
         m = (s1 / 60)
@@ -1230,28 +1415,197 @@ class Bot:
 
             print("  green touches: "+str(self.greenTouches))
             print("    red touches: "+str(self.redTouches))
-            
 
-            # print("predictions:")
+            print("predictions:")
+            print("p: {0:s}  ".format(self.predictionString))
+            print("                       30 seconds {0:d}                           5 minutes {1:d}                          30 minutes {2:d}".format(
+                len(self.tSecPredictionSet), len(self.fivePredictionSet), len(self.thirtyPredictionSet)))
+            print("current: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.tSecPrediction,
+                self.getChangePredictionDebug(self.predictionToPrice(self.tSecPrediction), endAmount, endDealMoney),
+                self.fivePrediction,
+                self.getChangePredictionDebug(self.predictionToPrice(self.fivePrediction), endAmount, endDealMoney),
+                self.thirtyPrediction,
+                self.getChangePredictionDebug(self.predictionToPrice(self.thirtyPrediction), endAmount, endDealMoney)
+                ))
+            print("    min: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.tSecPredictionSpread['min']),
+                self.getChangePredictionDebug(self.tSecPredictionSpread['min'], endAmount, endDealMoney),
+                self.priceToPrediction(self.fivePredictionSpread['min']),
+                self.getChangePredictionDebug(self.fivePredictionSpread['min'], endAmount, endDealMoney),
+                self.priceToPrediction(self.thirtyPredictionSpread['min']),
+                self.getChangePredictionDebug(self.thirtyPredictionSpread['min'], endAmount, endDealMoney)
+                ))
+            print("    mid: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.tSecPredictionSpread['mid']),
+                self.getChangePredictionDebug(self.tSecPredictionSpread['mid'], endAmount, endDealMoney),
+                self.priceToPrediction(self.fivePredictionSpread['mid']),
+                self.getChangePredictionDebug(self.fivePredictionSpread['mid'], endAmount, endDealMoney),
+                self.priceToPrediction(self.thirtyPredictionSpread['mid']),
+                self.getChangePredictionDebug(self.thirtyPredictionSpread['mid'], endAmount, endDealMoney)
+                ))
+            print("    avg: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.tSecPredictionSpread['avg']),
+                self.getChangePredictionDebug(self.tSecPredictionSpread['avg'], endAmount, endDealMoney),
+                self.priceToPrediction(self.fivePredictionSpread['avg']),
+                self.getChangePredictionDebug(self.fivePredictionSpread['avg'], endAmount, endDealMoney),
+                self.priceToPrediction(self.thirtyPredictionSpread['avg']),
+                self.getChangePredictionDebug(self.thirtyPredictionSpread['avg'], endAmount, endDealMoney)
+                ))
+            print("    max: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.tSecPredictionSpread['max']),
+                self.getChangePredictionDebug(self.tSecPredictionSpread['max'], endAmount, endDealMoney),
+                self.priceToPrediction(self.fivePredictionSpread['max']),
+                self.getChangePredictionDebug(self.fivePredictionSpread['max'], endAmount, endDealMoney),
+                self.priceToPrediction(self.thirtyPredictionSpread['max']),
+                self.getChangePredictionDebug(self.thirtyPredictionSpread['max'], endAmount, endDealMoney)
+                ))
+            print("    std:     {0:10.3f}                            {1:10.3f}                            {2:10.3f}".format(
+                self.tSecPredictionSpread['std'],
+                self.fivePredictionSpread['std'],
+                self.thirtyPredictionSpread['std']
+                ))
+            print(" betAvg: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.tSecPredictionSpread['betAvg']),
+                "  N-A" if ( self.priceToPrediction(self.tSecPredictionSpread['betAvg']) == 0.0 ) else self.getChangePredictionDebug(self.tSecPredictionSpread['betAvg'], endAmount, endDealMoney),
+                self.priceToPrediction(self.fivePredictionSpread['betAvg']),
+                "  N-A" if ( self.priceToPrediction(self.fivePredictionSpread['betAvg']) == 0.0 ) else self.getChangePredictionDebug(self.fivePredictionSpread['betAvg'], endAmount, endDealMoney),
+                self.priceToPrediction(self.thirtyPredictionSpread['betAvg']),
+                "  N-A" if ( self.priceToPrediction(self.thirtyPredictionSpread['betAvg']) == 0.0 ) else self.getChangePredictionDebug(self.thirtyPredictionSpread['betAvg'], endAmount, endDealMoney)
+                ))
+
+            print(" ")
+            print("120 min tot {3:d}      0-60 minutes {0:d}                        60-90 minutes {1:d}                      90-120 minutes {2:d}".format(
+                self.sixtyPredictionCount, self.ninetyPredictionCount, self.oneTwentyPredictionCount, len(self.oneTwentyPredictionSet)))
+            print("current: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.oneTwentyPrediction,
+                self.getChangePredictionDebug(self.predictionToPrice(self.oneTwentyPrediction), endAmount, endDealMoney),
+                0,
+                '  N-A',
+                0,
+                '  N-A'
+                ))
+            print("    min: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.sixtyPredictionSpread['min']),
+                self.getChangePredictionDebug(self.sixtyPredictionSpread['min'], endAmount, endDealMoney),
+                self.priceToPrediction(self.ninetyPredictionSpread['min']),
+                self.getChangePredictionDebug(self.ninetyPredictionSpread['min'], endAmount, endDealMoney),
+                self.priceToPrediction(self.oneTwentyPredictionSpread['min']),
+                self.getChangePredictionDebug(self.oneTwentyPredictionSpread['min'], endAmount, endDealMoney)
+                ))
+            print("    mid: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.sixtyPredictionSpread['mid']),
+                self.getChangePredictionDebug(self.sixtyPredictionSpread['mid'], endAmount, endDealMoney),
+                self.priceToPrediction(self.ninetyPredictionSpread['mid']),
+                self.getChangePredictionDebug(self.ninetyPredictionSpread['mid'], endAmount, endDealMoney),
+                self.priceToPrediction(self.oneTwentyPredictionSpread['mid']),
+                self.getChangePredictionDebug(self.oneTwentyPredictionSpread['mid'], endAmount, endDealMoney)
+                ))
+            print("    avg: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.sixtyPredictionSpread['avg']),
+                self.getChangePredictionDebug(self.sixtyPredictionSpread['avg'], endAmount, endDealMoney),
+                self.priceToPrediction(self.ninetyPredictionSpread['avg']),
+                self.getChangePredictionDebug(self.ninetyPredictionSpread['avg'], endAmount, endDealMoney),
+                self.priceToPrediction(self.oneTwentyPredictionSpread['avg']),
+                self.getChangePredictionDebug(self.oneTwentyPredictionSpread['avg'], endAmount, endDealMoney)
+                ))
+            print("    max: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.sixtyPredictionSpread['max']),
+                self.getChangePredictionDebug(self.sixtyPredictionSpread['max'], endAmount, endDealMoney),
+                self.priceToPrediction(self.ninetyPredictionSpread['max']),
+                self.getChangePredictionDebug(self.ninetyPredictionSpread['max'], endAmount, endDealMoney),
+                self.priceToPrediction(self.oneTwentyPredictionSpread['max']),
+                self.getChangePredictionDebug(self.oneTwentyPredictionSpread['max'], endAmount, endDealMoney)
+                ))
+            print("    std:     {0:10.3f}                            {1:10.3f}                            {2:10.3f}".format(
+                self.sixtyPredictionSpread['std'],
+                self.ninetyPredictionSpread['std'],
+                self.oneTwentyPredictionSpread['std'],
+                ))
+            print(" betAvg: {0:6.3f} {1:<28s}   {2:6.3f} {3:<28s}   {4:6.3f} {5:28s}".format(
+                self.priceToPrediction(self.sixtyPredictionSpread['betAvg']),
+                "  N-A" if ( self.priceToPrediction(self.sixtyPredictionSpread['betAvg']) == 0.0 ) else self.getChangePredictionDebug(self.sixtyPredictionSpread['betAvg'], endAmount, endDealMoney),
+                self.priceToPrediction(self.ninetyPredictionSpread['betAvg']),
+                "  N-A" if ( self.priceToPrediction(self.ninetyPredictionSpread['betAvg']) == 0.0 ) else self.getChangePredictionDebug(self.ninetyPredictionSpread['betAvg'], endAmount, endDealMoney),
+                self.priceToPrediction(self.oneTwentyPredictionSpread['betAvg']),
+                "  N-A" if ( self.priceToPrediction(self.oneTwentyPredictionSpread['betAvg']) == 0.0 ) else self.getChangePredictionDebug(self.oneTwentyPredictionSpread['betAvg'], endAmount, endDealMoney)
+                ))
+
+
+
+
+
             # for prediction in self.predictionSets[::-1]:
             #     change = self.changeFormat(findDealMoney(prediction['pValue'], endAmount), endDealMoney, self.sellCoin)
             #     if self.nextActionType() == 'buy':
             #         change = self.changeFormat(findAmount(prediction['pValue'], endDealMoney), endAmount, self.buyCoin, False)
-            #     # change = self.changeFormat(prediction['pValue'], self.priceData['currentPrice'], self.sellCoin)
-            #     print('{0:s}: {1:5.2f} {2:s}     {3:5.2f} {4:s} {5:s}'.format(prediction['string'], prediction['value'], prediction['time'], prediction['pValue'], change, prediction['pTime']))
+            #     longChange = self.changeFormat(findDealMoney(prediction['pLongValue'], endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         longChange = self.changeFormat(findAmount(prediction['pLongValue'], endDealMoney), endAmount, self.buyCoin, False)
+            #     print('{0:s}: short: {1:6.2f}  {2:6.2f} {3:s}    long: {4:6.2f}  {5:6.2f} {6:s} '.format(prediction['string'], prediction['value'], prediction['pValue'], change, prediction['longValue'], prediction['pLongValue'], longChange))
             
             # change = self.changeFormat(findDealMoney(self.avgPricePrediction, endAmount), endDealMoney, self.sellCoin)
             # if self.nextActionType() == 'buy':
             #     change = self.changeFormat(findAmount(self.avgPricePrediction, endDealMoney), endAmount, self.buyCoin, False)
-            # # change = self.changeFormat(self.avgPricePrediction, self.priceData['currentPrice'], self.sellCoin)
-            # print("1 min avg prediction: {0:6.2f}     {1:5.2f} {2:s}".format(self.avgPrediction, self.avgPricePrediction, change))
+            # longChange = self.changeFormat(findDealMoney(self.avgLongPricePrediction, endAmount), endDealMoney, self.sellCoin)
+            # if self.nextActionType() == 'buy':
+            #     longChange = self.changeFormat(findAmount(self.avgLongPricePrediction, endDealMoney), endAmount, self.buyCoin, False)
+            # print("current avg short: {0:6.2f}  {1:6.2f} {2:s}    long: {3:6.2f}  {4:6.2f} {5:s}".format(self.avgPrediction, self.avgPricePrediction, change, self.avgLongPrediction, self.avgLongPricePrediction, longChange))
 
-            # for prediction in self.avgPricePredictionSets[::-1]:
-            #     change = self.changeFormat(findDealMoney(prediction['value'], endAmount), endDealMoney, self.sellCoin)
+            # if len(self.avgPricePredictionSets):
+            #     # shortPredictionSetsOrdered = self.avgPricePredictionSets
+            #     # filter(isStillValid, shortPredictionSetsOrdered)
+            #     # shortPredictionSetsOrdered.sort(key=lambda item: item['value'] )
+            #     # minPrediction = shortPredictionSetsOrdered[0]
+            #     # midPrediction = shortPredictionSetsOrdered[round(len(shortPredictionSetsOrdered)/2)]
+            #     # maxPrediction = shortPredictionSetsOrdered[-1]
+                
+            #     # predictionSetsOrdered = sorted(self.avgPricePredictionSets, key=lambda item: item['longValue'] )
+            #     # minLongPrediction = predictionSetsOrdered[0]
+            #     # midLongPrediction = predictionSetsOrdered[round(len(predictionSetsOrdered)/2)]
+            #     # maxLongPrediction = predictionSetsOrdered[-1]
+
+
+            #     change = self.changeFormat(findDealMoney(self.minPrediction['value'], endAmount), endDealMoney, self.sellCoin)
             #     if self.nextActionType() == 'buy':
-            #         change = self.changeFormat(findAmount(prediction['value'], endDealMoney), endAmount, self.buyCoin, False)
-            #     # change = self.changeFormat(prediction['pValue'], self.priceData['currentPrice'], self.sellCoin)
-            #     print('     avg : {0:5.2f} {1:s} {2:s}'.format(prediction['value'], change, prediction['expires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p")))
+            #         change = self.changeFormat(findAmount(self.minPrediction['value'], endDealMoney), endAmount, self.buyCoin, False)
+            #     longChange = self.changeFormat(findDealMoney(self.minLongPrediction['longValue'], endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         longChange = self.changeFormat(findAmount(self.minLongPrediction['longValue'], endDealMoney), endAmount, self.buyCoin, False)
+            #     print('min short : {6:6.2f} {0:6.2f} {1:s} expires: {5:s}     long: {7:6.2f} {2:6.2f} {3:s} expires: {4:s} '.format(self.minPrediction['value'], change, self.minLongPrediction['longValue'], longChange, self.minLongPrediction['longExpires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p"), self.minPrediction['expires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p"), self.priceToPrediction(self.minPrediction['value']), self.priceToPrediction(self.minLongPrediction['longValue'])))
+
+            #     change = self.changeFormat(findDealMoney(self.midPrediction['value'], endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         change = self.changeFormat(findAmount(self.midPrediction['value'], endDealMoney), endAmount, self.buyCoin, False)
+            #     longChange = self.changeFormat(findDealMoney(self.midLongPrediction['longValue'], endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         longChange = self.changeFormat(findAmount(self.midLongPrediction['longValue'], endDealMoney), endAmount, self.buyCoin, False)
+            #     print('mid short : {6:6.2f} {0:6.2f} {1:s} expires: {5:s}     long: {7:6.2f} {2:6.2f} {3:s} expires: {4:s} '.format(self.midPrediction['value'], change, self.midLongPrediction['longValue'], longChange, self.midLongPrediction['longExpires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p"), self.midPrediction['expires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p"), self.priceToPrediction(self.midPrediction['value']), self.priceToPrediction(self.midLongPrediction['longValue'])))
+
+            #     change = self.changeFormat(findDealMoney(self.avgPredictionValue, endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         change = self.changeFormat(findAmount(self.avgPredictionValue, endDealMoney), endAmount, self.buyCoin, False)
+            #     longChange = self.changeFormat(findDealMoney(self.avgLongPredictionValue, endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         longChange = self.changeFormat(findAmount(self.avgLongPredictionValue, endDealMoney), endAmount, self.buyCoin, False)
+            #     print('avg short : {6:6.2f} {0:6.2f} {1:s}                         long: {7:6.2f} {2:6.2f} {3:s}  '.format(self.avgPredictionValue, change, self.avgLongPredictionValue, longChange, 'x', 'x', self.priceToPrediction(self.avgPredictionValue), self.priceToPrediction(self.avgLongPredictionValue)))
+
+            #     change = self.changeFormat(findDealMoney(self.maxPrediction['value'], endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         change = self.changeFormat(findAmount(self.maxPrediction['value'], endDealMoney), endAmount, self.buyCoin, False)
+            #     longChange = self.changeFormat(findDealMoney(self.maxLongPrediction['longValue'], endAmount), endDealMoney, self.sellCoin)
+            #     if self.nextActionType() == 'buy':
+            #         longChange = self.changeFormat(findAmount(self.maxLongPrediction['longValue'], endDealMoney), endAmount, self.buyCoin, False)
+            #     print('max short : {6:6.2f} {0:6.2f} {1:s} expires: {5:s}     long: {7:6.2f} {2:6.2f} {3:s} expires: {4:s} '.format(self.maxPrediction['value'], change, self.maxLongPrediction['longValue'], longChange, self.maxLongPrediction['longExpires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p"), self.maxPrediction['expires'].astimezone(timezone('US/Central')).strftime("%I:%M:%S%p"), self.priceToPrediction(self.maxPrediction['value']), self.priceToPrediction(self.maxLongPrediction['longValue'])))
+            #     
+            #     
+            #     
+            #     
+            #     
+            #     
+            #     
+            #     
+            #     
             
 
 
@@ -1439,6 +1793,11 @@ class Bot:
     def percToGreen(self, price):
         return 0 if (self.greenPrice == 0) else (price * 100 / self.greenPrice)
 
+    def getChangePredictionDebug(self, price, amount, dealMoney):
+        if self.nextActionType() == 'sell':
+            return str(self.changeFormat(findDealMoney(price, amount), findDealMoney(self.priceData['currentPrice'], amount), self.sellCoin))
+        return str(self.changeFormat(findAmount(price, dealMoney), findAmount(self.priceData['currentPrice'], dealMoney), self.buyCoin, False))
+
 def percChange(end, start):
     if start == 0:
         start = 0.00000001
@@ -1461,7 +1820,7 @@ def findAmount(price, dealMoney):
 def findPrice(dealMoney, amount):
     return 0 if ( amount == 0 ) else ( dealMoney / amount )
 
-def getFloatFormat(value, desired = 8):
+def getFloatFormat(value, desired = 10):
     if value > 0:
         digits = int(math.log10(value))+1
     elif value == 0:
@@ -1469,15 +1828,33 @@ def getFloatFormat(value, desired = 8):
     else:
         digits = int(math.log10(-value))+1
 
-    decimals = desired - digits
+    if digits < round(desired * 0.4):
+        digits = round(desired * 0.4)
 
+    decimals = desired - digits
     return value, digits, decimals
 
 def scale(unscaledNum, minAllowed, maxAllowed, min, max):
     return (maxAllowed - minAllowed) * (unscaledNum - min) / (max - min) + minAllowed
 
 def isStillValid(predictionSet):
-    if predictionSet['expires'] > datetime.now() - timedelta(minutes=10):
+    if predictionSet['expires'] > datetime.now():
+        return True
+    return False
+
+def isStillValidSixty(predictionSet):
+    if ( predictionSet['expires'] > datetime.now() + timedelta(minutes=90) ):
+        return True
+    return False
+
+def isStillValidNinety(predictionSet):
+    if ( predictionSet['expires'] > datetime.now() + timedelta(minutes=60) 
+        and predictionSet['expires'] < datetime.now() + timedelta(minutes=90) ):
+        return True
+    return False
+
+def isStillValidOneTwenty(predictionSet):
+    if ( predictionSet['expires'] < datetime.now() + timedelta(minutes=60)):
         return True
     return False
 
@@ -1634,6 +2011,12 @@ def addTrades(newTrades, trader):
         'thirtyAvg' : float(thirtyAvg),
         'oneTwentyAvg' : float(oneTwentyAvg)
     })
+    trader.r.lpush('avgSets', pickle.dumps({
+        'tSecAvg' : float(tSecAvg),
+        'fiveAvg' : float(fiveAvg),
+        'thirtyAvg' : float(thirtyAvg),
+        'oneTwentyAvg' : float(oneTwentyAvg)
+    }))
 
 
 

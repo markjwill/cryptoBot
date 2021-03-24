@@ -38,30 +38,58 @@ except mariadb.Error as e:
 cur = conn.cursor()
 
 
-def stillValid(trade, start_ms):
-    if trade[3] < start_ms:
-        return False
-    return True
+def inTargetTime(trade, start_ms, end_ms):
+    if trade[3] > start_ms and trade[3] < end_ms:
+        return True
+    return False
 
 
 def getRawTrades(market, trades, endSeconds):
     end_ms = endSeconds * 1000
-    start_ms = round(end_ms - (7200 * 1000 ))
+    start_ms = end_ms - 7200000
+    query_end_ms = end_ms
+    query_start_ms = start_ms
+    queryFirst = True
     if len(trades) > 0:
-        if len(trades[0]) > 3:
-            if trades[0][3] > start_ms:
-                start_ms = trades[0][3]
+        if len(trades[0]) > 3 and len(trades[-1]) > 3:
+            firstTrade_ms = trades[0][3]
+            lastTrade_ms = trades[-1][3]
+#            print('first trade ms: {0:d} last trade ms: {1:d} diff: {2:d}'.format(firstTrade_ms, lastTrade_ms, (lastTrade_ms - firstTrade_ms)), flush=True)
+            if lastTrade_ms < end_ms:
+                # just get the newest ones
+                query_start_ms = lastTrade_ms
+                queryFirst = False
+ #               print('last trade ms to end ms', flush=True)
+            elif firstTrade_ms > start_ms:
+                # just get the oldest ones
+                query_end_ms = firstTrade_ms
+                newFirst = True
+  #              print('start ms to first trade ms', flush=True)
 
-    cur.execute("SELECT price, amount, type, date_ms FROM trades WHERE date_ms > {0:d} AND date_ms < {1:d} ORDER BY date_ms DESC".format(start_ms, end_ms))
-    newTrades = cur.fetchall()
-    # print(str(len(newTrades))+" trades found", flush=True)
-    for trade in trades:
-        if stillValid(trade, round(end_ms - (7200 * 1000 ))):
+    cur.execute("SELECT price, amount, type, date_ms FROM trades WHERE date_ms > {0:d} AND date_ms < {1:d} ORDER BY date_ms ASC".format(query_start_ms, query_end_ms))
+    queryTrades = cur.fetchall()
+    # print(str(len(queryTrades))+" trades found", flush=True)
+    # print(str(len(trades))+" old trades found", flush=True)
+
+    newTrades = []
+
+    if queryFirst:
+        for trade in queryTrades:
             newTrades.append(trade)
+
+    for trade in trades:
+        if inTargetTime(trade, start_ms, end_ms):
+            newTrades.append(trade)
+    
+    if not queryFirst:
+        for trade in queryTrades:
+            newTrades.append(trade)
+
     # print(str(len(newTrades))+" total trades keeping", flush=True)
+    # print('NEW first trade ms: {0:d} last trade ms: {1:d} diff: {2:d}'.format(newTrades[0][3], newTrades[-1][3], (newTrades[-1][3] - newTrades[0][3])), flush=True)
     return newTrades
 
-def getCalcAllTrades(market, id_col, trades, endSeconds):
+def getCalcAllPastTrades(market, id_col, trades, endSeconds):
     data = [
         {
             'period' : 'fiveSec',
@@ -318,7 +346,7 @@ def getCalcAllTrades(market, id_col, trades, endSeconds):
     for trade in trades:
         for period in data:
             period['start_ms'] = end_ms - ( period['seconds'] * 1000 )
-            if trade[3] >= period['start_ms']:
+            if trade[3] >= period['start_ms'] and trade[3] <= end_ms:
                 if period['endPrice'] == 0.0:
                     period['endPrice'] = trade[0]
                 period['startPrice'] = trade[0]
@@ -364,17 +392,129 @@ def getCalcAllTrades(market, id_col, trades, endSeconds):
 
     return trades, data[2]['avgPrice'], data[5]['avgPrice'], data[8]['avgPrice'], data[10]['avgPrice']
 
+def getCalcFutureTrades(market, period, id_col, end_ms):
+    if period == 'fiveSec':
+        seconds = 5
+    elif period == 'tenSec':
+        seconds = 10
+    elif period == 'thirtySec':
+        seconds = 30
+    elif period == 'oneMin':
+        seconds = 60
+    elif period == 'threeMin':
+        seconds = 180
+    elif period == 'fiveMin':
+        seconds = 300
+    elif period == 'tenMin':
+        seconds = 600
+    elif period == 'fifteenMin':
+        seconds = 900
+    elif period == 'thirtyMin':
+        seconds = 1800
+    elif period == 'sixtyMin':
+        seconds = 3600
+    elif period == 'oneTwentyMin':
+        seconds = 7200
+    else:
+        seconds = period
+        period = 'period'
+    trades = getRawTrades(market, end_ms, seconds)
+
+    avgPrice = 0.0 #avg Price
+    highPrice = 0.0 #high price
+    lowPrice = 0.0 #low price
+    startPrice = 0.0 #start price
+    endPrice = 0.0 #end price, Current Price
+    changeReal = 0.0 #start to end change price
+    changePercent = 0.0 #start to end change price percent
+    travelReal = 0.0 #max travel in price
+    travelPercent = 0.0 #max travel in price percent
+    volume = 0.0 #total volume
+    volumePrMin = 0.0 #
+    totalPrice = 0.0 #total
+    tradeCount = len(trades)
+    sellsPrMin = 0.0
+    sells = 0
+    buysPrMin = 0.0
+    buys = 0
+
+    endPrice = trades[0][0]
+    startPrice = trades[-1][0]
+
+    for trade in trades:
+        if trade[0] > highPrice:
+            highPrice = trade[0]
+
+        if trade[0] < lowPrice or lowPrice == 0.0:
+            lowPrice = trade[0]
+
+        totalPrice += trade[0]
+        volume += trade[1]
+
+        if trade[2] == 'buy':
+            buys += 1
+
+        if trade[2] == 'sell':
+            sells += 1
+
+    avgPrice = totalPrice / tradeCount
+    volumePrMin = volume / seconds * 60
+    changeReal = endPrice - startPrice
+    changePercent = changeReal * 100 / startPrice
+
+    travelReal = highPrice - lowPrice
+    travelPercent = travelReal * 100 / lowPrice
+
+    tradesPrMin = tradeCount / seconds * 60
+    buysPrMin = buys / seconds * 60
+    sellsPrMin = sells / seconds * 60
+
+    pastTime = math.floor(end_ms / 1000)
+
+    cur.execute(
+        "UPDATE trades SET f_{0:s}_changeReal = {1:0.8f}, f_{2:s}_changePercent = {3:0.8f}, f_{4:s}_endPrice = {5:0.8f}, f_{6:s}_lowPrice = {7:0.8f}, f_{8:s}_highPrice = {9:0.8f} WHERE date = {10:d}".format(period, changeReal, period, changePercent, period, endPrice, period, lowPrice, period, highPrice, pastTime))
+    conn.commit()
+
 def getLatestNumbers(trades):
     cur.execute("SELECT id, date_ms FROM trades ORDER BY date_ms DESC LIMIT 1")
     rows = cur.fetchall()
 
+    oldTrades = trades
+    trades = []
+
     for row in rows:
         print(datetime.fromtimestamp(round(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p"))
-        trades, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg = getCalcAllTrades(market, row[0], trades, round(row[1] / 1000))
+        trades, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg = getCalcAllPastTrades(market, row[0], oldTrades, round(row[1] / 1000))
 
     return trades, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg
 
+def crunchPastNumbers(trades):
+    cur.execute("SELECT id, date_ms FROM trades WHERE p_oneTwentyMin_changePercent IS NULL ORDER BY date_ms DESC LIMIT 100")
+    rows = cur.fetchall()
 
+    for row in rows:
+        print(datetime.fromtimestamp(round(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p"))
+        trades, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg = getCalcAllPastTrades(market, row[0], oldTrades, round(row[1] / 1000))
+
+    return
+
+def crunchFutureNumbers(trades):
+    twoHrsAgo = updatedTime.timestamp() * 1000
+    cur.execute("SELECT id, date_ms FROM trades WHERE p_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NULL AND date_ms < {0:} ORDER BY date_ms DESC LIMIT 100".format(twoHrsAgo))
+    for row in rows:
+        print("FutureCruncher "+datetime.fromtimestamp(math.floor(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p")+" "+str(math.floor(row[1] / 1000)), flush=True)
+        getCalcTrades(market, 'fiveSec', row[0], row[1])
+        getCalcTrades(market, 'tenSec', row[0], row[1])
+        getCalcTrades(market, 'thirtySec', row[0], row[1])
+        getCalcTrades(market, 'oneMin', row[0], row[1])
+        getCalcTrades(market, 'threeMin', row[0], row[1])
+        getCalcTrades(market, 'fiveMin', row[0], row[1])
+        getCalcTrades(market, 'tenMin', row[0], row[1])
+        getCalcTrades(market, 'fifteenMin', row[0], row[1])
+        getCalcTrades(market, 'thirtyMin', row[0], row[1])
+        getCalcTrades(market, 'sixtyMin', row[0], row[1])
+        getCalcTrades(market, 'oneTwentyMin', row[0], row[1])
+    return trades
 
 
 
