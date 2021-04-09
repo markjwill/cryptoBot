@@ -216,8 +216,8 @@ class Bot:
     goalTimeSince=0
     actionTime=datetime.now()
 
-    goalPercent=50
-    goalPercentReset=50
+    goalPercent=10
+    goalPercentReset=10
     goalPercentTime=datetime.now()
     guidePercent=1.0
     actionPercent=0.5
@@ -233,8 +233,6 @@ class Bot:
 
     trades = []
 
-    fSlopeMode = 'waiting'
-
     actionTaken=''
     actionValue=0.0
     completedTradeId=""
@@ -242,7 +240,7 @@ class Bot:
     timeLean=1.0
 
     historyLean=1.0
-    redTimeHours=12
+    redTimeHours=48
     resetHardTimeHours=3
     recentRangeLean=1.0
     resetTime=datetime.now()
@@ -340,24 +338,9 @@ class Bot:
         self.sellCoin = sellCoin
         self.market=self.buyCoin + self.sellCoin
         self.lastAction=resetLevel
-        self.actionTaken = ''
-        while self.r.llen('lastRedTrade') > 0:
-            self.r.rpop('lastRedTrade')
         self.frozen[self.buyCoin] = 0.0
         self.frozen[self.sellCoin] = 0.0
         resetTime=datetime.now() - timedelta(hours=self.redTimeHours)
-        try:
-            self.cetSellHistory = order_finished('CET'+self.sellCoin, 1, 100, self)
-        except AttributeError:
-            self.cetSellHistory = {}
-        try:
-            self.cetBuyHistory = order_finished('CET'+self.buyCoin, 1, 100, self)
-        except AttributeError:
-            self.cetBuyHistory = {}
-        self.greenTouches = 0
-        while self.r.llen('greenTouches') > 0:
-            self.greenTouches = int(self.r.rpop('greenTouches'))
-        
         # Connect to MariaDB Platform
         try:
             self.conn = mariadb.connect(
@@ -374,13 +357,6 @@ class Bot:
 
         # Get Cursor
         self.cur = self.conn.cursor()
-
-        if self.r.llen('lastRedTrade') == 0:
-            cur.execute('SELECT finished_time FROM orders WHERE bot_type = "red" AND status = "done" ORDER BY id DESC LIMIT 1')
-            values = cur.fetchall()
-            for value in values:
-                redTime = value[0]
-            self.r.lpush('lastRedTrade', pickle.dumps(redTime))
 
     def getAccountValue(self):
         USDest = 0.0
@@ -418,15 +394,13 @@ class Bot:
             if self.first == False:
                 self.second = False
             self.first = False
-        # try:
-            # self.cur.execute(
-            #     "INSERT INTO history (time, currentPrice, greenPrice, action, actionTaken, actionValue, tradeId, avgActionPrice, buyActionPrice, sellActionPrice, market) VALUES (?,?,?,?,?,?,?,?,?,?, ?)",
-            #     (datetime.now(), self.priceData['currentPrice'], self.greenPrice, self.nextActionType(), self.actionTaken, self.actionValue, str(self.completedTradeId), self.priceData['avgActionPrice'], self.priceData['buyActionPrice'], self.priceData['sellActionPrice'], self.market))
-            # self.conn.commit()
-        # except mariadb.Error as e:
-        #     print(f"Error: {e}", flush=True)
-        self.r.rpop('greenTouches')
-        self.r.lpush('greenTouches', self.greenTouches)
+        try:
+            self.cur.execute(
+                "INSERT INTO history (time, currentPrice, greenPrice, action, actionTaken, actionValue, tradeId, avgActionPrice, buyActionPrice, sellActionPrice, market) VALUES (?,?,?,?,?,?,?,?,?,?, ?)",
+                (datetime.now(), self.priceData['currentPrice'], self.greenPrice, self.nextActionType(), self.actionTaken, self.actionValue, str(self.completedTradeId), self.priceData['avgActionPrice'], self.priceData['buyActionPrice'], self.priceData['sellActionPrice'], self.market))
+            self.conn.commit()
+        except mariadb.Error as e:
+            print(f"Error: {e}", flush=True)
 
     def getPriceChangeSinceLast(self):
         self.priceChange = self.previousCurrentPrice - self.priceData['currentPrice']
@@ -437,17 +411,22 @@ class Bot:
     def predictPrice(self):
         # print("Count: {0:d}".format(self.r.llen('avgSets')))
         # print(pickle.loads(self.r.rpop('avgSets')))
-        while self.r.llen('avgSets') > 3:
+        while self.r.llen('avgSets') > 5:
             oldSet = pickle.loads(self.r.rpop('avgSets'))
             # print(oldSet)
             newSet = pickle.loads(self.r.lindex('avgSets', 0))
             # print(newSet)
 
-        if self.r.llen('avgSets') == 3:
+        if self.r.llen('avgSets') == 5:
             self.tSecSlope = newSet['tSecAvg'] - oldSet['tSecAvg']
             self.fiveSlope = newSet['fiveAvg'] - oldSet['fiveAvg']
             self.thirtySlope = newSet['thirtyAvg'] - oldSet['thirtyAvg']
             self.oneTwentySlope = newSet['oneTwentyAvg'] - oldSet['oneTwentyAvg']
+            # print(self.priceData['currentPrice'])
+            # print(self.tSecSlope)
+            # print(self.fiveSlope )
+            # print(self.thirtySlope)
+            # print(self.oneTwentySlope)
             self.predictionString = categories.getRollingString(self.priceData['currentPrice'], newSet['tSecAvg'], newSet['fiveAvg'], newSet['thirtyAvg'], newSet['oneTwentyAvg'])+'-'+categories.getSlopeString(self.tSecSlope, self.fiveSlope, self.thirtySlope, self.oneTwentySlope)
             cur.execute('SELECT tSecValue, fiveValue, thirtyValue, oneTwentyValue FROM predictions WHERE predictions.key = "{0:s}"'.format(self.predictionString))
             values = cur.fetchall()
@@ -655,7 +634,7 @@ class Bot:
     def colorizePrediction(self, prediction):
         up = bcolors.OKGREEN
         down = bcolors.FAIL
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             up = bcolors.FAIL
             down = bcolors.OKGREEN
         if prediction == -100:
@@ -703,7 +682,7 @@ class Bot:
                     "market": market
                 }
                 print("Buying CET")
-                self.cetId = put_limit(data, 'cet')
+                self.cetId = put_limit(data)
                 self.cetBuyTime = datetime.now()
                 get_account(self.buyCoin, self.sellCoin)
 
@@ -900,8 +879,6 @@ class Bot:
         else:
             if result['orderUp'] == False:
                 self.history = order_finished(self.market, 1, 100, self)
-                self.cetSellHistory = order_finished('CET'+self.sellCoin, 1, 100, self)
-                self.cetBuyHistory = order_finished('CET'+self.buyCoin, 1, 100, self)
                 self.goalPercent = self.getGoalPercent()
 
 
@@ -942,18 +919,8 @@ class Bot:
 
         return True
 
-    def tryingToBuy(self):
-        if self.lastAction == 'sell':
-            return True
-        return False
-
-    def tryingToSell(self):
-        if self.lastAction == 'buy':
-            return True
-        return False
-
     def pickNewLastPrice(self):
-        if self.tryingToSell():
+        if self.lastAction == 'buy':
             priceRange = float(self.priceData['highPrice']) - float(self.priceData['lowPrice'])
             newLastPrice = float(self.priceData['lowPrice']) + ( ( priceRange * ( self.lowStartPercent * 100 ) ) / 100 )
             if newLastPrice < self.lastPrice:
@@ -966,28 +933,16 @@ class Bot:
         # print('<><><><><><>pick new last price: '+str(self.lastPrice))
 
     def twoMinPredictionIsGreen(self):
-        if self.tryingToBuy():
-            if self.avgTwoMinPrediction() < self.greenPrice:
+        if self.lastAction == 'sell':
+            if self.bestTwoMinPrediction() < self.greenPrice:
                 return True
         else:
-            if self.avgTwoMinPrediction() > self.greenPrice:
+            if self.bestTwoMinPrediction() > self.greenPrice:
                 return True
         return False
 
-    def avgTwoMinPrediction(self):
-        if self.tryingToBuy():
-            return (
-                self.predictionSpreads['threeFour']['Under']['betAvg'] +
-                self.predictionSpreads['fourFive']['Under']['betAvg']
-            ) / 2
-        else:
-            return (
-                self.predictionSpreads['threeFour']['Over']['betAvg'] +
-                self.predictionSpreads['fourFive']['Over']['betAvg']
-            ) / 2
-
     def bestTwoMinPrediction(self):
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             return min(
                 self.predictionSpreads['threeFour']['Under']['betAvg'],
                 self.predictionSpreads['fourFive']['Under']['betAvg']
@@ -999,49 +954,29 @@ class Bot:
             )
 
     def fiveMinPredictionIsNextGreen(self, price):
-        if self.tryingToBuy():
-            if self.longTermTrendPrediction() > 0:
-                if self.bestFiveMinForNextPrediction() > self.getPossibleNextGreen(price):
-                    return True
-            elif self.longTermTrendPrediction() < 0:
-                if self.avgFiveMinForNextPrediction() > self.getPossibleNextGreen(price):
-                    return True
+        if self.lastAction == 'sell':
+            if self.bestFiveMinForNextPrediction() > self.getPossibleNextGreen(price):
+                return True
         else:
-            if self.longTermTrendPrediction() < 0:
-                if self.bestFiveMinForNextPrediction() < self.getPossibleNextGreen(price):
-                    return True
-            elif self.longTermTrendPrediction() > 0:
-                if self.avgFiveMinForNextPrediction() < self.getPossibleNextGreen(price):
-                    return True
+            if self.bestFiveMinForNextPrediction() < self.getPossibleNextGreen(price):
+                return True
         return False
 
-    def avgFiveMinForNextPrediction(self):
-        if self.tryingToBuy():
-            return (
-                self.predictionSpreads['twoThree']['Over']['betAvg'] +
-                self.predictionSpreads['oneTwo']['Over']['betAvg'] +
-                self.predictionSpreads['zeroOne']['Over']['betAvg'] ) / 3
-        else:
-            return (
-                self.predictionSpreads['twoThree']['Under']['betAvg'] +
-                self.predictionSpreads['oneTwo']['Under']['betAvg'] +
-                self.predictionSpreads['zeroOne']['Under']['betAvg'] ) / 3
-
     def bestFiveMinForNextPrediction(self):
-        if self.tryingToBuy():
-            return min(
+        if self.lastAction == 'sell':
+            return max(
                 self.predictionSpreads['twoThree']['Over']['betAvg'],
                 self.predictionSpreads['oneTwo']['Over']['betAvg'],
                 self.predictionSpreads['zeroOne']['Over']['betAvg'])
         else:
-            return max(
+            return min(
                 self.predictionSpreads['twoThree']['Under']['betAvg'],
                 self.predictionSpreads['oneTwo']['Under']['betAvg'],
                 self.predictionSpreads['zeroOne']['Under']['betAvg'])
 
 
     def thirtySecondsPredictionIsGreen(self):
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             if self.bestThirtySecondsPrediction() < self.greenPrice:
                 return True
         else:
@@ -1050,67 +985,45 @@ class Bot:
         return False
 
     def bestThirtySecondsPrediction(self):
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             return min(self.predictionToPrice(self.tSecPrediction), self.predictionSpreads['tSec']['Under']['betAvg'])
         else:
             return max(self.predictionToPrice(self.tSecPrediction), self.predictionSpreads['tSec']['Over']['betAvg'])
 
     def twoMinPredictionIsNextGreen(self, price):
-        if self.tryingToBuy():
-            if self.longTermTrendPrediction() > 0:
-                if self.bestTwoMinForNextPrediction() > self.getPossibleNextGreen(price):
-                    return True
-            elif self.longTermTrendPrediction() < 0:
-                if self.avgTwoMinForNextPrediction() > self.getPossibleNextGreen(price):
-                    return True
+        if self.lastAction == 'sell':
+            if self.bestTwoMinForNextPrediction() > self.getPossibleNextGreen(price):
+                return True
         else:
-            if self.longTermTrendPrediction() < 0:
-                if self.bestTwoMinForNextPrediction() < self.getPossibleNextGreen(price):
-                    return True
-            elif self.longTermTrendPrediction() > 0:
-                if self.avgTwoMinForNextPrediction() < self.getPossibleNextGreen(price):
-                    return True
+            if self.bestTwoMinForNextPrediction() < self.getPossibleNextGreen(price):
+                return True
         return False
 
-    def avgTwoMinForNextPrediction(self):
-        if self.tryingToBuy():
-            return (
-                self.predictionSpreads['fourFive']['Over']['betAvg'] +
-                self.predictionSpreads['threeFour']['Over']['betAvg'] +
-                self.predictionSpreads['twoThree']['Over']['betAvg'] ) / 3
-        else:
-            return (
-                self.predictionSpreads['fourFive']['Under']['betAvg'] +
-                self.predictionSpreads['threeFour']['Under']['betAvg'] +
-                self.predictionSpreads['twoThree']['Under']['betAvg'] ) / 3
-
     def bestTwoMinForNextPrediction(self):
-        if self.tryingToBuy():
-            return min(
+        if self.lastAction == 'sell':
+            return max(
                 self.predictionSpreads['fourFive']['Over']['betAvg'],
                 self.predictionSpreads['threeFour']['Over']['betAvg'],
                 self.predictionSpreads['twoThree']['Over']['betAvg'])
         else:
-            return max(
+            return min(
                 self.predictionSpreads['fourFive']['Under']['betAvg'],
                 self.predictionSpreads['threeFour']['Under']['betAvg'],
                 self.predictionSpreads['twoThree']['Under']['betAvg'])
 
     def isLongTermTrendVeryAwayFromGreen(self):
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             if self.longTermTrendPrice() < self.greenPrice:
                 return False
             percent = (self.longTermTrendPrice() * 100 / self.greenPrice ) - 100
-            print("PERCENT DEBUG: {0:0.2f}".format(percent), flush=True)
-            if percent > ( 2.5 * self.feeAsPercent ):
+            if percent > ( 2 * self.feeAsPercent ):
                 return True
             return False
         else:
             if self.longTermTrendPrice() > self.greenPrice:
                 return False
             percent = (self.longTermTrendPrice() * 100 / self.greenPrice ) - 100
-            print("PERCENT DEBUG: {0:0.2f}".format(percent), flush=True)
-            if percent < 0 - ( 2.5 * self.feeAsPercent ):
+            if percent < 0 - ( 2 * self.feeAsPercent ):
                 return True
             return False
 
@@ -1142,15 +1055,13 @@ class Bot:
         return total / 8
 
     def checkLongTermTrendOnPrice(self, price):
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             if self.priceData['currentPrice'] < price:
                     price = self.priceData['currentPrice']
             if self.isLongTermTrendVeryDown():
                 # we see long term lower price consensus, do not buy too high!
-                price = ( ( price * 4 ) + ( self.longTermTrendPrice() ) ) / 5
+                price = ( ( price * 10 ) + ( self.longTermTrendPrice() ) ) / 11
                 print('Price trend adjsutment down {0:10.6f}'.format(price), flush=True)
-            if self.currencyLean < 1:
-                price = price * self.currencyLean
             return price 
         else:
             if self.priceData['currentPrice'] > price:
@@ -1158,9 +1069,7 @@ class Bot:
             if self.isLongTermTrendVeryUp():
                 # we see long term higher price consensus, do not sell too low!
                 print('Price trend adjsutment up {0:10.6f}'.format(price), flush=True)
-                price = ( ( price * 3 ) + ( self.longTermTrendPrice() ) ) / 4
-            if self.currencyLean > 1:
-                price = price * self.currencyLean
+                price = ( ( price * 5 ) + ( self.longTermTrendPrice() ) ) / 6
             return price
 
     def allBetterEstimatesUp(self):
@@ -1180,46 +1089,46 @@ class Bot:
     def addCurrentPrice(self, priceData):
         self.priceData=priceData
         modeWas = self.mode
-        if (self.tryingToSell() and
+        if (self.lastAction == 'buy' and
                 self.priceData['currentPrice'] > self.greenPrice):
             self.mode = 'green'
-        elif (self.tryingToSell() and
+        elif (self.lastAction == 'buy' and
                 self.priceData['currentPrice'] < self.greenPrice):
             if self.mode != 'red':
                 self.mode = 'wait'
-        elif (self.tryingToBuy() and
+        elif (self.lastAction == 'sell' and
                 self.priceData['currentPrice'] > self.greenPrice):
             if self.mode != 'red':
                 self.mode = 'wait'
-        elif (self.tryingToBuy() and
+        elif (self.lastAction == 'sell' and
                 self.priceData['currentPrice'] < self.greenPrice):
             self.mode = 'green'
 
-        # cTo = self.priceData['highPrice'] - self.priceData['currentPrice']
-        # if self.nextActionType() == 'sell':
-        #     cTo = self.priceData['currentPrice'] - self.priceData['lowPrice']
-        # lowHighDiff = self.priceData['highPrice'] - self.priceData['lowPrice']
+        cTo = self.priceData['highPrice'] - self.priceData['currentPrice']
+        if self.nextActionType() == 'sell':
+            cTo = self.priceData['currentPrice'] - self.priceData['lowPrice']
+        lowHighDiff = self.priceData['highPrice'] - self.priceData['lowPrice']
 
-        # currentRangePerc = ( cTo * 100 / lowHighDiff )
-        # # print('currentRangePerc {0:0.8f}'.format(currentRangePerc))
+        currentRangePerc = ( cTo * 100 / lowHighDiff )
+        # print('currentRangePerc {0:0.8f}'.format(currentRangePerc))
 
-        # if ( datetime.now() - self.lastTime > timedelta(hours=self.redTimeHours) and
-        #         self.mode != 'green'):
-        #     self.mode = 'red'
-        #     self.redTouches += 1
-        #     lossGainPerc = ( self.lastPrice * 100 / self.priceData['currentPrice'] ) - 100
-        #     if self.nextActionType() == 'sell':
-        #         lossGainPerc = ( self.priceData['currentPrice'] * 100 / self.lastPrice ) - 100
+        if ( datetime.now() - self.lastTime > timedelta(hours=self.redTimeHours) and
+                self.mode != 'green'):
+            self.mode = 'red'
+            self.redTouches += 1
+            lossGainPerc = ( self.lastPrice * 100 / self.priceData['currentPrice'] ) - 100
+            if self.nextActionType() == 'sell':
+                lossGainPerc = ( self.priceData['currentPrice'] * 100 / self.lastPrice ) - 100
 
-        #     cTo = self.priceData['highPrice'] - self.priceData['currentPrice']
-        #     if self.nextActionType() == 'sell':
-        #         cTo = self.priceData['currentPrice'] - self.priceData['lowPrice']
-        #     lowHighDiff = self.priceData['highPrice'] - self.priceData['lowPrice']
+            cTo = self.priceData['highPrice'] - self.priceData['currentPrice']
+            if self.nextActionType() == 'sell':
+                cTo = self.priceData['currentPrice'] - self.priceData['lowPrice']
+            lowHighDiff = self.priceData['highPrice'] - self.priceData['lowPrice']
 
-        #     currentRangePerc = ( cTo * 100 / lowHighDiff )
-        #     # print('lossGainPerc {0:5.2f} currentRangePerc {1:5.2f}'.format(lossGainPerc, currentRangePerc), flush=True)
-        #     if lossGainPerc < -1.0 and ( lossGainPerc > -1.5 or self.tryingToBuy() ) and currentRangePerc > 95.0:
-        #         print("RED TRADE - DISABLED")
+            currentRangePerc = ( cTo * 100 / lowHighDiff )
+            # print('lossGainPerc {0:5.2f} currentRangePerc {1:5.2f}'.format(lossGainPerc, currentRangePerc), flush=True)
+            if lossGainPerc < -1.0 and ( lossGainPerc > -1.5 or self.lastAction == 'sell' ) and currentRangePerc > 95.0:
+                print("RED TRADE - DISABLED")
                 # self.setRedTrade()
 
             # Rewrite red mode to look for a new good entry point and make a red sale
@@ -1229,7 +1138,7 @@ class Bot:
             # 
             # Also make the trigger a % from green after time X
             # 
-            # if self.tryingToSell():
+            # if self.lastAction == 'buy':
             #     self.greenPrice = self.greenPrice * 0.999995
             #     if datetime.now() - self.lastTime > timedelta(hours=self.resetHardTimeHours):
             #         self.greenPrice = self.greenPrice * 0.99995
@@ -1260,119 +1169,56 @@ class Bot:
                 self.actionPrice = self.priceData['currentPrice']
                 self.setActionTrade()
 
-
-        # if self.fiveSlope > 7:
-        #     self.fSlopeMode = 'rising'
-        # if self.fiveSlope < -7:
-        #     self.fSlopeMode = 'falling'
-        # if self.fSlopeMode == 'falling' and self.tryingToSell():
-        #     self.setSlopeTrade()
-        #     self.fSlopeMode = 'waiting'
-        #     return
-        # if self.fSlopeMode == 'rising' and self.tryingToBuy():
-        #     self.setSlopeTrade()
-        #     self.fSlopeMode = 'waiting'
-        #     return
-
-        if self.r.llen('expiringTrades') > 0:
-            if self.tryingToBuy():
-                if ( self.tSecPrediction < self.greenPrice
-                    and self.tSecPrediction < self.priceData['currentPrice'] ):
-                    price = self.checkLongTermTrendOnPrice(self.tSecPrediction)
-                    self.setExpiringTrade({
-                        'price': price,
-                        'expires': datetime.now() + timedelta(seconds=60)
-                    })
-                if ( self.fivePrediction < self.greenPrice
-                    and self.fivePrediction < self.priceData['currentPrice'] ):
-                    price = self.checkLongTermTrendOnPrice(self.fivePrediction)
-                    self.setExpiringTrade({
-                        'price': price,
-                        'expires': datetime.now() + timedelta(seconds=300)
-                    })
-            if self.tryingToSell():
-                if ( self.tSecPrediction > self.greenPrice
-                    and self.tSecPrediction > self.priceData['currentPrice'] ):
-                    price = self.checkLongTermTrendOnPrice(self.tSecPrediction)
-                    self.setExpiringTrade({
-                        'price': price,
-                        'expires': datetime.now() + timedelta(seconds=60)
-                    })
-                if ( self.fivePrediction > self.greenPrice
-                    and self.fivePrediction > self.priceData['currentPrice'] ):
-                    price = self.checkLongTermTrendOnPrice(self.fivePrediction)
-                    self.setExpiringTrade({
-                        'price': price,
-                        'expires': datetime.now() + timedelta(seconds=300)
-                    })
-
-        if self.isLongTermTrendVeryAwayFromGreen():
-            if self.tryingToBuy():
-                if not self.isLongTermTrendVeryDown():
-                    if ( self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice'])
-                        or self.twoMinPredictionIsNextGreen(self.priceData['currentPrice']) ):
-                        self.setRedTrade()
-                        return
-            if self.tryingToSell():
-                if not self.isLongTermTrendVeryUp():
-                    if ( self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice'])
-                        or self.twoMinPredictionIsNextGreen(self.priceData['currentPrice']) ):
-                        self.setRedTrade()
-                        return
-
-        # thirty second data is too janky to use
-        #
-        # if self.thirtySecondsPredictionIsGreen():
-        #     # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
-        #     # We should be able to buy within 30 seconds.
-        #     price = self.checkLongTermTrendOnPrice(self.bestThirtySecondsPrediction())
+        if self.lastAction == 'sell':
             
-        #     if ( self.twoMinPredictionIsNextGreen(price)
-        #             or self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice'])):
-        #         print('30 Sec is IN Now Green, 5 min is IN next Green', flush=True)
-        #         print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
-        #         self.setExpiringTrade({
-        #             'price': price,
-        #             'expires': datetime.now() + timedelta(seconds=60)
-        #         })
-
-        if self.twoMinPredictionIsGreen():
-            price = self.checkLongTermTrendOnPrice(self.bestTwoMinPrediction())
-            if self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice']):
-                print('2 min is IN Now Green, 5 min is IN next Green', flush=True)
-                print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
-                self.setExpiringTrade({
-                    'price': price,
-                    'expires': datetime.now() + timedelta(seconds=120)
-                })
-            # if self.isLongTermTrendVeryAwayFromGreen() or self.allBetterEstimatesUp():
-            #     print("We're buying and Long Term Trend Is Very Away From Green", flush=True)
-            #     # all low long term predicions are above green
-            #     if ( self.twoMinPredictionIsNextGreen(self.priceData['currentPrice'])
-            #             or self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice'])):
-            #         # if the 5min move looks like a sell, do the redTrade
-            #         print("PRICE IS RIPE FOR A SELL, LEAVE THIS POTENTIAL AND BUY NOW TO CATCH IT", flush=True)
-            #         self.setRedTrade()
-        # elif self.tryingToSell():
-        #     if self.thirtySecondsPredictionIsGreen():
-        #         # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
-        #         # We should be able to sell within 30 seconds.
-        #         price = self.checkLongTermTrendOnPrice(self.bestThirtySecondsPrediction())
-        #         if ( self.twoMinPredictionIsNextGreen(price)
-        #                 or self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice'])):
-        #             print('30 Sec is IN Now Green, 5 min is IN next Green', flush=True)
-        #             print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
-        #             self.setExpiringTrade({
-        #                 'price': price,
-        #                 'expires': datetime.now() + timedelta(seconds=60)
-        #             })
-        #     if self.twoMinPredictionIsGreen():
-        #         price = self.checkLongTermTrendOnPrice(self.bestTwoMinPrediction())
-        #         if self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice']):
-        #             self.setExpiringTrade({
-        #                 'price': price,
-        #                 'expires': datetime.now() + timedelta(seconds=120)
-        #             })
+            if self.thirtySecondsPredictionIsGreen():
+                # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
+                # We should be able to buy within 30 seconds.
+                price = self.checkLongTermTrendOnPrice(self.bestThirtySecondsPrediction())
+                
+                if ( self.twoMinPredictionIsNextGreen(price)
+                        or self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice'])):
+                    print('30 Sec is IN Now Green, 5 min is IN next Green', flush=True)
+                    print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
+                    self.setExpiringTrade({
+                        'price': price,
+                        'expires': datetime.now() + timedelta(seconds=60)
+                    })
+            if self.twoMinPredictionIsGreen():
+                price = self.bestTwoMinPrediction()
+                if self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice']):
+                    self.setExpiringTrade({
+                        'price': price,
+                        'expires': datetime.now() + timedelta(seconds=120)
+                    })
+            if self.isLongTermTrendVeryAwayFromGreen() or self.allBetterEstimatesUp():
+                print("We're buying and Long Term Trend Is Very Away From Green", flush=True)
+                # all low long term predicions are above green
+                if ( self.twoMinPredictionIsNextGreen(self.priceData['currentPrice'])
+                        or self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice'])):
+                    # if the 5min move looks like a sell, do the redTrade
+                    print("PRICE IS RIPE FOR A SELL, LEAVE THIS POTENTIAL AND BUY NOW TO CATCH IT", flush=True)
+                    self.setRedTrade()
+        elif self.lastAction == 'buy':
+            if self.thirtySecondsPredictionIsGreen():
+                # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
+                # We should be able to sell within 30 seconds.
+                price = self.checkLongTermTrendOnPrice(self.bestThirtySecondsPrediction())
+                if ( self.twoMinPredictionIsNextGreen(price)
+                        or self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice'])):
+                    print('30 Sec is IN Now Green, 5 min is IN next Green', flush=True)
+                    print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
+                    self.setExpiringTrade({
+                        'price': price,
+                        'expires': datetime.now() + timedelta(seconds=60)
+                    })
+            if self.twoMinPredictionIsGreen():
+                price = self.checkLongTermTrendOnPrice(self.bestTwoMinPrediction())
+                if self.fiveMinPredictionIsNextGreen(self.priceData['currentPrice']):
+                    self.setExpiringTrade({
+                        'price': price,
+                        'expires': datetime.now() + timedelta(seconds=120)
+                    })
 
 
             # if ( ( self.priceToPrediction(self.predictionSpread['tSec']['Under']['betAvg']) > (2 * self.feeAsPercent) or self.priceToPrediction(self.predictionSpreads['five']['Over']['betAvg'])  > (2 * self.feeAsPercent) )
@@ -1381,7 +1227,7 @@ class Bot:
             #     if self.predictionSpreads['five']['Over']['betAvg'] > self.getPossibleNextGreen(price):
             #         self.setRedTrade()
 
-        # if self.tryingToBuy() and self.priceData['currentPrice'] < self.greenPrice:
+        # if self.lastAction == 'sell' and self.priceData['currentPrice'] < self.greenPrice:
         #     # print("CHECKING IN GREEN BUY PREDICTION", flush=True)
         #     if ( ( self.priceToPrediction(self.tSecPredictionSpread['betAvg']) > self.feeAsPercent or self.priceToPrediction(self.fivePredictionSpread['betAvg']) > self.feeAsPercent )
         #         and self.avgLongPrediction > 0):
@@ -1391,14 +1237,14 @@ class Bot:
         #         return
         #     else:
         #         self.updateGuidePrice(self.priceData['currentPrice'])
-        # elif self.tryingToBuy():
+        # elif self.lastAction == 'sell':
         #     if ( ( self.priceToPrediction(self.tSecPredictionSpread['betAvg'])  > (2 * self.feeAsPercent) or self.priceToPrediction(self.fivePredictionSpread['betAvg'])  > (2 * self.feeAsPercent) )
         #         and self.minLongPrediction > self.feeAsPercent):
         #         print("PRICE IS RIPE FOR A SELL, LEAVE THIS POTENTIAL AND BUY NOW TO CATCH IT", flush=True)
         #         self.setRedTrade()
         #     # else:
         #     #     self.updateGuidePrice(self.priceData['currentPrice'])
-        # elif self.tryingToSell() and self.priceData['currentPrice'] > self.greenPrice:
+        # elif self.lastAction == 'buy' and self.priceData['currentPrice'] > self.greenPrice:
         #     # print("CHECKING IN GREEN SELL PREDICTION", flush=True)
         #     if ( ( self.priceToPrediction(self.tSecPredictionSpread['betAvg']) < 0 - ( 2 * self.feeAsPercent ) or self.priceToPrediction(self.fivePredictionSpread['betAvg']) < 0 - ( 2 * self.feeAsPercent ) )
         #         and self.avgLongPrediction < 0 - ( 2 * self.feeAsPercent )):
@@ -1408,35 +1254,35 @@ class Bot:
         #         return
             # else:
             #     self.updateGuidePrice(self.priceData['currentPrice'])
-        # elif self.tryingToSell() and self.avgPrediction < -3.75:
+        # elif self.lastAction == 'buy' and self.avgPrediction < -3.75:
         #         We don't red sell
-        # elif self.tryingToSell():
-        #     self.latestPrice = self.priceData['sellActionPrice']
-        #     if self.latestPrice > self.guidePrice:
-        #         self.updateGuidePrice(self.latestPrice)
-        #     elif self.mode == 'green' and self.priceData['avgActionPrice'] < self.actionPrice and self.actionPrice > self.greenPrice:
-        #         self.actionPrice = self.priceData['currentPrice'] + (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * 0.1)
-        #         self.setActionTrade()
-        # elif self.tryingToBuy():
-        #     self.latestPrice = self.priceData['buyActionPrice']
-        #     if self.latestPrice < self.guidePrice:
-        #         self.updateGuidePrice(self.latestPrice)
-        #     elif self.mode == 'green' and self.priceData['avgActionPrice'] > self.actionPrice and self.actionPrice < self.greenPrice:
-        #         self.actionPrice = self.priceData['currentPrice'] - (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * 0.1)
-        #         self.setActionTrade()
-        # else:
-        #     if self.mode != 'green':
-        #         self.updateGuidePrice(self.latestPrice)
+        elif self.lastAction == 'buy':
+            self.latestPrice = self.priceData['sellActionPrice']
+            if self.latestPrice > self.guidePrice:
+                self.updateGuidePrice(self.latestPrice)
+            elif self.mode == 'green' and self.priceData['avgActionPrice'] < self.actionPrice and self.actionPrice > self.greenPrice:
+                self.actionPrice = self.priceData['currentPrice'] + (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * 0.1)
+                self.setActionTrade()
+        elif self.lastAction == 'sell':
+            self.latestPrice = self.priceData['buyActionPrice']
+            if self.latestPrice < self.guidePrice:
+                self.updateGuidePrice(self.latestPrice)
+            elif self.mode == 'green' and self.priceData['avgActionPrice'] > self.actionPrice and self.actionPrice < self.greenPrice:
+                self.actionPrice = self.priceData['currentPrice'] - (self.feePriceUnit(self.priceData['currentPrice'], self.fee) * 0.1)
+                self.setActionTrade()
+        else:
+            if self.mode != 'green':
+                self.updateGuidePrice(self.latestPrice)
 
 
     def setInitalGuidePrice(self):
         self.guidePrice = self.greenPrice
         if self.latestPrice == 0.0:
-            if self.tryingToBuy():
+            if self.lastAction == 'sell':
                 self.latestPrice = self.priceData['buyActionPrice']
             else:
                 self.latestPrice = self.priceData['sellActionPrice']
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             if self.guidePrice > self.latestPrice:
                 self.guidePrice = self.latestPrice
             # self.guidePrice = self.guidePrice * self.historyLean
@@ -1454,7 +1300,7 @@ class Bot:
 
     def updateGuidePrice(self, price):
         self.guidePrice=price
-        if self.tryingToSell():
+        if self.lastAction == 'buy':
             # if self.guidePrice < self.lastPrice:
             #     print("Peak price lower than last price when trying to sell")
             #     print("peak : ", self.guidePrice, "last : ", self.lastPrice, flush=True)
@@ -1468,7 +1314,7 @@ class Bot:
                 self.actionPrice = actionPrice
             self.goalPrice=self.lastPrice + ((change * ( self.goalPercent * 100 ) ) / 100 )
             self.replaceGoalTrade()
-        elif self.tryingToBuy():
+        elif self.lastAction == 'sell':
             # if self.guidePrice > self.lastPrice:
             #     print("Peak price higher than last price when trying to buy")
             #     print("peak : ", self.guidePrice, "last : ", self.lastPrice, flush=True)
@@ -1503,66 +1349,51 @@ class Bot:
             self.actionTaken='goal'
             self.actionValue=self.listedPrice
             print("Goal trade")
-            newId=put_limit(data, self.listedType)
+            newId=put_limit(data)
             self.tradeId=newId
             get_account(self.buyCoin, self.sellCoin)
 
     def setRedTrade(self):
-        now = datetime.now()
-        lastRedTrade = now.timestamp()
-        while self.r.llen('lastRedTrade') > 0:
-            lastRedTrade = pickle.loads(self.r.rpop('lastRedTrade'))
-        okTime = now - timedelta(hours=12)
-        print('RED TRADE DEBUG')
-        print('lastRedTrade {0}'.format(lastRedTrade.astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p")))
-        print('now {0}'.format(okTime.astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p")))
-        if ( self.actionTaken != 'red'
-            and self.r.llen('expiringTrades') == 0
-            and lastRedTrade < okTime ):
-            print(' ')
-            print(' ')
-            print(' ')
-            print(' ')
-            print(' ')
-            print(' RED TRADE ')
-            print(' ')
-            print(' ')
-            print(' ')
-            print(' ')
-            print(' ', flush=True)
-            # return
-            if self.tradeId != "0":
-                print(" Cancel existing order for RED ")
-                cancel_order(self.tradeId, self)
-                self.tradeId = 0
-            self.listedPrice = self.priceData['currentPrice']
-            data = {
-                "amount": self.nextAmount(self.listedPrice),
-                "price": self.listedPrice,
-                "type": self.nextActionType(),
-                "market": self.market
-            }
-            self.listedTime = now
-            self.actionTime = now
-            self.listedType = 'red'
-            self.actionTaken='red'
-            self.r.lpush('lastRedTrade', pickle.dumps(now))
-            self.actionValue=self.listedPrice
-            print("RED Action trade")
-            newId=put_limit(data, self.listedType)
-            self.tradeId=newId
-            get_account(self.buyCoin, self.sellCoin)
-        else:
-            print("DOUBLE RED ATTEMPT: DENIED", flush=True)
+        print(' ')
+        print(' ')
+        print(' ')
+        print(' ')
+        print(' ')
+        print(' RED TRADE ')
+        print(' ')
+        print(' ')
+        print(' ')
+        print(' ')
+        print(' ', flush=True)
+        # return
+        if self.tradeId != "0":
+            print(" Cancel existing order for RED ")
+            cancel_order(self.tradeId, self)
+            self.tradeId = 0
+        self.listedPrice = self.priceData['currentPrice']
+        data = {
+            "amount": self.nextAmount(self.listedPrice),
+            "price": self.listedPrice,
+            "type": self.nextActionType(),
+            "market": self.market
+        }
+        self.listedTime = datetime.now()
+        self.actionTime = datetime.now()
+        self.listedType = 'red'
+        self.actionTaken='red'
+        self.actionValue=self.listedPrice
+        print("RED Action trade")
+        newId=put_limit(data)
+        self.tradeId=newId
+        get_account(self.buyCoin, self.sellCoin)
 
     def setExpiringTrade(self, info):
-        if info['price'] > 0:
-            self.r.lpush('expiringTrades', pickle.dumps({
-                'tradeId': 0,
-                'tradeType' : self.nextActionType(),
-                'price': info['price'],
-                'expires': info['expires']
-            }))
+        self.r.lpush('expiringTrades', pickle.dumps({
+            'tradeId': 0,
+            'tradeType' : self.nextActionType(),
+            'price': info['price'],
+            'expires': info['expires']
+        }))
         self.checkExpiringTrades()
 
     def checkExpiringTrades(self):
@@ -1573,15 +1404,13 @@ class Bot:
             try:
                 someTrades = True
                 trade = pickle.loads(self.r.lindex('expiringTrades', i))
-                if ( trade['expires'] < datetime.now() or 
-                    self.nextActionType() != trade['tradeType']
-                    or trade['price'] <= 0.0 ):
+                if trade['expires'] < datetime.now() or self.nextActionType() != trade['tradeType']:
                     if self.tradeId == trade['tradeId']:
                         cancel_order(self.tradeId, self)
                         self.tradeId = 0
-                    self.r.lrem('expiringTrades', 1, self.r.lindex('expiringTrades', i))
+                    self.r.lrem('expiringTrades', 1, pickle.dumps(trade))
                 else:
-                    if self.tryingToBuy():
+                    if self.lastAction == 'sell':
                         if trade['price'] < bestPrice:
                             bestPrice = trade['price']
                             bestTrade = trade
@@ -1593,63 +1422,36 @@ class Bot:
                 print("Pickle Problems")
 
         if bestTrade is not None:
-            if self.listedPrice != bestTrade['price']:
-                if self.tradeId != "0":
-                    print(" Cancel existing order for Expiring Trade ")
-                    cancel_order(self.tradeId, self)
-                    self.tradeId = 0
-                price = self.checkLongTermTrendOnPrice(bestTrade['price'])
-                self.listedPrice = self.finalPriceSet(price)
-                data = {
-                    "amount": self.nextAmount(self.listedPrice),
-                    "price": self.listedPrice,
-                    "type": self.nextActionType(),
-                    "market": self.market
-                }
-                self.listedTime = datetime.now()
-                self.listedType = 'expiring'
-                self.actionTaken = 'expiring'
-                self.actionValue = self.listedPrice
-                print("Expiring trade")
-                newId = put_limit(data, self.listedType)
-                self.tradeId=newId
-                get_account(self.buyCoin, self.sellCoin)  
-                for i in range(0, self.r.llen('expiringTrades')):
-                    try:
-                        trade = pickle.loads(self.r.lindex('expiringTrades', i))
-                        if trade == bestTrade:
-                            self.r.lrem('expiringTrades', 1, pickle.dumps(trade))
-                            bestTrade['tradeId'] = newId
-                            self.r.lpush('expiringTrades', pickle.dumps(bestTrade))
-                    except TypeError:
-                        print("Pickle Problems")
+            if self.tradeId != "0":
+                print(" Cancel existing order for Expiring Trade ")
+                cancel_order(self.tradeId, self)
+                self.tradeId = 0
+            self.listedPrice = self.finalPriceSet(bestTrade['price'])
+            data = {
+                "amount": self.nextAmount(self.listedPrice),
+                "price": self.listedPrice,
+                "type": self.nextActionType(),
+                "market": self.market
+            }
+            self.listedTime = datetime.now()
+            self.listedType = 'expiring'
+            self.actionTaken = 'expiring'
+            self.actionValue = self.listedPrice
+            print("Expiring trade")
+            newId = put_limit(data)
+            self.tradeId=newId
+            get_account(self.buyCoin, self.sellCoin)  
+            for i in range(0, self.r.llen('expiringTrades')):
+                try:
+                    trade = pickle.loads(self.r.lindex('expiringTrades', i))
+                    if trade == bestTrade:
+                        self.r.lrem('expiringTrades', 1, pickle.dumps(trade))
+                        bestTrade['tradeId'] = newId
+                        self.r.lpush('expiringTrades', pickle.dumps(bestTrade))
+                except TypeError:
+                    print("Pickle Problems")
         elif someTrades:
             self.replaceGoalTrade()
-
-
-    def setSlopeTrade(self):
-        if self.tradeId != "0":
-            print(" Cancel existing order for SLOPE ")
-            cancel_order(self.tradeId, self)
-            self.tradeId = 0
-        if self.tryingToBuy():
-            self.listedPrice = self.priceData['currentPrice'] * 1.000001
-        if self.tryingToSell():
-            self.listedPrice = self.priceData['currentPrice'] * 0.999999
-        data = {
-            "amount": self.nextAmount(self.listedPrice),
-            "price": self.listedPrice,
-            "type": self.nextActionType(),
-            "market": self.market
-        }
-        self.listedTime = datetime.now()
-        self.listedType = 'slope'
-        self.actionTaken='slope'
-        self.actionValue=self.listedPrice
-        print("Slope trade")
-        newId=put_limit(data, self.listedType)
-        self.tradeId=newId
-        get_account(self.buyCoin, self.sellCoin)
 
 
     def setActionTrade(self):
@@ -1669,21 +1471,17 @@ class Bot:
         self.actionTaken='action'
         self.actionValue=self.listedPrice
         print("Action trade")
-        newId=put_limit(data, self.listedType)
+        newId=put_limit(data)
         self.tradeId=newId
         get_account(self.buyCoin, self.sellCoin)
 
     def finalPriceSet(self, price):
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             if self.greenPrice < price:
-                price = self.greenPrice
-            if self.priceData['currentPrice'] < price:
-                price = self.priceData['currentPrice'] * 0.999
-        if self.tryingToSell():
-            if self.greenPrice > price:
-                price = self.greenPrice
-            if self.priceData['currentPrice'] > price:
-                price = self.priceData['currentPrice'] * 1.001
+                return self.greenPrice
+            return price
+        if self.greenPrice > price:
+            return self.greenPrice
         return price
 
     def feeCalc(self, base, fee, multiple, action):
@@ -1708,13 +1506,13 @@ class Bot:
         return firstFee + secondFee + thirdFee + fourthFee + fifthFee + sixthFee + seventhFee + eightFee
 
     def nextActionType(self):
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             return 'buy'
         return 'sell'
 
     def nextAmount(self, price):
         get_account(self.buyCoin, self.sellCoin)
-        if self.tryingToBuy():
+        if self.lastAction == 'sell':
             return self.available[self.sellCoin] / price
         return self.available[self.buyCoin]
 
@@ -1752,6 +1550,9 @@ class Bot:
     def printDebug(self):
         print(" ")
         print(" ")
+
+        self.cetSellHistory = order_finished('CET'+self.sellCoin, 1, 100, self)
+        self.cetBuyHistory = order_finished('CET'+self.buyCoin, 1, 100, self)
 
         buyAmount = self.available[self.buyCoin] + self.frozen[self.buyCoin]
         sellAmount = self.available[self.sellCoin] + self.frozen[self.sellCoin]
@@ -1862,7 +1663,7 @@ class Bot:
                             print('Account Value: ${0:0.2f} {1:s}'.format(accountValue, self.changeFormat(accountValue, previousAccountValue, 'USDT')))
                     previousAccountValue = accountValue
                 # print('%2.0fhr %2.0fm %4s %0.8f ' %(float(hours1), float(minutes1), trade['type'], float(trade['avg_price'])))
-        if len(self.cetSellHistory) > 0 and len(self.cetBuyHistory) > 0:
+        if self.debugPrintRotation > 5:
             for cetSellTrade in self.cetSellHistory[::-1]:
                 if cetSellTrade['status'] == 'done':
                     if datetime.fromtimestamp(cetSellTrade['finished_time']) > now:
@@ -1885,56 +1686,6 @@ class Bot:
         if self.debugPrintRotation > 5:
             self.debugPrintRotation = 0
             print('              '+percChange(self.priceData['currentPrice'], previousPrice), flush=True)
-
-        print("predictions:")
-        print("p: {0:s}  ".format(self.predictionString))
-        
-        print("                    30 seconds {0:d}                        5 minutes {1:d}                          30 minutes {2:d}                    120 min tot {3:d}".format(
-            len(self.tSecPredictionSet), len(self.fivePredictionSet), len(self.thirtyPredictionSet), len(self.oneTwentyPredictionSet)))
-        print("current: {0:7s} {1:^28.28s}   {2:7s} {3:^28.28s}   {4:7s} {5:^28.28s}   {4:7s} {5:^28.28s}".format(
-            self.colorizePrediction(self.tSecPrediction),
-            self.getChangePredictionDebug(self.predictionToPrice(self.tSecPrediction), endAmount, endDealMoney),
-            self.colorizePrediction(self.fivePrediction),
-            self.getChangePredictionDebug(self.predictionToPrice(self.fivePrediction), endAmount, endDealMoney),
-            self.colorizePrediction(self.thirtyPrediction),
-            self.getChangePredictionDebug(self.predictionToPrice(self.thirtyPrediction), endAmount, endDealMoney),
-            self.colorizePrediction(self.oneTwentyPrediction),
-            self.getChangePredictionDebug(self.predictionToPrice(self.oneTwentyPrediction), endAmount, endDealMoney),
-            ))
-        print(" ")
-        print(" ")
-        print("{0:>7.7s} {0:3s}   {1:<5s}{2:^28.28s}   {3:^28.28s}   {4:^28.28s}   {5:^28.28s}   {6:^28.28s} {7:s}".format(
-            ' ',
-            'count',
-            'betAvg',
-            'min',
-            'mid',
-            'avg',
-            'max',
-            'std'
-        ))
-        for group in self.predictionSpreads:
-            for direction in self.predictionSpreads[group]:
-                print("{0:>7.7s} {1:<5s} {13:3d}   {2:7s} {3:^28.28s}   {4:7s} {5:^28.28s}   {6:7s} {7:^28.28s}   {8:7s} {9:^28.28s}   {10:7s} {11:^28.28s} {12:7.3f}".format(
-                    group,
-                    direction,
-                    self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['betAvg']),
-                    self.getChangePredictionDebug(self.predictionSpreads[group][direction]['betAvg'], endAmount, endDealMoney),
-                    self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['min']),
-                    self.getChangePredictionDebug(self.predictionSpreads[group][direction]['min'], endAmount, endDealMoney),
-                    self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['mid']),
-                    self.getChangePredictionDebug(self.predictionSpreads[group][direction]['mid'], endAmount, endDealMoney),
-                    self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['avg']),
-                    self.getChangePredictionDebug(self.predictionSpreads[group][direction]['avg'], endAmount, endDealMoney),
-                    self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['max']),
-                    self.getChangePredictionDebug(self.predictionSpreads[group][direction]['max'], endAmount, endDealMoney),
-                    self.predictionSpreads[group][direction]['std'],
-                    self.predictionSpreads[group][direction]['count']
-                ))
-            if group == 'five':
-                print(" ")
-            print(" ")
-
         print('in 48hr '+str(total)+' trades '+str(buys)+' buys '+str(sells)+' sells')
         print(' deal money: '+totalChangeDeal +' amount: '+totalChangeAmount)
         print('in 24hr '+str(total24)+' trades '+str(buys24)+' buys '+str(sells24)+' sells')
@@ -2031,17 +1782,61 @@ class Bot:
             print("  green touches: "+str(self.greenTouches))
             print("    red touches: "+str(self.redTouches))
 
+            print("predictions:")
+            print("p: {0:s}  ".format(self.predictionString))
+            
+            print("                    30 seconds {0:d}                        5 minutes {1:d}                          30 minutes {2:d}                    120 min tot {3:d}".format(
+                len(self.tSecPredictionSet), len(self.fivePredictionSet), len(self.thirtyPredictionSet), len(self.oneTwentyPredictionSet)))
+            print("current: {0:7s} {1:^28.28s}   {2:7s} {3:^28.28s}   {4:7s} {5:^28.28s}   {4:7s} {5:^28.28s}".format(
+                self.colorizePrediction(self.tSecPrediction),
+                self.getChangePredictionDebug(self.predictionToPrice(self.tSecPrediction), endAmount, endDealMoney),
+                self.colorizePrediction(self.fivePrediction),
+                self.getChangePredictionDebug(self.predictionToPrice(self.fivePrediction), endAmount, endDealMoney),
+                self.colorizePrediction(self.thirtyPrediction),
+                self.getChangePredictionDebug(self.predictionToPrice(self.thirtyPrediction), endAmount, endDealMoney),
+                self.colorizePrediction(self.oneTwentyPrediction),
+                self.getChangePredictionDebug(self.predictionToPrice(self.oneTwentyPrediction), endAmount, endDealMoney),
+                ))
+            print(" ")
+            print(" ")
+            print("{0:>7.7s} {0:3s}   {1:<5s}{2:^28.28s}   {3:^28.28s}   {4:^28.28s}   {5:^28.28s}   {6:^28.28s} {7:s}".format(
+                ' ',
+                'count',
+                'betAvg',
+                'min',
+                'mid',
+                'avg',
+                'max',
+                'std'
+            ))
+            for group in self.predictionSpreads:
+                for direction in self.predictionSpreads[group]:
+                    print("{0:>7.7s} {1:<5s} {13:3d}   {2:7s} {3:^28.28s}   {4:7s} {5:^28.28s}   {6:7s} {7:^28.28s}   {8:7s} {9:^28.28s}   {10:7s} {11:^28.28s} {12:7.3f}".format(
+                        group,
+                        direction,
+                        self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['betAvg']),
+                        self.getChangePredictionDebug(self.predictionSpreads[group][direction]['betAvg'], endAmount, endDealMoney),
+                        self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['min']),
+                        self.getChangePredictionDebug(self.predictionSpreads[group][direction]['min'], endAmount, endDealMoney),
+                        self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['mid']),
+                        self.getChangePredictionDebug(self.predictionSpreads[group][direction]['mid'], endAmount, endDealMoney),
+                        self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['avg']),
+                        self.getChangePredictionDebug(self.predictionSpreads[group][direction]['avg'], endAmount, endDealMoney),
+                        self.priceToPredictionWcolor(self.predictionSpreads[group][direction]['max']),
+                        self.getChangePredictionDebug(self.predictionSpreads[group][direction]['max'], endAmount, endDealMoney),
+                        self.predictionSpreads[group][direction]['std'],
+                        self.predictionSpreads[group][direction]['count']
+                    ))
+                if group == 'five':
+                    print(" ")
+                print(" ")
+
             print("isLongTermTrendVeryAwayFromGreen {0:b}".format(self.isLongTermTrendVeryAwayFromGreen()))
             print("isLongTermTrendVeryUp {0:b}".format(self.isLongTermTrendVeryUp()))
             print("isLongTermTrendVeryDown {0:b}".format(self.isLongTermTrendVeryDown()))
             print("longTermTrendPrediction {0:s}".format(self.colorizePrediction(self.longTermTrendPrediction())))
-            print("longTermTrendPrice {0:0.2f}".format(self.longTermTrendPrice()))
             print("allBetterEstimatesDown {0:b}".format(self.allBetterEstimatesDown()))
             print("allBetterEstimatesUp {0:b}".format(self.allBetterEstimatesUp()))
-            if self.r.llen('lastRedTrade') > 0:
-                print("Last Red Trade {0:s}".format(pickle.loads(self.r.lindex('lastRedTrade',0)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p")))
-            else:
-                print("No Last Red Trade Set")
 
             expiringTrades = False
             for i in range(0, self.r.llen('expiringTrades')):
@@ -2054,13 +1849,6 @@ class Bot:
 
             if not expiringTrades:
                 print("No expiringTrades")
-
-                        # print(self.priceData['currentPrice'])
-            print("  30 sec slope {0:0.4f}".format(self.tSecSlope))
-            print("five min slope {0:0.4f}".format(self.fiveSlope ))
-            print("  30 min slope {0:0.4f}".format(self.thirtySlope))
-            print(" 120 min slope {0:0.4f}".format(self.oneTwentySlope))
-            print("five min trend {0}".format(self.fSlopeMode))
             # print("                       30 seconds {0:d}                           5 minutes {1:d}                          30 minutes {2:d}".format(
             #     len(self.tSecPredictionSet), len(self.fivePredictionSet), len(self.thirtyPredictionSet)))
             # print("current: {0:6.3f} {1:^28.28s}   {2:6.3f} {3:^28.28s}   {4:6.3f} {5:28s}".format(
@@ -2511,27 +2299,7 @@ def get_account(buyCoin, sellCoin):
         Bot.available['CET'] = 0.0
     # print(complex_json.dumps(latest['data'], indent = 4, sort_keys=True))
 
-def get_order_details(id):
-    global callTime
-    request_client = RequestClient()
-    params = {
-        'id': id,
-        'page': 1,
-        'limit': 100
-    }
-    response = request_client.request(
-            'GET',
-            '{url}/v1/order/deals'.format(url=request_client.url),
-            params=params
-    )
-    try:
-        latest = complex_json.loads(response.data)
-        print(complex_json.dumps(latest['data'], indent = 4, sort_keys=True))
-        return latest['data']['data'][0]
-    except AttributeError:
-        print("Internet connectivity error, get_order_details", flush=True)
-        exit()
-    return False
+
 
 def get_latest(trader, market, limit=1000):
     global callTime
@@ -2718,29 +2486,11 @@ def order_finished(market, page, limit, trader):
     )
     latest = complex_json.loads(response.data)
     try:
-        # print(complex_json.dumps(latest, indent = 4, sort_keys=True), flush=True)
-        for data in latest['data']['data']:
-            cur.execute("SELECT role FROM orders WHERE tradeId = {0:d}".format(data['id']))
-            results = cur.fetchall()
-            for result in results:
-                if result[0] != 'maker' and result[0] != 'taker':
-                    print("Run lookup and update")
-                    details = get_order_details(data['id'])
-                    # print(complex_json.dumps(details, indent = 4, sort_keys=True), flush=True)
-                    cur.execute(
-                            "UPDATE orders SET status = '{0:s}', finished_time = '{2:s}', deal_amount = {3:f}, deal_money = {4:f}, fee = {5:f}, maker_fee = {6:f}, taker_fee = {7:f}, role = '{8:s}', fee_asset = '{9:s}' WHERE tradeId = {1:d}".format(data['status'], data['id'], datetime.fromtimestamp(data['finished_time']).strftime("%Y-%m-%d %H:%M:%S"), float(data['deal_amount']), float(data['deal_money']), float(data['deal_fee']), float(data['maker_fee_rate']), float(data['taker_fee_rate']), details['role'], details['fee_asset']))
-                    conn.commit()
-
-
         if market == trader.market:
             # print('<><><><><><>latest status: '+latest['data']['data'][0]['status'])
-            
             if latest['data']['data'][0]['status'] == 'done':
                 if latest['data']['data'][0]['type'] == 'sell':
                     if trader.lastAction != 'sell':
-                        cur.execute(
-                            "UPDATE orders SET greenTouches = {0:d} WHERE tradeId = {1:d}".format(trader.greenTouches, int(latest['data']['data'][0]['id'])))
-                        conn.commit()
                         trader.greenTouches = 0
                         trader.redTouches = 0
                         trader.resetTime = datetime.fromtimestamp(latest['data']['data'][0]['finished_time'])
@@ -2773,6 +2523,7 @@ def order_finished(market, page, limit, trader):
                 #     f.write(datetime.now().strftime('%Y-%m-%d %I:%M %S %p'))
                 #     f.write(complex_json.dumps(latest, indent = 4, sort_keys=True))
     except IndexError:
+        # print(complex_json.dumps(latest, indent = 4, sort_keys=True))
         print('Last Transaction too old, update last prices')
         now = datetime.now()
         print(" ")
@@ -2787,14 +2538,7 @@ def order_finished(market, page, limit, trader):
     # print(complex_json.dumps(latest, indent = 4, sort_keys=True))
 
 
-def put_limit(data, botType):
-    cur.execute(
-        "INSERT INTO orders(bot_type, status, market, amount, price, type) VALUES ('{0:s}', '{1:s}', '{2:s}', {3:f}, {4:f}, '{5:s}')".format(botType, 'requested', data['market'], data['amount'], data['price'], data['type']))
-    conn.commit()
-    cur.execute("SELECT LAST_INSERT_ID() FROM orders")
-    values = cur.fetchall()
-    sourceId = values[0][0]
-    data['source_id'] = str(sourceId)
+def put_limit(data):
     request_client = RequestClient()
     response = request_client.request(
             'POST',
@@ -2807,9 +2551,6 @@ def put_limit(data, botType):
     print(" ")
     print(now.strftime("%Y-%m-%d %H:%M:%S"))
     try:
-        cur.execute(
-            "UPDATE orders SET tradeId = {0:d}, deal_money = {1:f}, fee = {2:f}, create_time = '{3:s}', status = '{4:s}' WHERE id = {5:d}".format(latest['data']['id'],  float(latest['data']['deal_money']), float(latest['data']['deal_fee']), datetime.fromtimestamp(latest['data']['create_time']).strftime("%Y-%m-%d %H:%M:%S"), latest['data']['status'], int(latest['data']['source_id'])))
-        conn.commit()
         return latest['data']['id']
     except KeyError:
         print("Trade failed with requested data")
@@ -2831,13 +2572,8 @@ def cancel_order(id, trader):
             '{url}/v1/order/pending'.format(url=request_client.url),
             params=data,
     )
-    
     latest = complex_json.loads(response.data)
-    
-    # print(complex_json.dumps(latest, indent = 4, sort_keys=True), flush=True)
-    cur.execute(
-        "UPDATE orders SET status = '{0:s}', finished_time = '{2:s}' WHERE tradeId = {1:d}".format('canceled', data['id'], datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    conn.commit()
+    # print(complex_json.dumps(latest, indent = 4, sort_keys=True))
     get_account(trader.buyCoin, trader.sellCoin)
     return response.data
 

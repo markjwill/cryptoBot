@@ -2,7 +2,7 @@
 
 scriptName="bot.py"
 logName="BTCUSDT.log"
-path="/home/pi/"
+path=$(cd `dirname $0` && pwd)"/"
 
 #set this script to run on reboot
 croncmd="bash ${path}runner.sh"

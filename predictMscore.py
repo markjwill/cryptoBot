@@ -13,9 +13,9 @@ import pprint
 from pytz import timezone
 import math
 import plotext as plt
-import numpy as np
 
 import categories
+import predictM
 
 market = 'BTCUSDT'
 
@@ -23,8 +23,9 @@ date_ms = None
 if len(sys.argv) > 1:
     date_ms = sys.argv[1]
 
-dateExcludes = 'AND (( date < 1615989880 ) OR ( date > 1616004584 AND  date < 1616073970 ) OR ( date > 1616088770 AND  date < 1616240913 ) OR ( date > 1616257108 AND  date < 1616243798 ) OR ( date > 1616282088 AND  date < 1616268855 ) OR ( date > 1616284889 AND  date < 1616281056 ) OR ( date > 1616296324 AND  date < 1616282393 ) OR ( date > 1616297171 AND  date < 1616284491 ) OR ( date > 1616299532 AND  date < 1616386037 ) OR ( date > 1616401144 AND  date < 1616600685 ) OR ( date > 1616615807 AND  date < 1616607621 ) OR ( date > 1616625310 AND  date < 1616713436 ) OR ( date > 1616729592 AND  date < 1616727603 ) OR ( date > 1616742883 AND  date < 1616728883 ) OR ( date > 1616744343 AND  date < 1616904517 ) OR ( date > 1616919340 ))'
-
+startTime = 1614723828 #Tue Mar 02 2021 16:23:48 GMT-0600 (CST)
+# endTime   = 1614725028 #Tue Mar 02 2021 16:43:48 GMT-0600 (CST)
+endTime = 1614837600 #Thu Mar 04 2021 06:00:00 GMT+0000
 class col:
     maxg = '\033[30m\033[42m'
     midg = '\033[32m\033[40m'
@@ -51,7 +52,7 @@ except mariadb.Error as e:
 cur = conn.cursor()
 
 if date_ms is None:
-    cur.execute("SELECT p_oneTwentyMin_changePercent,p_sixtyMin_changePercent,p_thirtyMin_changePercent,p_fifteenMin_changePercent,p_tenMin_changePercent,p_fiveMin_changePercent,p_threeMin_changePercent,p_oneMin_changePercent,p_thirtySec_changePercent,p_tenSec_changePercent,p_fiveSec_changePercent,price,f_fiveSec_changePercent,f_tenSec_changePercent,f_thirtySec_changePercent,f_oneMin_changePercent,f_threeMin_changePercent,f_fiveMin_changePercent,f_tenMin_changePercent,f_fifteenMin_changePercent,f_thirtyMin_changePercent,f_sixtyMin_changePercent,f_oneTwentyMin_changePercent, date_ms,f_fiveSec_lowPrice,f_tenSec_lowPrice,f_thirtySec_lowPrice,f_oneMin_lowPrice,f_threeMin_lowPrice,f_fiveMin_lowPrice,f_tenMin_lowPrice,f_fifteenMin_lowPrice,f_thirtyMin_lowPrice,f_sixtyMin_lowPrice,f_oneTwentyMin_lowPrice,f_fiveSec_highPrice,f_tenSec_highPrice,f_thirtySec_highPrice,f_oneMin_highPrice,f_threeMin_highPrice,f_fiveMin_highPrice,f_tenMin_highPrice,f_fifteenMin_highPrice,f_thirtyMin_highPrice,f_sixtyMin_highPrice,f_oneTwentyMin_highPrice,p_fiveMin_avgPrice,p_thirtyMin_avgPrice,p_fiveSec_avgPrice,p_oneTwentyMin_avgPrice, p_thirtySec_avgPrice FROM trades WHERE market = '{0:s}' AND p_oneTwentyMin_changePercent IS NOT NULL AND p_sixtyMin_changePercent IS NOT NULL AND p_thirtyMin_changePercent IS NOT NULL AND p_fifteenMin_changePercent IS NOT NULL AND p_tenMin_changePercent IS NOT NULL AND p_fiveMin_changePercent IS NOT NULL AND p_threeMin_changePercent IS NOT NULL AND p_oneMin_changePercent IS NOT NULL AND p_thirtySec_changePercent IS NOT NULL AND p_tenSec_changePercent IS NOT NULL AND p_fiveSec_changePercent IS NOT NULL AND price IS NOT NULL AND f_fiveSec_changePercent IS NOT NULL AND f_tenSec_changePercent IS NOT NULL AND f_thirtySec_changePercent IS NOT NULL AND f_oneMin_changePercent IS NOT NULL AND f_threeMin_changePercent IS NOT NULL AND f_fiveMin_changePercent IS NOT NULL AND f_tenMin_changePercent IS NOT NULL AND f_fifteenMin_changePercent IS NOT NULL AND f_thirtyMin_changePercent IS NOT NULL AND f_sixtyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_lowPrice IS NOT NULL {1:s} ORDER BY date_ms ASC LIMIT 20".format(market, dateExcludes))
+    cur.execute("SELECT p_oneTwentyMin_changePercent,p_sixtyMin_changePercent,p_thirtyMin_changePercent,p_fifteenMin_changePercent,p_tenMin_changePercent,p_fiveMin_changePercent,p_threeMin_changePercent,p_oneMin_changePercent,p_thirtySec_changePercent,p_tenSec_changePercent,p_fiveSec_changePercent,price,f_fiveSec_changePercent,f_tenSec_changePercent,f_thirtySec_changePercent,f_oneMin_changePercent,f_threeMin_changePercent,f_fiveMin_changePercent,f_tenMin_changePercent,f_fifteenMin_changePercent,f_thirtyMin_changePercent,f_sixtyMin_changePercent,f_oneTwentyMin_changePercent, date_ms,f_fiveSec_lowPrice,f_tenSec_lowPrice,f_thirtySec_lowPrice,f_oneMin_lowPrice,f_threeMin_lowPrice,f_fiveMin_lowPrice,f_tenMin_lowPrice,f_fifteenMin_lowPrice,f_thirtyMin_lowPrice,f_sixtyMin_lowPrice,f_oneTwentyMin_lowPrice,f_fiveSec_highPrice,f_tenSec_highPrice,f_thirtySec_highPrice,f_oneMin_highPrice,f_threeMin_highPrice,f_fiveMin_highPrice,f_tenMin_highPrice,f_fifteenMin_highPrice,f_thirtyMin_highPrice,f_sixtyMin_highPrice,f_oneTwentyMin_highPrice,p_fiveMin_avgPrice,p_thirtyMin_avgPrice,p_fiveSec_avgPrice,p_oneTwentyMin_avgPrice, p_thirtySec_avgPrice FROM trades WHERE market = '{0:s}' AND p_oneTwentyMin_changePercent IS NOT NULL AND p_sixtyMin_changePercent IS NOT NULL AND p_thirtyMin_changePercent IS NOT NULL AND p_fifteenMin_changePercent IS NOT NULL AND p_tenMin_changePercent IS NOT NULL AND p_fiveMin_changePercent IS NOT NULL AND p_threeMin_changePercent IS NOT NULL AND p_oneMin_changePercent IS NOT NULL AND p_thirtySec_changePercent IS NOT NULL AND p_tenSec_changePercent IS NOT NULL AND p_fiveSec_changePercent IS NOT NULL AND price IS NOT NULL AND f_fiveSec_changePercent IS NOT NULL AND f_tenSec_changePercent IS NOT NULL AND f_thirtySec_changePercent IS NOT NULL AND f_oneMin_changePercent IS NOT NULL AND f_threeMin_changePercent IS NOT NULL AND f_fiveMin_changePercent IS NOT NULL AND f_tenMin_changePercent IS NOT NULL AND f_fifteenMin_changePercent IS NOT NULL AND f_thirtyMin_changePercent IS NOT NULL AND f_sixtyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_lowPrice IS NOT NULL {1:s} ORDER BY date_ms ASC".format(market, predictM.dateExcludes))
 else:
     cur.execute("SELECT p_oneTwentyMin_changePercent,p_sixtyMin_changePercent,p_thirtyMin_changePercent,p_fifteenMin_changePercent,p_tenMin_changePercent,p_fiveMin_changePercent,p_threeMin_changePercent,p_oneMin_changePercent,p_thirtySec_changePercent,p_tenSec_changePercent,p_fiveSec_changePercent,price,f_fiveSec_changePercent,f_tenSec_changePercent,f_thirtySec_changePercent,f_oneMin_changePercent,f_threeMin_changePercent,f_fiveMin_changePercent,f_tenMin_changePercent,f_fifteenMin_changePercent,f_thirtyMin_changePercent,f_sixtyMin_changePercent,f_oneTwentyMin_changePercent, date_ms,f_fiveSec_lowPrice,f_tenSec_lowPrice,f_thirtySec_lowPrice,f_oneMin_lowPrice,f_threeMin_lowPrice,f_fiveMin_lowPrice,f_tenMin_lowPrice,f_fifteenMin_lowPrice,f_thirtyMin_lowPrice,f_sixtyMin_lowPrice,f_oneTwentyMin_lowPrice,f_fiveSec_highPrice,f_tenSec_highPrice,f_thirtySec_highPrice,f_oneMin_highPrice,f_threeMin_highPrice,f_fiveMin_highPrice,f_tenMin_highPrice,f_fifteenMin_highPrice,f_thirtyMin_highPrice,f_sixtyMin_highPrice,f_oneTwentyMin_highPrice,p_fiveMin_avgPrice,p_thirtyMin_avgPrice,p_fiveSec_avgPrice,p_oneTwentyMin_avgPrice, p_thirtySec_avgPrice FROM trades WHERE market = '{0:s}' AND date_ms <= '{1:s}' AND p_oneTwentyMin_changePercent IS NOT NULL AND p_sixtyMin_changePercent IS NOT NULL AND p_thirtyMin_changePercent IS NOT NULL AND p_fifteenMin_changePercent IS NOT NULL AND p_tenMin_changePercent IS NOT NULL AND p_fiveMin_changePercent IS NOT NULL AND p_threeMin_changePercent IS NOT NULL AND p_oneMin_changePercent IS NOT NULL AND p_thirtySec_changePercent IS NOT NULL AND p_tenSec_changePercent IS NOT NULL AND p_fiveSec_changePercent IS NOT NULL AND price IS NOT NULL AND f_fiveSec_changePercent IS NOT NULL AND f_tenSec_changePercent IS NOT NULL AND f_thirtySec_changePercent IS NOT NULL AND f_oneMin_changePercent IS NOT NULL AND f_threeMin_changePercent IS NOT NULL AND f_fiveMin_changePercent IS NOT NULL AND f_tenMin_changePercent IS NOT NULL AND f_fifteenMin_changePercent IS NOT NULL AND f_thirtyMin_changePercent IS NOT NULL AND f_sixtyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_lowPrice IS NOT NULL ORDER BY date_ms DESC LIMIT 2".format(market, date_ms))
 
@@ -68,29 +69,7 @@ def fixLowPrice(trade):
 def fixHighPrice(trade):
     return ((trade[35] - price) * 100 / price), ((trade[36] - price) * 100 / price), ((trade[37] - price) * 100 / price), ((trade[38] - price) * 100 / price), ((trade[39] - price) * 100 / price), ((trade[40] - price) * 100 / price), ((trade[41] - price) * 100 / price), ((trade[42] - price) * 100 / price), ((trade[43] - price) * 100 / price), ((trade[44] - price) * 100 / price), (( trade[45] - price) * 100 / price)
 
-def tradeWillSell(trade, high):
-    if date_ms is not None:
-        print("high "+str(high[2]))
-        print("high "+str(high[3]))
-        print("high "+str(high[4]))
-        print("high "+str(high[5]))
-        print("high "+str(high[6]))
-        print("high "+str(high[7]))
-        print("high "+str(high[8]))
-        print("high "+str(high[9]))
-        print("high "+str(high[10]))
-    if (high[2] > sellPercent or
-        high[3] > sellPercent or
-        high[4] > sellPercent or
-        high[5] > sellPercent or
-        high[6] > sellPercent or
-        high[7] > sellPercent or
-        high[8] > sellPercent or
-        high[9] > sellPercent or
-        high[10] > sellPercent):
-        return True
-    else:
-        return False
+
 
 def tradeSellLikelyhood(trade, high):
     likelihood = 0;
@@ -125,55 +104,35 @@ def tradeBuyLikelyhood(trade, low):
 def tradeLikelyhood(trade, high, low):
     likelihood = 0;
     # likelihood += (high[0] / sellPercent)
-    likelihood += (high[1] / sellPercent)
+    # likelihood += (high[1] / sellPercent)
     # likelihood += (high[2] / sellPercent)
     # likelihood += (high[3] / sellPercent)
     # likelihood += (high[4] / sellPercent)
-    # likelihood += (high[5] / sellPercent)
+    likelihood += (high[5] / sellPercent)
     # likelihood += (high[6] / sellPercent) # 10 min or less ^
     # likelihood += (high[7] / sellPercent)
     # likelihood += (high[8] / sellPercent)
     # likelihood += (high[9] / sellPercent)
     # likelihood += (high[10] / sellPercent)
     # likelihood += (low[0] / sellPercent)
-    likelihood += (low[1] / sellPercent)
+    # likelihood += (low[1] / sellPercent)
     # likelihood += (low[2] / sellPercent)
     # likelihood += (low[3] / sellPercent)
     # likelihood += (low[4] / sellPercent)
-    # likelihood += (low[5] / sellPercent)
+    likelihood += (low[5] / sellPercent)
     # likelihood += (low[6] / sellPercent) # 10 min or less ^
     # likelihood += (low[7] / sellPercent)
     # likelihood += (low[8] / sellPercent)
     # likelihood += (low[9] / sellPercent)
     # likelihood += (low[10] / sellPercent)
 
+    # Adjust extreme edge cases
+    if likelihood > 9.99:
+        return 9.99
+    if likelihood < -9.99:
+        return -9.99
+
     return likelihood
-# 12  f_fiveSec_changePercent
-# 13  f_tenSec_changePercent
-# 14  f_thirtySec_changePercent
-# 15  f_oneMin_changePercent
-# 16  f_threeMin_changePercent
-# 17  f_fiveMin_changePercent
-# 18  f_tenMin_changePercent
-# 19  f_fifteenMin_changePercent
-# 20  f_thirtyMin_changePercent
-# 21  f_sixtyMin_changePercent
-# 22  f_oneTwentyMin_changePercent
-def changetSec(trade, high, low):
-    # return trade[14]
-    return high[2] + low[2]
-    
-def changeFive(trade, high, low):
-    # return trade[17]
-    return high[5] + low[5]
-
-def changeThirty(trade, high, low):
-    # return trade[20]
-    return high[8] + low[8]
-
-def changeOneTwenty(trade, high, low):
-    # return trade[22]
-    return high[10] + low[10]
 
 def tradeLikelyhoodLongTerm(trade, high, low):
     likelihood = 0;
@@ -208,7 +167,198 @@ def tradeLikelyhoodLongTerm(trade, high, low):
 
     return likelihood
 
+def tradeWillSell(trade, high):
+    if date_ms is not None:
+        print("high "+str(high[2]))
+        print("high "+str(high[3]))
+        print("high "+str(high[4]))
+        print("high "+str(high[5]))
+        print("high "+str(high[6]))
+        print("high "+str(high[7]))
+        print("high "+str(high[8]))
+        print("high "+str(high[9]))
+        print("high "+str(high[10]))
+    if (high[2] > sellPercent or
+        high[3] > sellPercent or
+        high[4] > sellPercent or
+        high[5] > sellPercent or
+        high[6] > sellPercent):
+        return True
+    else:
+        return False
+
+def tradeWillSellTSec(trade, high):
+    if date_ms is not None:
+        print("high "+str(high[2]))
+        print("high "+str(high[3]))
+        print("high "+str(high[4]))
+        print("high "+str(high[5]))
+        print("high "+str(high[6]))
+        print("high "+str(high[7]))
+        print("high "+str(high[8]))
+        print("high "+str(high[9]))
+        print("high "+str(high[10]))
+    if (high[0] > (sellPercent / 2) or
+        high[1] > (sellPercent / 2) or
+        high[2] > (sellPercent / 2) ):
+        return True
+    else:
+        return False
+
+def tradeWillSellFive(trade, high):
+    if date_ms is not None:
+        print("high "+str(high[2]))
+        print("high "+str(high[3]))
+        print("high "+str(high[4]))
+        print("high "+str(high[5]))
+        print("high "+str(high[6]))
+        print("high "+str(high[7]))
+        print("high "+str(high[8]))
+        print("high "+str(high[9]))
+        print("high "+str(high[10]))
+    if (high[0] > sellPercent or
+        high[1] > sellPercent or
+        high[2] > sellPercent or
+        high[3] > sellPercent or
+        high[4] > sellPercent or
+        high[5] > sellPercent):
+        return True
+    else:
+        return False
+
+def tradeWillSellThirty(trade, high):
+    if date_ms is not None:
+        print("high "+str(high[2]))
+        print("high "+str(high[3]))
+        print("high "+str(high[4]))
+        print("high "+str(high[5]))
+        print("high "+str(high[6]))
+        print("high "+str(high[7]))
+        print("high "+str(high[8]))
+        print("high "+str(high[9]))
+        print("high "+str(high[10]))
+    if (high[2] > sellPercent or
+        high[3] > sellPercent or
+        high[4] > sellPercent or
+        high[5] > sellPercent or
+        high[6] > sellPercent or
+        high[7] > sellPercent or
+        high[8] > sellPercent):
+        return True
+    else:
+        return False
+
+def tradeWillSellLong(trade, high):
+    if date_ms is not None:
+        print("high "+str(high[2]))
+        print("high "+str(high[3]))
+        print("high "+str(high[4]))
+        print("high "+str(high[5]))
+        print("high "+str(high[6]))
+        print("high "+str(high[7]))
+        print("high "+str(high[8]))
+        print("high "+str(high[9]))
+        print("high "+str(high[10]))
+    if (high[2] > sellPercent or
+        high[3] > sellPercent or
+        high[4] > sellPercent or
+        high[5] > sellPercent or
+        high[6] > sellPercent or
+        high[7] > sellPercent or
+        high[8] > sellPercent or
+        high[9] > sellPercent or
+        high[10] > sellPercent):
+        return True
+    else:
+        return False
+
 def tradeWillBuy(trade, low):
+    if date_ms is not None:
+        print("low "+str(low[2]))
+        print("low "+str(low[3]))
+        print("low "+str(low[4]))
+        print("low "+str(low[5]))
+        print("low "+str(low[6]))
+        print("low "+str(low[7]))
+        print("low "+str(low[8]))
+        print("low "+str(low[9]))
+        print("low "+str(low[10]))
+    if (low[2] < buyPercent or
+        low[3] < buyPercent or
+        low[4] < buyPercent or
+        low[5] < buyPercent or
+        low[6] < buyPercent or
+        low[7] < buyPercent):
+        return True
+    else:
+        return False
+
+
+def tradeWillBuyTSec(trade, low):
+    if date_ms is not None:
+        print("low "+str(low[2]))
+        print("low "+str(low[3]))
+        print("low "+str(low[4]))
+        print("low "+str(low[5]))
+        print("low "+str(low[6]))
+        print("low "+str(low[7]))
+        print("low "+str(low[8]))
+        print("low "+str(low[9]))
+        print("low "+str(low[10]))
+    if (low[0] < (buyPercent / 2) or
+        low[1] < (buyPercent / 2) or
+        low[2] < (buyPercent / 2)):
+        return True
+    else:
+        return False
+
+
+def tradeWillBuyFive(trade, low):
+    if date_ms is not None:
+        print("low "+str(low[2]))
+        print("low "+str(low[3]))
+        print("low "+str(low[4]))
+        print("low "+str(low[5]))
+        print("low "+str(low[6]))
+        print("low "+str(low[7]))
+        print("low "+str(low[8]))
+        print("low "+str(low[9]))
+        print("low "+str(low[10]))
+    if (low[0] < buyPercent or
+        low[1] < buyPercent or
+        low[2] < buyPercent or
+        low[3] < buyPercent or
+        low[4] < buyPercent or
+        low[5] < buyPercent):
+        return True
+    else:
+        return False
+
+
+def tradeWillBuyThirty(trade, low):
+    if date_ms is not None:
+        print("low "+str(low[2]))
+        print("low "+str(low[3]))
+        print("low "+str(low[4]))
+        print("low "+str(low[5]))
+        print("low "+str(low[6]))
+        print("low "+str(low[7]))
+        print("low "+str(low[8]))
+        print("low "+str(low[9]))
+        print("low "+str(low[10]))
+    if (low[1] < buyPercent or
+        low[2] < buyPercent or
+        low[3] < buyPercent or
+        low[4] < buyPercent or
+        low[5] < buyPercent or
+        low[6] < buyPercent or
+        low[7] < buyPercent or
+        low[8] < buyPercent):
+        return True
+    else:
+        return False
+
+def tradeWillBuyLong(trade, low):
     if date_ms is not None:
         print("low "+str(low[2]))
         print("low "+str(low[3]))
@@ -482,146 +632,62 @@ buyPercent=-0.14
 previousFiveAvg = None
 
 scores = {
-    1: {
+    'SB': {
         'correct': 0,
         'incorrect': 0,
         'samples': [],
         'likelyCorrect': [],
         'likelyIncorrect': []
     },
-    2: {
+    'SS': {
         'correct': 0,
         'incorrect': 0,
         'samples': [],
         'likelyCorrect': [],
         'likelyIncorrect': []
     },
-    3: {
+    'FB': {
         'correct': 0,
         'incorrect': 0,
         'samples': [],
         'likelyCorrect': [],
         'likelyIncorrect': []
     },
-    4: {
+    'FS': {
         'correct': 0,
         'incorrect': 0,
         'samples': [],
         'likelyCorrect': [],
         'likelyIncorrect': []
     },
-    5: {
+    'TB': {
         'correct': 0,
         'incorrect': 0,
         'samples': [],
         'likelyCorrect': [],
         'likelyIncorrect': []
     },
-    6: {
+    'TS': {
         'correct': 0,
         'incorrect': 0,
         'samples': [],
         'likelyCorrect': [],
         'likelyIncorrect': []
     },
-    7: {
+    'OB': {
         'correct': 0,
         'incorrect': 0,
         'samples': [],
         'likelyCorrect': [],
         'likelyIncorrect': []
     },
-    8: {
+    'OS': {
         'correct': 0,
         'incorrect': 0,
         'samples': [],
         'likelyCorrect': [],
         'likelyIncorrect': []
-    },
-    9: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    10: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    11: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    12: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    13: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    14: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    15: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    16: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    17: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    18: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    19: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
-    20: {
-        'correct': 0,
-        'incorrect': 0,
-        'samples': [],
-        'likelyCorrect': [],
-        'likelyIncorrect': []
-    },
+    }
 }
 
 def scoreBuySlope(d):
@@ -645,61 +711,23 @@ X = []
 #
 ###
 
-sSlope = {
-    'G' :[],
-    'Y' :[],
-    'Z' :[],
-    'K' :[],
-    'D' :[],
-    'L' :[],
-    'C' :[],
-    'Q' :[],
-    'H' :[],
-    'U' :[]
-}
-fSlope = {
-    'D' :[],
-    'L' :[],
-    'C' :[],
-    'Q' :[],
-    'H' :[],
-    'U' :[]
-}
-tSlope = {
-    'D' :[],
-    'L' :[],
-    'C' :[],
-    'Q' :[],
-    'H' :[],
-    'U' :[]
-}
-oSlope = {
-    'D' :[],
-    'L' :[],
-    'C' :[],
-    'Q' :[],
-    'H' :[],
-    'U' :[]
-}
-S = {}
-F = {}
-T = {}
-O = {}
+M = {}
+L = {}
 previousOneTwentyAvgSet = []
 previousThirtyAvgSet = []
 previousFiveAvgSet = []
 previousTSecAvgSet = []
-last_ms = 0
+SUnknown = 0
+FUnknown = 0
+TUnknown = 0
+OUnknown = 0
 for trade in trades:
-    if trade[23] - 300000 > last_ms:
-        previousOneTwentyAvgSet = []
-        previousThirtyAvgSet = []
-        previousFiveAvgSet = []
-        previousTSecAvgSet = []   
-    
     testNumber = 1
 
-    match = False
+    SMatch = False
+    FMatch = False
+    TMatch = False
+    OMatch = False
     if first and date_ms is not None:
         first = False
         match = True
@@ -731,229 +759,191 @@ for trade in trades:
     slopeString = categories.getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope)
     rollingString = categories.getRollingString(price, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg)
 
-    if slopeString[0] not in sSlope:
-        sSlope[slopeString[0]] = []
-    sSlope[slopeString[0]].append(tSecSlope)
-    if slopeString[1] not in fSlope:
-        fSlope[slopeString[1]] = []
-    fSlope[slopeString[1]].append(fiveSlope)
-    if slopeString[2] not in tSlope:
-        tSlope[slopeString[2]] = []
-    tSlope[slopeString[2]].append(thirtySlope)
-    if slopeString[3] not in oSlope:
-        oSlope[slopeString[3]] = []
-    oSlope[slopeString[3]].append(oneTwentySlope)
+    cur.execute('SELECT tSecValue, fiveValue, thirtyValue, oneTwentyValue FROM predictions WHERE predictions.key = "{0:s}"'.format(rollingString+'-'+slopeString))
+    values = cur.fetchall()
 
-    # if 'TOFSP-QLLC' == rollingString+'-'+slopeString:
-    #     print(trade[23])
-    if len(previousOneTwentyAvgSet) == 15:
-        if rollingString+'-'+slopeString not in S:
-            S[rollingString+'-'+slopeString] = []
-            F[rollingString+'-'+slopeString] = []
-            T[rollingString+'-'+slopeString] = []
-            O[rollingString+'-'+slopeString] = []
+    shortPrediction = 0.0
+    longPrediction = 0.0
 
-        change = changetSec(trade, high, low)
-        if change not in S[rollingString+'-'+slopeString]:
-            S[rollingString+'-'+slopeString].append(change)
-        change = changeFive(trade, high, low)
-        if change not in F[rollingString+'-'+slopeString]:
-            F[rollingString+'-'+slopeString].append(change)
-        change = changeThirty(trade, high, low)
-        if change not in T[rollingString+'-'+slopeString]:
-            T[rollingString+'-'+slopeString].append(change)
-        change = changeOneTwenty(trade, high, low)
-        if change not in O[rollingString+'-'+slopeString]:
-            O[rollingString+'-'+slopeString].append(change)
+    found = False
 
+    for value in values:
+        found = True
+        SPrediction = value[0]
+        FPrediction = value[1]
+        TPrediction = value[2]
+        OPrediction = value[3]
+
+    if found:
+
+        testNumber = 'SS'
+        if SPrediction > (sellPercent / 2):
+            if tradeWillSellTSec(trade, high):
+                scores[testNumber]['correct'] += 1
+                # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+            else:
+                scores[testNumber]['incorrect'] += 1
+                # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+            SMatch = True
+
+        testNumber = 'SB'
+        if SPrediction < (buyPercent / 2):
+            if tradeWillBuyTSec(trade, low):
+                scores[testNumber]['correct'] += 1
+                # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+            else:
+                scores[testNumber]['incorrect'] += 1
+                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+            SMatch = True
+
+
+        testNumber = 'FS'
+        if FPrediction > sellPercent:
+            if tradeWillSellFive(trade, high):
+                scores[testNumber]['correct'] += 1
+                # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+            else:
+                scores[testNumber]['incorrect'] += 1
+                # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+            FMatch = True
+
+        testNumber = 'FB'
+        if FPrediction < buyPercent:
+            if tradeWillBuyFive(trade, low):
+                scores[testNumber]['correct'] += 1
+                # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+            else:
+                scores[testNumber]['incorrect'] += 1
+                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+            FMatch = True
+
+
+        testNumber = 'TS'
+        if TPrediction > sellPercent:
+            if tradeWillSellThirty(trade, high):
+                scores[testNumber]['correct'] += 1
+                # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+            else:
+                scores[testNumber]['incorrect'] += 1
+                # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+            TMatch = True
+
+        testNumber = 'TB'
+        if TPrediction < buyPercent:
+            if tradeWillBuyThirty(trade, low):
+                scores[testNumber]['correct'] += 1
+                # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+            else:
+                scores[testNumber]['incorrect'] += 1
+                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+            TMatch = True
+
+
+        testNumber = 'OS'
+        if OPrediction > sellPercent:
+            if tradeWillSellLong(trade, high):
+                scores[testNumber]['correct'] += 1
+                # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+            else:
+                scores[testNumber]['incorrect'] += 1
+                # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+            OMatch = True
+
+        testNumber = 'OB'
+        if OPrediction < buyPercent:
+            if tradeWillBuyLong(trade, low):
+                scores[testNumber]['correct'] += 1
+                # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+            else:
+                scores[testNumber]['incorrect'] += 1
+                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+            OMatch = True
+
+        if SMatch == False:
+            SUnknown += 1
+        if FMatch == False:
+            FUnknown += 1
+        if TMatch == False:
+            TUnknown += 1
+        if OMatch == False:
+            OUnknown += 1
         total += 1
 
-    previousOneTwentyAvgSet.append(oneTwentyAvg)
-    previousThirtyAvgSet.append(thirtyAvg)
-    previousFiveAvgSet.append(fiveAvg)
-    previousTSecAvgSet.append(tSecAvg)
-    while len(previousOneTwentyAvgSet) > 15:
-        previousOneTwentyAvg = previousOneTwentyAvgSet.pop(0)
-        previousThirtyAvg = previousThirtyAvgSet.pop(0)
-        previousFiveAvg = previousFiveAvgSet.pop(0)
-        previousTSecAvg = previousTSecAvgSet.pop(0)
-
-    last_ms = trade[23]
-
-mTotal = 0
-
-def sortCategories(a, b):
-    firstTot = len(a)
-    secondTot = len(b)
-    firstAvg = 0.0
-    secondAvg = 0.0
-    if firstTot > 0:
-        firstAvg = sum(a) / firstTot
-    if secondTot > 0:
-        secondAvg = sum(b) / secondTot
-    if firstAvg > secondAvg:
-        return 1
-    elif firstAvg == secondAvg:
-        return 0
-    else:
-        return -1
-
-S = {key: value for key, value in sorted(S.items(), key=lambda item: len(item[1]) )}
+        previousOneTwentyAvgSet.append(oneTwentyAvg)
+        previousThirtyAvgSet.append(thirtyAvg)
+        previousFiveAvgSet.append(fiveAvg)
+        previousTSecAvgSet.append(tSecAvg)
+        while len(previousOneTwentyAvgSet) > 15:
+            previousOneTwentyAvg = previousOneTwentyAvgSet.pop(0)
+            previousThirtyAvg = previousThirtyAvgSet.pop(0)
+            previousFiveAvg = previousFiveAvgSet.pop(0)
+            previousTSecAvg = previousTSecAvgSet.pop(0)
 
 
-# S = {key: value for key, value in sorted(S.items(), key=lambda item: ( 0 if (not len(item[1])) else ( max(0, ((sum(item[1]) / len(item[1])) - np.std(item[1]))) if ( ( sum(item[1]) / len(item[1]) ) > 0 ) else ( min(0,( sum(item[1]) / len(item[1]) ) + np.std(item[1]) ) ) ) ) )}
+correctLikely = []
+incorrectLikely = []
 
-gtFiveTot = 0
-gtFiveLong = 0
-gtFiveShort = 0
-
-for rank in S:
-    thisTot = len(S[rank])
-    mTotal += thisTot
-
-    Savg = 0
-    SthisPercent = 0.0
-    StMax = 0
-    StMin = 0
-    Smid = 0
-    if thisTot > 0:
-        Sstd = np.std(S[rank])
-        Savg = sum(S[rank]) / thisTot
-        # Smid = S[rank][round(thisTot / 2)]
-        StMin = min(S[rank])
-        StMax = max(S[rank])
-        SbetAvg = max(0, (Savg - ( 0.25 * Sstd ))) if ( sum(S[rank]) > 0 ) else min(0, ( Savg + ( 0.25 * Sstd ) ) )
-    # if thisTot > 10 and SbetAvg == 0.0:
-    # if rank == 'TOFSP-QLLC':
-    #     print('{0:s} count: {1:6d}   min: {2:5.3f}  max: {4:5.3f}   avg: {5:4.2f}   betAvg: {6:5.3f}   std:{7:5.3f}'.format(rank, thisTot, StMin, 'Smid', StMax, Savg, SbetAvg, Sstd, ))
-
-    thisTot = len(F[rank])
-    Favg = 0
-    FthisPercent = 0.0
-    FtMax = 0
-    FtMin = 0
-    Fmid = 0
-    if thisTot > 0:
-        Fstd = np.std(F[rank])
-        Favg = sum(F[rank]) / thisTot
-        # Fmid = F[rank][round(thisTot / 2)]
-        FtMin = min(F[rank])
-        FtMax = max(F[rank])
-        FbetAvg = max(0, (Favg - ( 0.25 * Fstd ))) if ( sum(F[rank]) > 0 ) else min(0, ( Favg + ( 0.25 * Fstd ) ) )
-
-    thisTot = len(T[rank])
-    Tavg = 0
-    TthisPercent = 0.0
-    TtMax = 0
-    TtMin = 0
-    Tmid = 0
-    if thisTot > 0:
-        Tstd = np.std(T[rank])
-        Tavg = sum(T[rank]) / thisTot
-        # Tmid = T[rank][round(thisTot / 2)]
-        TtMin = min(T[rank])
-        TtMax = max(T[rank])
-        TbetAvg = max(0, (Tavg - ( 0.25 * Tstd ))) if ( sum(T[rank]) > 0 ) else min(0, ( Tavg + ( 0.25 * Tstd ) ) )
-
-    thisTot = len(O[rank])
-    Oavg = 0
-    OthisPercent = 0.0
-    OtMax = 0
-    OtMin = 0
-    Omid = 0
-    if thisTot > 0:
-        Ostd = np.std(O[rank])
-        Oavg = sum(O[rank]) / thisTot
-        # Omid = O[rank][round(thisTot / 2)]
-        OtMin = min(O[rank])
-        OtMax = max(O[rank])
-        ObetAvg = max(0, (Oavg - ( 0.25 * Ostd ))) if ( sum(O[rank]) > 0 ) else min(0, ( Oavg + ( 0.25 * Ostd ) ) )
-
-    if len(S[rank]) >= 3 or len(F[rank]) >= 3 or len(T[rank]) >= 3 or len(O[rank]) >= 3:
-        cur.execute(
-                'REPLACE INTO predictions VALUES ("{0:s}",{1:0.8f}, {2:0.8f}, {3:0.8f}, {4:0.8f})'.format(rank, SbetAvg, FbetAvg, TbetAvg, ObetAvg))
-        conn.commit()
-
-    if len(S[rank]) >= 3 or len(F[rank]) >= 3 or len(T[rank]) >= 3 or len(O[rank]) >= 3:
-        gtFiveTot += 1
-
-        print('{0:s} count: {1:6d}   -: {2:5.3f}  +: {4:5.3f}   a: {5:4.2f}   b: {6:5.3f}   s:{7:5.3f}    -: {8:5.3f}   +: {10:5.3f}   a: {11:4.2f}   b: {12:5.3f}   s:{13:5.3f}    -: {14:5.3f}   +: {16:5.3f}   a: {17:4.2f}   b: {18:5.3f}   s:{19:5.3f}    -: {20:5.3f}   +: {22:5.3f}   a: {23:4.2f}   b: {24:5.3f}   s:{25:5.3f} '.format(rank, thisTot, StMin, 'Smid', Savg, StMax, SbetAvg, Sstd, FtMin, 'Fmid', Favg, FtMax, FbetAvg, Fstd, TtMin, 'Tmid', Tavg, TtMax, TbetAvg, Tstd, OtMin, 'Omid', Oavg, OtMax, ObetAvg, Ostd))
-        # print('{0:s} count: {1:6d}   -: {2:5.3f}   : {3:5.3f}   +: {4:5.3f}   a: {5:4.2f}   b: {6:5.3f}   s:{7:5.3f}    -: {8:5.3f}   : {9:5.3f}   +: {10:5.3f}   a: {11:4.2f}   b: {12:5.3f}   s:{13:5.3f}    -: {14:5.3f}   : {15:5.3f}   +: {16:5.3f}   a: {17:4.2f}   b: {18:5.3f}   s:{19:5.3f}    -: {20:5.3f}   : {21:5.3f}   +: {22:5.3f}   a: {23:4.2f}   b: {24:5.3f}   s:{25:5.3f} '.format(rank, thisTot, StMin, Smid, Savg, StMax, SbetAvg, Sstd, FtMin, Fmid, Favg, FtMax, FbetAvg, Fstd, TtMin, Tmid, Tavg, TtMax, TbetAvg, Tstd, OtMin, Omid, Oavg, OtMax, ObetAvg, Ostd))
-
-print('mTotal {0:d} total {1:d} gt5 {2:d} gt5short {3:d} gt5long {4:d}'.format(mTotal, total, gtFiveTot, gtFiveShort, gtFiveLong))
-
-print("30 sec")
-for slopes in sSlope:
-    thisTot = len(sSlope[slopes])
-    mTotal += thisTot
-    avg = 0
-    thisPercent = 0.0
-    tMax = 0
-    tMin = 0
-    mid = 0
-    if thisTot > 0:
-        avg = sum(sSlope[slopes]) / thisTot
-        mid = sSlope[slopes][round(thisTot / 2)]
-        tMin = min(sSlope[slopes])
-        tMax = max(sSlope[slopes])
-    print('{0:s} min: {1:5.3f}     mid: {2:5.3f}     max: {3:5.3f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
-
-print("5 min")
-for slopes in fSlope:
-    thisTot = len(fSlope[slopes])
-    mTotal += thisTot
-    avg = 0
-    thisPercent = 0.0
-    tMax = 0
-    tMin = 0
-    mid = 0
-    if thisTot > 0:
-        avg = sum(fSlope[slopes]) / thisTot
-        mid = fSlope[slopes][round(thisTot / 2)]
-        tMin = min(fSlope[slopes])
-        tMax = max(fSlope[slopes])
-    print('{0:s} min: {1:5.3f}     mid: {2:5.3f}     max: {3:5.3f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
-
-print("30 min")
-for slopes in tSlope:
-    thisTot = len(tSlope[slopes])
-    mTotal += thisTot
-    avg = 0
-    thisPercent = 0.0
-    tMax = 0
-    tMin = 0
-    mid = 0
-    if thisTot > 0:
-        avg = sum(tSlope[slopes]) / thisTot
-        mid = tSlope[slopes][round(thisTot / 2)]
-        tMin = min(tSlope[slopes])
-        tMax = max(tSlope[slopes])
-    print('{0:s} min: {1:5.3f}     mid: {2:5.3f}     max: {3:5.3f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
-
-print("120 min")
-for slopes in oSlope:
-    thisTot = len(oSlope[slopes])
-    mTotal += thisTot
-    avg = 0
-    thisPercent = 0.0
-    tMax = 0
-    tMin = 0
-    mid = 0
-    if thisTot > 0:
-        avg = sum(oSlope[slopes]) / thisTot
-        mid = oSlope[slopes][round(thisTot / 2)]
-        tMin = min(oSlope[slopes])
-        tMax = max(oSlope[slopes])
-    print('{0:s} min: {1:5.3f}     mid: {2:5.3f}     max: {3:5.3f}     count: {4:6d} avgL: {5:4.2f}'.format(slopes, tMin, mid, tMax, thisTot, avg))
+Scorrect = 0
+Sincorrect = 0
+Fcorrect = 0
+Fincorrect = 0
+Tcorrect = 0
+Tincorrect = 0
+Ocorrect = 0
+Oincorrect = 0
 
 
-# print(sSlope)
-# print(fSlope)
-# print(tSlope)
-# print(oSlope)
+for score in scores:
+    thisCorrect = scores[score]['correct']
+    thisIncorrect = scores[score]['incorrect']
+    # print(str(thisCorrect) + " " + str(thisIncorrect))
+    if thisCorrect > 0 or thisIncorrect > 0:
+        if score == 'SB' or score == 'SS':
+            Scorrect += thisCorrect
+            Sincorrect += thisIncorrect
+        if score == 'FB' or score == 'FS':
+            Fcorrect += thisCorrect
+            Fincorrect += thisIncorrect
+        if score == 'TB' or score == 'TS':
+            Tcorrect += thisCorrect
+            Tincorrect += thisIncorrect
+        if score == 'OB' or score == 'OS':
+            Ocorrect += thisCorrect
+            Oincorrect += thisIncorrect
+        thisTotal = thisCorrect + thisIncorrect
+        thisPerc = (thisCorrect * 100) / thisTotal
+        print('Test {0:3s} total: {1:d} correct: {2:0.2f}%'.format(score, thisTotal, thisPerc))
 
-# M['OPFT-HHF'].sort()
-# M['PFOT-HHF'].sort()
-# plt.plot(M['OPFT-HHF'], label='OPFT-HHF')
-# plt.plot(M['PFOT-HHF'], label='PFOT-HHF')
-# plt.show()
+
+ScorPerc = Scorrect * 100 / total
+SincPerc = Sincorrect * 100 / total
+SunkPerc = SUnknown * 100 / total
+
+print("tSec: {0:d} correct: {1:0.2f}% incorrect: {2:0.2f}% unk {3:0.2f}% ".format(total, ScorPerc, SincPerc, SunkPerc))
+
+FcorPerc = Fcorrect * 100 / total
+FincPerc = Fincorrect * 100 / total
+FunkPerc = FUnknown * 100 / total
+
+print("five: {0:d} correct: {1:0.2f}% incorrect: {2:0.2f}% unk {3:0.2f}% ".format(total, FcorPerc, FincPerc, FunkPerc))
+
+TcorPerc = Tcorrect * 100 / total
+TincPerc = Tincorrect * 100 / total
+TunkPerc = TUnknown * 100 / total
+
+print("thirty: {0:d} correct: {1:0.2f}% incorrect: {2:0.2f}% unk {3:0.2f}% ".format(total, TcorPerc, TincPerc, TunkPerc))
+
+OcorPerc = Ocorrect * 100 / total
+OincPerc = Oincorrect * 100 / total
+OunkPerc = OUnknown * 100 / total
+
+print("oneTwenty: {0:d} correct: {1:0.2f}% incorrect: {2:0.2f}% unk {3:0.2f}% ".format(total, OcorPerc, OincPerc, OunkPerc))
+

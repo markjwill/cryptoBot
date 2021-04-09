@@ -35,6 +35,41 @@ Either command will ask for your <dbPassword>
 
 ## python requirements:
 
-`sudo apt-get install python3-pip`
+`sudo apt-get install python3-pip screen`
 
-`pip3 install mariadb pytz`
+`pip3 install mariadb pytz redis numpy plotext`
+
+# Necessary Diagram
+```mermaid
+graph LR
+B(Decision Engine)
+A{BOT} 
+C(dataProvider)
+I[dataSource]
+J(CoinEx)
+K(Simulation w/Mysql)
+L(Coinbase Pro future)
+R(Debug Output)
+D(accountProvider)
+F[accountSource]
+G(CoinEx)
+H(Simulation w/Mysql)
+M(Coinbase Pro future )
+D --> F
+A --> B
+B --> A
+A --> C
+A --> R
+C --> A
+F --> D
+A --> D
+D --> A
+C --> I
+I --> C
+F --> X[OR] --> G
+X --> H
+X --> M
+I --> OR --> J
+OR --> K
+OR --> L
+```
