@@ -58,10 +58,6 @@ else:
 
 
 
-trades = cur.fetchall()
-
-if date_ms is not None:
-    trades = trades[::-1]
 
 def fixLowPrice(trade):
     return ((trade[24] - price) * 100 / price), ((trade[25] - price) * 100 / price), ((trade[26] - price) * 100 / price), ((trade[27] - price) * 100 / price), ((trade[28] - price) * 100 / price), ((trade[29] - price) * 100 / price), ((trade[30] - price) * 100 / price), ((trade[31] - price) * 100 / price), ((trade[32] - price) * 100 / price), ((trade[33] - price) * 100 / price), (( trade[34] - price) * 100 / price)
@@ -721,171 +717,183 @@ SUnknown = 0
 FUnknown = 0
 TUnknown = 0
 OUnknown = 0
-for trade in trades:
-    testNumber = 1
 
-    SMatch = False
-    FMatch = False
-    TMatch = False
-    OMatch = False
-    if first and date_ms is not None:
-        first = False
-        match = True
-        total -= 1
-    elif date_ms is not None:
-        print(trade)
-    price=trade[11]
-    tSecAvg = trade[50]
-    fiveAvg = trade[46]
-    thirtyAvg = trade[47]
-    oneTwentyAvg = trade[49]
-    high = fixHighPrice(trade)
-    low = fixLowPrice(trade)
 
-    # thirtyToFivePercent = ( thirtyAvg * 100 / fiveAvg ) - 100
-    # thirtyToOneTPercent = ( thirtyAvg * 100 / oneTwentyAvg ) - 100
-    # oneTtoFivePercent = ( oneTwentyAvg * 100 / fiveAvg ) - 100
-    if previousFiveAvg is None:
-        oneTwentySlope = 0
-        thirtySlope = 0
-        fiveSlope = 0
-        tSecSlope = 0
-    else:
-        oneTwentySlope = ((oneTwentyAvg - previousOneTwentyAvg) / (2 - 1))
-        thirtySlope = ((thirtyAvg - previousThirtyAvg) / (2 - 1))
-        fiveSlope = ((fiveAvg - previousFiveAvg) / (2 - 1))
-        tSecSlope = ((tSecAvg - previousTSecAvg) / (2 - 1))
 
-    slopeString = categories.getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope)
-    rollingString = categories.getRollingString(price, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg)
 
-    cur.execute('SELECT tSecValue, fiveValue, thirtyValue, oneTwentyValue FROM predictions WHERE predictions.key = "{0:s}"'.format(rollingString+'-'+slopeString))
-    values = cur.fetchall()
+if date_ms is not None:
+    trades = cur.fetchall()
+    trades = trades[::-1]
+else:
+    while True:
+        trades = cur.fetchmany(100000)
+        if trades == None:
+            break
+        for trade in trades:
+            testNumber = 1
 
-    shortPrediction = 0.0
-    longPrediction = 0.0
+            SMatch = False
+            FMatch = False
+            TMatch = False
+            OMatch = False
+            if first and date_ms is not None:
+                first = False
+                match = True
+                total -= 1
+            elif date_ms is not None:
+                print(trade)
+            price=trade[11]
+            tSecAvg = trade[50]
+            fiveAvg = trade[46]
+            thirtyAvg = trade[47]
+            oneTwentyAvg = trade[49]
+            high = fixHighPrice(trade)
+            low = fixLowPrice(trade)
 
-    found = False
-
-    for value in values:
-        found = True
-        SPrediction = value[0]
-        FPrediction = value[1]
-        TPrediction = value[2]
-        OPrediction = value[3]
-
-    if found:
-
-        testNumber = 'SS'
-        if SPrediction > (sellPercent / 2):
-            if tradeWillSellTSec(trade, high):
-                scores[testNumber]['correct'] += 1
-                # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+            # thirtyToFivePercent = ( thirtyAvg * 100 / fiveAvg ) - 100
+            # thirtyToOneTPercent = ( thirtyAvg * 100 / oneTwentyAvg ) - 100
+            # oneTtoFivePercent = ( oneTwentyAvg * 100 / fiveAvg ) - 100
+            if previousFiveAvg is None:
+                oneTwentySlope = 0
+                thirtySlope = 0
+                fiveSlope = 0
+                tSecSlope = 0
             else:
-                scores[testNumber]['incorrect'] += 1
-                # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
-                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
-            SMatch = True
+                oneTwentySlope = ((oneTwentyAvg - previousOneTwentyAvg) / (2 - 1))
+                thirtySlope = ((thirtyAvg - previousThirtyAvg) / (2 - 1))
+                fiveSlope = ((fiveAvg - previousFiveAvg) / (2 - 1))
+                tSecSlope = ((tSecAvg - previousTSecAvg) / (2 - 1))
 
-        testNumber = 'SB'
-        if SPrediction < (buyPercent / 2):
-            if tradeWillBuyTSec(trade, low):
-                scores[testNumber]['correct'] += 1
-                # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
-            else:
-                scores[testNumber]['incorrect'] += 1
-                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
-                # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
-            SMatch = True
+            slopeString = categories.getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope)
+            rollingString = categories.getRollingString(price, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg)
 
+            cur.execute('SELECT tSecValue, fiveValue, thirtyValue, oneTwentyValue FROM predictions WHERE predictions.key = "{0:s}"'.format(rollingString+'-'+slopeString))
+            values = cur.fetchall()
 
-        testNumber = 'FS'
-        if FPrediction > sellPercent:
-            if tradeWillSellFive(trade, high):
-                scores[testNumber]['correct'] += 1
-                # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
-            else:
-                scores[testNumber]['incorrect'] += 1
-                # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
-                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
-            FMatch = True
+            shortPrediction = 0.0
+            longPrediction = 0.0
 
-        testNumber = 'FB'
-        if FPrediction < buyPercent:
-            if tradeWillBuyFive(trade, low):
-                scores[testNumber]['correct'] += 1
-                # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
-            else:
-                scores[testNumber]['incorrect'] += 1
-                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
-                # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
-            FMatch = True
+            found = False
 
+            for value in values:
+                found = True
+                SPrediction = value[0]
+                FPrediction = value[1]
+                TPrediction = value[2]
+                OPrediction = value[3]
 
-        testNumber = 'TS'
-        if TPrediction > sellPercent:
-            if tradeWillSellThirty(trade, high):
-                scores[testNumber]['correct'] += 1
-                # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
-            else:
-                scores[testNumber]['incorrect'] += 1
-                # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
-                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
-            TMatch = True
+            if found:
 
-        testNumber = 'TB'
-        if TPrediction < buyPercent:
-            if tradeWillBuyThirty(trade, low):
-                scores[testNumber]['correct'] += 1
-                # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
-            else:
-                scores[testNumber]['incorrect'] += 1
-                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
-                # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
-            TMatch = True
+                testNumber = 'SS'
+                if SPrediction > (sellPercent / 2):
+                    if tradeWillSellTSec(trade, high):
+                        scores[testNumber]['correct'] += 1
+                        # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                    else:
+                        scores[testNumber]['incorrect'] += 1
+                        # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                        # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                    SMatch = True
+
+                testNumber = 'SB'
+                if SPrediction < (buyPercent / 2):
+                    if tradeWillBuyTSec(trade, low):
+                        scores[testNumber]['correct'] += 1
+                        # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+                    else:
+                        scores[testNumber]['incorrect'] += 1
+                        # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                        # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+                    SMatch = True
 
 
-        testNumber = 'OS'
-        if OPrediction > sellPercent:
-            if tradeWillSellLong(trade, high):
-                scores[testNumber]['correct'] += 1
-                # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
-            else:
-                scores[testNumber]['incorrect'] += 1
-                # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
-                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
-            OMatch = True
+                testNumber = 'FS'
+                if FPrediction > sellPercent:
+                    if tradeWillSellFive(trade, high):
+                        scores[testNumber]['correct'] += 1
+                        # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                    else:
+                        scores[testNumber]['incorrect'] += 1
+                        # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                        # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                    FMatch = True
 
-        testNumber = 'OB'
-        if OPrediction < buyPercent:
-            if tradeWillBuyLong(trade, low):
-                scores[testNumber]['correct'] += 1
-                # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
-            else:
-                scores[testNumber]['incorrect'] += 1
-                # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
-                # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
-            OMatch = True
+                testNumber = 'FB'
+                if FPrediction < buyPercent:
+                    if tradeWillBuyFive(trade, low):
+                        scores[testNumber]['correct'] += 1
+                        # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+                    else:
+                        scores[testNumber]['incorrect'] += 1
+                        # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                        # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+                    FMatch = True
 
-        if SMatch == False:
-            SUnknown += 1
-        if FMatch == False:
-            FUnknown += 1
-        if TMatch == False:
-            TUnknown += 1
-        if OMatch == False:
-            OUnknown += 1
-        total += 1
 
-        previousOneTwentyAvgSet.append(oneTwentyAvg)
-        previousThirtyAvgSet.append(thirtyAvg)
-        previousFiveAvgSet.append(fiveAvg)
-        previousTSecAvgSet.append(tSecAvg)
-        while len(previousOneTwentyAvgSet) > 15:
-            previousOneTwentyAvg = previousOneTwentyAvgSet.pop(0)
-            previousThirtyAvg = previousThirtyAvgSet.pop(0)
-            previousFiveAvg = previousFiveAvgSet.pop(0)
-            previousTSecAvg = previousTSecAvgSet.pop(0)
+                testNumber = 'TS'
+                if TPrediction > sellPercent:
+                    if tradeWillSellThirty(trade, high):
+                        scores[testNumber]['correct'] += 1
+                        # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                    else:
+                        scores[testNumber]['incorrect'] += 1
+                        # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                        # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                    TMatch = True
+
+                testNumber = 'TB'
+                if TPrediction < buyPercent:
+                    if tradeWillBuyThirty(trade, low):
+                        scores[testNumber]['correct'] += 1
+                        # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+                    else:
+                        scores[testNumber]['incorrect'] += 1
+                        # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                        # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+                    TMatch = True
+
+
+                testNumber = 'OS'
+                if OPrediction > sellPercent:
+                    if tradeWillSellLong(trade, high):
+                        scores[testNumber]['correct'] += 1
+                        # print("{0:3d} buy   CORRECT  likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                    else:
+                        scores[testNumber]['incorrect'] += 1
+                        # print("{0:3d} buy  INCORRECT likelihood {1:10.5}".format(testNumber, tradeBuyLikelyhood(trade, low)))
+                        # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                    OMatch = True
+
+                testNumber = 'OB'
+                if OPrediction < buyPercent:
+                    if tradeWillBuyLong(trade, low):
+                        scores[testNumber]['correct'] += 1
+                        # print("{0:3d} sell  CORRECT  likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+                    else:
+                        scores[testNumber]['incorrect'] += 1
+                        # print("thirtyToFivePercent "+str(thirtyToFivePercent)+" "+str(testNumber)+"  "+str(trade[23]))
+                        # print("{0:3d} sell INCORRECT likelihood {1:10.5}".format(testNumber, tradeSellLikelyhood(trade, high)))
+                    OMatch = True
+
+                if SMatch == False:
+                    SUnknown += 1
+                if FMatch == False:
+                    FUnknown += 1
+                if TMatch == False:
+                    TUnknown += 1
+                if OMatch == False:
+                    OUnknown += 1
+                total += 1
+
+                previousOneTwentyAvgSet.append(oneTwentyAvg)
+                previousThirtyAvgSet.append(thirtyAvg)
+                previousFiveAvgSet.append(fiveAvg)
+                previousTSecAvgSet.append(tSecAvg)
+                while len(previousOneTwentyAvgSet) > 15:
+                    previousOneTwentyAvg = previousOneTwentyAvgSet.pop(0)
+                    previousThirtyAvg = previousThirtyAvgSet.pop(0)
+                    previousFiveAvg = previousFiveAvgSet.pop(0)
+                    previousTSecAvg = previousTSecAvgSet.pop(0)
 
 
 correctLikely = []

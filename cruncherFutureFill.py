@@ -18,6 +18,7 @@ market = 'BTCUSDT'
 # startTimestamp=1614663293
 
 
+
 #restart
 startTimestamp=1614774240 #Wed Mar 03 2021 12:24:00 GMT+0000
 # endTimestamp=1614783293 #Wed Mar 03 2021 14:54:53 GMT+0000
@@ -175,7 +176,7 @@ while True:
     if len(rows):
         previousDate_ms=row[1]
     print("Future Filler Takin a break.", flush=True)
-    time.sleep(10)
+    time.sleep(3)
 
 
 

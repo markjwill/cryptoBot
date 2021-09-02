@@ -23,8 +23,7 @@ date_ms = None
 if len(sys.argv) > 1:
     date_ms = sys.argv[1]
 
-dateExcludes = 'AND (( date < 1615989880 ) OR ( date > 1616004584 AND  date < 1616073970 ) OR ( date > 1616088770 AND  date < 1616240913 ) OR ( date > 1616257108 AND  date < 1616243798 ) OR ( date > 1616282088 AND  date < 1616268855 ) OR ( date > 1616284889 AND  date < 1616281056 ) OR ( date > 1616296324 AND  date < 1616282393 ) OR ( date > 1616297171 AND  date < 1616284491 ) OR ( date > 1616299532 AND  date < 1616386037 ) OR ( date > 1616401144 AND  date < 1616600685 ) OR ( date > 1616615807 AND  date < 1616607621 ) OR ( date > 1616625310 AND  date < 1616713436 ) OR ( date > 1616729592 AND  date < 1616727603 ) OR ( date > 1616742883 AND  date < 1616728883 ) OR ( date > 1616744343 AND  date < 1616904517 ) OR ( date > 1616919340 ))'
-
+dateExcludes = 'AND (( date < 1615989880 ) OR ( date > 1616004584 AND  date < 1616073970 ) OR ( date > 1616088770 AND  date < 1616240913 ) OR ( date > 1616257108 AND  date < 1616243798 ) OR ( date > 1616282088 AND  date < 1616268855 ) OR ( date > 1616284889 AND  date < 1616281056 ) OR ( date > 1616296324 AND  date < 1616282393 ) OR ( date > 1616297171 AND  date < 1616284491 ) OR ( date > 1616299532 AND  date < 1616386037 ) OR ( date > 1616401144 AND  date < 1616600685 ) OR ( date > 1616615807 AND  date < 1616607621 ) OR ( date > 1616625310 AND  date < 1616713436 ) OR ( date > 1616729592 AND  date < 1616727603 ) OR ( date > 1616742883 AND  date < 1616728883 ) OR ( date > 1616744343 AND  date < 1616904517 ) OR ( date > 1616919340 AND  date < 1617232403 ) OR ( date > 1617247124 AND  date < 1618060128 ) OR ( date > 1618085229 AND  date < 1618075523 ) OR ( date > 1618091303 AND  date < 1618258896 ) OR ( date > 1618274915 AND  date < 1618432199 ) OR ( date > 1618691523 AND  date < 1618939428 ) OR ( date > 1618954162 AND  date < 1618940011 ) OR ( date > 1618955402 AND  date < 1618984798 ) OR ( date > 1619000153 AND  date < 1620399655 ) OR ( date > 1620418867 AND  date < 1620450052 ) OR ( date > 1620465447 AND  date < 1620453712 ) OR ( date > 1620469381 AND  date < 1620488396 ) OR ( date > 1620504974 AND  date < 1620804232 ) OR ( date > 1620819355 AND  date < 1620902557 ) OR ( date > 1620917271 AND  date < 1623434900 ) OR ( date > 1623449843 AND  date < 1623594379 ) OR ( date > 1623610097 AND  date < 1624378640 ) OR ( date > 1624461262 ))'
 class col:
     maxg = '\033[30m\033[42m'
     midg = '\033[32m\033[40m'
@@ -51,16 +50,10 @@ except mariadb.Error as e:
 cur = conn.cursor()
 
 if date_ms is None:
-    cur.execute("SELECT p_oneTwentyMin_changePercent,p_sixtyMin_changePercent,p_thirtyMin_changePercent,p_fifteenMin_changePercent,p_tenMin_changePercent,p_fiveMin_changePercent,p_threeMin_changePercent,p_oneMin_changePercent,p_thirtySec_changePercent,p_tenSec_changePercent,p_fiveSec_changePercent,price,f_fiveSec_changePercent,f_tenSec_changePercent,f_thirtySec_changePercent,f_oneMin_changePercent,f_threeMin_changePercent,f_fiveMin_changePercent,f_tenMin_changePercent,f_fifteenMin_changePercent,f_thirtyMin_changePercent,f_sixtyMin_changePercent,f_oneTwentyMin_changePercent, date_ms,f_fiveSec_lowPrice,f_tenSec_lowPrice,f_thirtySec_lowPrice,f_oneMin_lowPrice,f_threeMin_lowPrice,f_fiveMin_lowPrice,f_tenMin_lowPrice,f_fifteenMin_lowPrice,f_thirtyMin_lowPrice,f_sixtyMin_lowPrice,f_oneTwentyMin_lowPrice,f_fiveSec_highPrice,f_tenSec_highPrice,f_thirtySec_highPrice,f_oneMin_highPrice,f_threeMin_highPrice,f_fiveMin_highPrice,f_tenMin_highPrice,f_fifteenMin_highPrice,f_thirtyMin_highPrice,f_sixtyMin_highPrice,f_oneTwentyMin_highPrice,p_fiveMin_avgPrice,p_thirtyMin_avgPrice,p_fiveSec_avgPrice,p_oneTwentyMin_avgPrice, p_thirtySec_avgPrice FROM trades WHERE market = '{0:s}' AND p_oneTwentyMin_changePercent IS NOT NULL AND p_sixtyMin_changePercent IS NOT NULL AND p_thirtyMin_changePercent IS NOT NULL AND p_fifteenMin_changePercent IS NOT NULL AND p_tenMin_changePercent IS NOT NULL AND p_fiveMin_changePercent IS NOT NULL AND p_threeMin_changePercent IS NOT NULL AND p_oneMin_changePercent IS NOT NULL AND p_thirtySec_changePercent IS NOT NULL AND p_tenSec_changePercent IS NOT NULL AND p_fiveSec_changePercent IS NOT NULL AND price IS NOT NULL AND f_fiveSec_changePercent IS NOT NULL AND f_tenSec_changePercent IS NOT NULL AND f_thirtySec_changePercent IS NOT NULL AND f_oneMin_changePercent IS NOT NULL AND f_threeMin_changePercent IS NOT NULL AND f_fiveMin_changePercent IS NOT NULL AND f_tenMin_changePercent IS NOT NULL AND f_fifteenMin_changePercent IS NOT NULL AND f_thirtyMin_changePercent IS NOT NULL AND f_sixtyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_lowPrice IS NOT NULL {1:s} ORDER BY date_ms ASC LIMIT 20".format(market, dateExcludes))
+    cur.execute("SELECT p_oneTwentyMin_changePercent,p_sixtyMin_changePercent,p_thirtyMin_changePercent,p_fifteenMin_changePercent,p_tenMin_changePercent,p_fiveMin_changePercent,p_threeMin_changePercent,p_oneMin_changePercent,p_thirtySec_changePercent,p_tenSec_changePercent,p_fiveSec_changePercent,price,f_fiveSec_changePercent,f_tenSec_changePercent,f_thirtySec_changePercent,f_oneMin_changePercent,f_threeMin_changePercent,f_fiveMin_changePercent,f_tenMin_changePercent,f_fifteenMin_changePercent,f_thirtyMin_changePercent,f_sixtyMin_changePercent,f_oneTwentyMin_changePercent, date_ms,f_fiveSec_lowPrice,f_tenSec_lowPrice,f_thirtySec_lowPrice,f_oneMin_lowPrice,f_threeMin_lowPrice,f_fiveMin_lowPrice,f_tenMin_lowPrice,f_fifteenMin_lowPrice,f_thirtyMin_lowPrice,f_sixtyMin_lowPrice,f_oneTwentyMin_lowPrice,f_fiveSec_highPrice,f_tenSec_highPrice,f_thirtySec_highPrice,f_oneMin_highPrice,f_threeMin_highPrice,f_fiveMin_highPrice,f_tenMin_highPrice,f_fifteenMin_highPrice,f_thirtyMin_highPrice,f_sixtyMin_highPrice,f_oneTwentyMin_highPrice,p_fiveMin_avgPrice,p_thirtyMin_avgPrice,p_fiveSec_avgPrice,p_oneTwentyMin_avgPrice, p_thirtySec_avgPrice FROM trades WHERE market = '{0:s}' AND p_oneTwentyMin_changePercent IS NOT NULL AND p_sixtyMin_changePercent IS NOT NULL AND p_thirtyMin_changePercent IS NOT NULL AND p_fifteenMin_changePercent IS NOT NULL AND p_tenMin_changePercent IS NOT NULL AND p_fiveMin_changePercent IS NOT NULL AND p_threeMin_changePercent IS NOT NULL AND p_oneMin_changePercent IS NOT NULL AND p_thirtySec_changePercent IS NOT NULL AND p_tenSec_changePercent IS NOT NULL AND p_fiveSec_changePercent IS NOT NULL AND price IS NOT NULL AND f_fiveSec_changePercent IS NOT NULL AND f_tenSec_changePercent IS NOT NULL AND f_thirtySec_changePercent IS NOT NULL AND f_oneMin_changePercent IS NOT NULL AND f_threeMin_changePercent IS NOT NULL AND f_fiveMin_changePercent IS NOT NULL AND f_tenMin_changePercent IS NOT NULL AND f_fifteenMin_changePercent IS NOT NULL AND f_thirtyMin_changePercent IS NOT NULL AND f_sixtyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_lowPrice IS NOT NULL {1:s} ORDER BY date_ms ASC limit 1".format(market, dateExcludes))
 else:
     cur.execute("SELECT p_oneTwentyMin_changePercent,p_sixtyMin_changePercent,p_thirtyMin_changePercent,p_fifteenMin_changePercent,p_tenMin_changePercent,p_fiveMin_changePercent,p_threeMin_changePercent,p_oneMin_changePercent,p_thirtySec_changePercent,p_tenSec_changePercent,p_fiveSec_changePercent,price,f_fiveSec_changePercent,f_tenSec_changePercent,f_thirtySec_changePercent,f_oneMin_changePercent,f_threeMin_changePercent,f_fiveMin_changePercent,f_tenMin_changePercent,f_fifteenMin_changePercent,f_thirtyMin_changePercent,f_sixtyMin_changePercent,f_oneTwentyMin_changePercent, date_ms,f_fiveSec_lowPrice,f_tenSec_lowPrice,f_thirtySec_lowPrice,f_oneMin_lowPrice,f_threeMin_lowPrice,f_fiveMin_lowPrice,f_tenMin_lowPrice,f_fifteenMin_lowPrice,f_thirtyMin_lowPrice,f_sixtyMin_lowPrice,f_oneTwentyMin_lowPrice,f_fiveSec_highPrice,f_tenSec_highPrice,f_thirtySec_highPrice,f_oneMin_highPrice,f_threeMin_highPrice,f_fiveMin_highPrice,f_tenMin_highPrice,f_fifteenMin_highPrice,f_thirtyMin_highPrice,f_sixtyMin_highPrice,f_oneTwentyMin_highPrice,p_fiveMin_avgPrice,p_thirtyMin_avgPrice,p_fiveSec_avgPrice,p_oneTwentyMin_avgPrice, p_thirtySec_avgPrice FROM trades WHERE market = '{0:s}' AND date_ms <= '{1:s}' AND p_oneTwentyMin_changePercent IS NOT NULL AND p_sixtyMin_changePercent IS NOT NULL AND p_thirtyMin_changePercent IS NOT NULL AND p_fifteenMin_changePercent IS NOT NULL AND p_tenMin_changePercent IS NOT NULL AND p_fiveMin_changePercent IS NOT NULL AND p_threeMin_changePercent IS NOT NULL AND p_oneMin_changePercent IS NOT NULL AND p_thirtySec_changePercent IS NOT NULL AND p_tenSec_changePercent IS NOT NULL AND p_fiveSec_changePercent IS NOT NULL AND price IS NOT NULL AND f_fiveSec_changePercent IS NOT NULL AND f_tenSec_changePercent IS NOT NULL AND f_thirtySec_changePercent IS NOT NULL AND f_oneMin_changePercent IS NOT NULL AND f_threeMin_changePercent IS NOT NULL AND f_fiveMin_changePercent IS NOT NULL AND f_tenMin_changePercent IS NOT NULL AND f_fifteenMin_changePercent IS NOT NULL AND f_thirtyMin_changePercent IS NOT NULL AND f_sixtyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_lowPrice IS NOT NULL ORDER BY date_ms DESC LIMIT 2".format(market, date_ms))
 
-
-
-trades = cur.fetchall()
-
-if date_ms is not None:
-    trades = trades[::-1]
 
 def fixLowPrice(trade):
     return ((trade[24] - price) * 100 / price), ((trade[25] - price) * 100 / price), ((trade[26] - price) * 100 / price), ((trade[27] - price) * 100 / price), ((trade[28] - price) * 100 / price), ((trade[29] - price) * 100 / price), ((trade[30] - price) * 100 / price), ((trade[31] - price) * 100 / price), ((trade[32] - price) * 100 / price), ((trade[33] - price) * 100 / price), (( trade[34] - price) * 100 / price)
@@ -645,42 +638,10 @@ X = []
 #
 ###
 
-sSlope = {
-    'G' :[],
-    'Y' :[],
-    'Z' :[],
-    'K' :[],
-    'D' :[],
-    'L' :[],
-    'C' :[],
-    'Q' :[],
-    'H' :[],
-    'U' :[]
-}
-fSlope = {
-    'D' :[],
-    'L' :[],
-    'C' :[],
-    'Q' :[],
-    'H' :[],
-    'U' :[]
-}
-tSlope = {
-    'D' :[],
-    'L' :[],
-    'C' :[],
-    'Q' :[],
-    'H' :[],
-    'U' :[]
-}
-oSlope = {
-    'D' :[],
-    'L' :[],
-    'C' :[],
-    'Q' :[],
-    'H' :[],
-    'U' :[]
-}
+sSlope = {}
+fSlope = {}
+tSlope = {}
+oSlope = {}
 S = {}
 F = {}
 T = {}
@@ -690,95 +651,114 @@ previousThirtyAvgSet = []
 previousFiveAvgSet = []
 previousTSecAvgSet = []
 last_ms = 0
-for trade in trades:
-    if trade[23] - 300000 > last_ms:
-        previousOneTwentyAvgSet = []
-        previousThirtyAvgSet = []
-        previousFiveAvgSet = []
-        previousTSecAvgSet = []   
-    
-    testNumber = 1
 
-    match = False
-    if first and date_ms is not None:
-        first = False
-        match = True
-        total -= 1
-    elif date_ms is not None:
-        print(trade)
-    price=trade[11]
-    tSecAvg = trade[50]
-    fiveAvg = trade[46]
-    thirtyAvg = trade[47]
-    oneTwentyAvg = trade[49]
-    high = fixHighPrice(trade)
-    low = fixLowPrice(trade)
+batchNo=0
+python3 predictMscore.py
+if date_ms is not None:
+    trades = cur.fetchall()
+    trades = trades[::-1]
+else:
+    while True:
+        trades = cur.fetchmany(100000)
+        print(trades)
+        exit();
 
-    # thirtyToFivePercent = ( thirtyAvg * 100 / fiveAvg ) - 100
-    # thirtyToOneTPercent = ( thirtyAvg * 100 / oneTwentyAvg ) - 100
-    # oneTtoFivePercent = ( oneTwentyAvg * 100 / fiveAvg ) - 100
-    if previousFiveAvg is None:
-        oneTwentySlope = 0
-        thirtySlope = 0
-        fiveSlope = 0
-        tSecSlope = 0
-    else:
-        oneTwentySlope = ((oneTwentyAvg - previousOneTwentyAvg) / (2 - 1))
-        thirtySlope = ((thirtyAvg - previousThirtyAvg) / (2 - 1))
-        fiveSlope = ((fiveAvg - previousFiveAvg) / (2 - 1))
-        tSecSlope = ((tSecAvg - previousTSecAvg) / (2 - 1))
+        print("Batch {0}".format(batchNo))
+        batchNo = batchNo + 1
+        if trades == None:
+            print(" DONE ")
+            break
+        for trade in trades:
+            if trade[23] - 300000 > last_ms:
+                previousOneTwentyAvgSet = []
+                previousThirtyAvgSet = []
+                previousFiveAvgSet = []
+                previousTSecAvgSet = []   
+            
+            testNumber = 1
 
-    slopeString = categories.getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope)
-    rollingString = categories.getRollingString(price, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg)
+            match = False
+            if first and date_ms is not None:
+                first = False
+                match = True
+                total -= 1
+            # elif date_ms is not None:
+                # print(trade)
+            price=trade[11]
+            tSecAvg = trade[50]
+            fiveAvg = trade[46]
+            thirtyAvg = trade[47]
+            oneTwentyAvg = trade[49]
+            high = fixHighPrice(trade)
+            low = fixLowPrice(trade)
 
-    if slopeString[0] not in sSlope:
-        sSlope[slopeString[0]] = []
-    sSlope[slopeString[0]].append(tSecSlope)
-    if slopeString[1] not in fSlope:
-        fSlope[slopeString[1]] = []
-    fSlope[slopeString[1]].append(fiveSlope)
-    if slopeString[2] not in tSlope:
-        tSlope[slopeString[2]] = []
-    tSlope[slopeString[2]].append(thirtySlope)
-    if slopeString[3] not in oSlope:
-        oSlope[slopeString[3]] = []
-    oSlope[slopeString[3]].append(oneTwentySlope)
+            # thirtyToFivePercent = ( thirtyAvg * 100 / fiveAvg ) - 100
+            # thirtyToOneTPercent = ( thirtyAvg * 100 / oneTwentyAvg ) - 100
+            # oneTtoFivePercent = ( oneTwentyAvg * 100 / fiveAvg ) - 100
+            if previousFiveAvg is None:
+                oneTwentySlope = 0
+                thirtySlope = 0
+                fiveSlope = 0
+                tSecSlope = 0
+            else:
+                oneTwentySlope = ((oneTwentyAvg - previousOneTwentyAvg) / (2 - 1))
+                thirtySlope = ((thirtyAvg - previousThirtyAvg) / (2 - 1))
+                fiveSlope = ((fiveAvg - previousFiveAvg) / (2 - 1))
+                tSecSlope = ((tSecAvg - previousTSecAvg) / (2 - 1))
 
-    # if 'TOFSP-QLLC' == rollingString+'-'+slopeString:
-    #     print(trade[23])
-    if len(previousOneTwentyAvgSet) == 15:
-        if rollingString+'-'+slopeString not in S:
-            S[rollingString+'-'+slopeString] = []
-            F[rollingString+'-'+slopeString] = []
-            T[rollingString+'-'+slopeString] = []
-            O[rollingString+'-'+slopeString] = []
+            slopeString = categories.getSlopeString(tSecSlope, fiveSlope, thirtySlope, oneTwentySlope)
+            rollingString = categories.getRollingString(price, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg)
 
-        change = changetSec(trade, high, low)
-        if change not in S[rollingString+'-'+slopeString]:
-            S[rollingString+'-'+slopeString].append(change)
-        change = changeFive(trade, high, low)
-        if change not in F[rollingString+'-'+slopeString]:
-            F[rollingString+'-'+slopeString].append(change)
-        change = changeThirty(trade, high, low)
-        if change not in T[rollingString+'-'+slopeString]:
-            T[rollingString+'-'+slopeString].append(change)
-        change = changeOneTwenty(trade, high, low)
-        if change not in O[rollingString+'-'+slopeString]:
-            O[rollingString+'-'+slopeString].append(change)
+            if slopeString[0] not in sSlope:
+                sSlope[slopeString[0]] = []
+            sSlope[slopeString[0]].append(tSecSlope)
+            if slopeString[1] not in fSlope:
+                fSlope[slopeString[1]] = []
+            fSlope[slopeString[1]].append(fiveSlope)
+            if slopeString[2] not in tSlope:
+                tSlope[slopeString[2]] = []
+            tSlope[slopeString[2]].append(thirtySlope)
+            if slopeString[3] not in oSlope:
+                oSlope[slopeString[3]] = []
+            oSlope[slopeString[3]].append(oneTwentySlope)
 
-        total += 1
+            # if 'TOFSP-QLLC' == rollingString+'-'+slopeString:
+            #     print(trade[23])
+            if len(previousOneTwentyAvgSet) == 15:
+                if rollingString+'-'+slopeString not in S:
+                    S[rollingString+'-'+slopeString] = []
+                    F[rollingString+'-'+slopeString] = []
+                    T[rollingString+'-'+slopeString] = []
+                    O[rollingString+'-'+slopeString] = []
 
-    previousOneTwentyAvgSet.append(oneTwentyAvg)
-    previousThirtyAvgSet.append(thirtyAvg)
-    previousFiveAvgSet.append(fiveAvg)
-    previousTSecAvgSet.append(tSecAvg)
-    while len(previousOneTwentyAvgSet) > 15:
-        previousOneTwentyAvg = previousOneTwentyAvgSet.pop(0)
-        previousThirtyAvg = previousThirtyAvgSet.pop(0)
-        previousFiveAvg = previousFiveAvgSet.pop(0)
-        previousTSecAvg = previousTSecAvgSet.pop(0)
+                change = changetSec(trade, high, low)
+                if change not in S[rollingString+'-'+slopeString]:
+                    S[rollingString+'-'+slopeString].append(change)
+                change = changeFive(trade, high, low)
+                if change not in F[rollingString+'-'+slopeString]:
+                    F[rollingString+'-'+slopeString].append(change)
+                change = changeThirty(trade, high, low)
+                if change not in T[rollingString+'-'+slopeString]:
+                    T[rollingString+'-'+slopeString].append(change)
+                change = changeOneTwenty(trade, high, low)
+                if change not in O[rollingString+'-'+slopeString]:
+                    O[rollingString+'-'+slopeString].append(change)
 
-    last_ms = trade[23]
+                total += 1
+
+            previousOneTwentyAvgSet.append(oneTwentyAvg)
+            previousThirtyAvgSet.append(thirtyAvg)
+            previousFiveAvgSet.append(fiveAvg)
+            previousTSecAvgSet.append(tSecAvg)
+            while len(previousOneTwentyAvgSet) > 15:
+                previousOneTwentyAvg = previousOneTwentyAvgSet.pop(0)
+                previousThirtyAvg = previousThirtyAvgSet.pop(0)
+                previousFiveAvg = previousFiveAvgSet.pop(0)
+                previousTSecAvg = previousTSecAvgSet.pop(0)
+
+            last_ms = trade[23]
+
+trades=None
 
 mTotal = 0
 
@@ -877,7 +857,7 @@ for rank in S:
     if len(S[rank]) >= 3 or len(F[rank]) >= 3 or len(T[rank]) >= 3 or len(O[rank]) >= 3:
         gtFiveTot += 1
 
-        print('{0:s} count: {1:6d}   -: {2:5.3f}  +: {4:5.3f}   a: {5:4.2f}   b: {6:5.3f}   s:{7:5.3f}    -: {8:5.3f}   +: {10:5.3f}   a: {11:4.2f}   b: {12:5.3f}   s:{13:5.3f}    -: {14:5.3f}   +: {16:5.3f}   a: {17:4.2f}   b: {18:5.3f}   s:{19:5.3f}    -: {20:5.3f}   +: {22:5.3f}   a: {23:4.2f}   b: {24:5.3f}   s:{25:5.3f} '.format(rank, thisTot, StMin, 'Smid', Savg, StMax, SbetAvg, Sstd, FtMin, 'Fmid', Favg, FtMax, FbetAvg, Fstd, TtMin, 'Tmid', Tavg, TtMax, TbetAvg, Tstd, OtMin, 'Omid', Oavg, OtMax, ObetAvg, Ostd))
+        # print('{0:s} count: {1:6d}   -: {2:5.3f}  +: {4:5.3f}   a: {5:4.2f}   b: {6:5.3f}   s:{7:5.3f}    -: {8:5.3f}   +: {10:5.3f}   a: {11:4.2f}   b: {12:5.3f}   s:{13:5.3f}    -: {14:5.3f}   +: {16:5.3f}   a: {17:4.2f}   b: {18:5.3f}   s:{19:5.3f}    -: {20:5.3f}   +: {22:5.3f}   a: {23:4.2f}   b: {24:5.3f}   s:{25:5.3f} '.format(rank, thisTot, StMin, 'Smid', Savg, StMax, SbetAvg, Sstd, FtMin, 'Fmid', Favg, FtMax, FbetAvg, Fstd, TtMin, 'Tmid', Tavg, TtMax, TbetAvg, Tstd, OtMin, 'Omid', Oavg, OtMax, ObetAvg, Ostd))
         # print('{0:s} count: {1:6d}   -: {2:5.3f}   : {3:5.3f}   +: {4:5.3f}   a: {5:4.2f}   b: {6:5.3f}   s:{7:5.3f}    -: {8:5.3f}   : {9:5.3f}   +: {10:5.3f}   a: {11:4.2f}   b: {12:5.3f}   s:{13:5.3f}    -: {14:5.3f}   : {15:5.3f}   +: {16:5.3f}   a: {17:4.2f}   b: {18:5.3f}   s:{19:5.3f}    -: {20:5.3f}   : {21:5.3f}   +: {22:5.3f}   a: {23:4.2f}   b: {24:5.3f}   s:{25:5.3f} '.format(rank, thisTot, StMin, Smid, Savg, StMax, SbetAvg, Sstd, FtMin, Fmid, Favg, FtMax, FbetAvg, Fstd, TtMin, Tmid, Tavg, TtMax, TbetAvg, Tstd, OtMin, Omid, Oavg, OtMax, ObetAvg, Ostd))
 
 print('mTotal {0:d} total {1:d} gt5 {2:d} gt5short {3:d} gt5long {4:d}'.format(mTotal, total, gtFiveTot, gtFiveShort, gtFiveLong))

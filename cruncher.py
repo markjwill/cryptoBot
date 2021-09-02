@@ -12,6 +12,7 @@ import mariadb
 import pprint
 from pytz import timezone
 import math
+from random import *
 
 market = 'BTCUSDT'
 
@@ -36,6 +37,7 @@ try:
 except mariadb.Error as e:
     print("Error connecting to MariaDB Platform: {0}".format(e))
     sys.exit(1)
+
 
 # Get Cursor
 cur = conn.cursor()
@@ -444,9 +446,10 @@ def getCalcAllTrades(market, id_col, end_ms):
     conn.commit()
 
 while True:
-    cur.execute("SELECT id, date_ms FROM trades WHERE p_oneTwentyMin_changePercent IS NULL ORDER BY date_ms DESC LIMIT 100")
-    rows = cur.fetchall()
 
+    cur.execute("SELECT id, date_ms FROM trades WHERE p_oneTwentyMin_changePercent IS NULL ORDER BY date_ms DESC LIMIT "+str(randint(97, 100)))
+    rows = cur.fetchall()
+    print("rows selected: {0:d}".format(len(rows)), flush=True)
     for row in rows:
         print("PastCruncher "+datetime.fromtimestamp(round(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p"), flush=True)
         getCalcAllTrades(market, row[0], row[1])
@@ -464,7 +467,7 @@ while True:
 
     print("Cruncher Takin a break.", flush=True)
 
-    time.sleep(10)
+    time.sleep(3)
 
 
 

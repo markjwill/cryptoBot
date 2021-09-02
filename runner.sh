@@ -9,6 +9,11 @@ croncmd="bash ${path}runner.sh"
 cronjob="@reboot $croncmd"
 ( crontab -l | grep -v -F "$croncmd" ; echo "$cronjob" ) | crontab -
 
+#set redis to run on reboot
+croncmd="redis-server /etc/redis/6377.conf"
+cronjob="@reboot $croncmd"
+( crontab -l | grep -v -F "$croncmd" ; echo "$cronjob" ) | crontab -
+
 scriptPath="${path}${scriptName}"
 logPath="${path}${logName}"
 
@@ -37,7 +42,7 @@ function restartCruncherFutureFill() {
 }
 
 #make sure db backup is in the crontab
-croncmd="mysqldump --single-transaction --all-databases | pigz -1 > ${path}dbBackup.log > ${path}dbBackup.sql.gz 2>&1"
+croncmd="mysqldump -u MrBot -p'8fdvaoivposriong' --single-transaction --all-databases | pigz -1 > ${path}dbBackup.log > ${path}dbBackup.sql.gz 2>&1"
 cronjob="30 23 * * * $croncmd"
 ( crontab -l | grep -v -F "$croncmd" ; echo "$cronjob" ) | crontab -
 
@@ -57,6 +62,8 @@ function restartTrader() {
         kill ${pid}
     done
     startTrader
+    restartCruncher
+    restartCruncherFutureFill
 }
 
 
@@ -82,6 +89,8 @@ while true; do
             echo "###########  BOT TIME OUT  ###########" >>"${logPath}" 2>&1
             echo ">>>###########  BOT TIME OUT  ###########<<<"
             restartTrader
+            restartCruncherFutureFill
+            restartCruncher
         fi
     fi
     if [[ "${time}" -lt "1" ]]; then
@@ -100,6 +109,8 @@ while true; do
        echo "########### SCRIPT CHANGES ###########" >>"${logPath}" 2>&1
        echo ">>>########### SCRIPT CHANGES ###########<<<"
        restartTrader
+       restartCruncherFutureFill
+       restartCruncher
     fi
 
     FILETIME=$(stat ${path}cruncher.py -c %Y)
@@ -110,6 +121,7 @@ while true; do
        echo "########### CRUNCHER CHANGES ###########" >>"${cruncherLog}" 2>&1
        echo ">>>########### CRUNCHER CHANGES ###########<<<"
        restartCruncher
+       restartCruncherFutureFill
     fi
 
     FILETIME=$(stat ${path}cruncherFutureFill.py -c %Y)
@@ -120,6 +132,7 @@ while true; do
        echo "########### CRUNCHER FUTURE FILL CHANGES ###########" >>"${cruncherLog}" 2>&1
        echo ">>>########### CRUNCHER FUTURE FILL CHANGES ###########<<<"
        restartCruncherFutureFill
+       restartCruncher
     fi
 
     echo "tick"

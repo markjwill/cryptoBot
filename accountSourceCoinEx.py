@@ -1,8 +1,5 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
-"""
-Created by bu on 2018-01-17
-"""
+
 from __future__ import unicode_literals
 import time
 import hashlib
@@ -76,6 +73,18 @@ class accountSourceCoinEx(object):
         except OSError:
             print("Internet connectivity error")
 
+    def getExchangeCoinMin():
+        return 10300.0
+
+    def getExchangeCoinSymbol():
+        return 'CET'
+
+    def getFee(self):
+        return 0.00112
+
+    def getFeeAsPercent(self):
+        return 0.14
+
     def get_account(self, buyCoin, sellCoin):
         available = {}
         frozen = {}
@@ -101,6 +110,49 @@ class accountSourceCoinEx(object):
         # print(complex_json.dumps(latest['data'], indent = 4, sort_keys=True))
         return available, frozen
 
+    def order_status(self, market, tradeId):
+        request_client = RequestClient()
+        params = {
+            'market': market,
+            'id': tradeId
+        }
+        response = request_client.request(
+                'GET',
+                '{url}/v1/order/status'.format(url=request_client.url),
+                params=params
+        )
+
+        try:
+            latest = complex_json.loads(response.data)
+        except AttributeError:
+            print("Internet connectivity error, order_pending", flush=True)
+            exit()
+        return latest['data']
+# Response
+# {
+#   "code": 0,
+#   "data": {                           # order data
+#     "amount": "1000",                 # order count
+#     "avg_price": "11782.28",          # average executed price
+#     "create_time": 1496761108,        # order placing time
+#     "deal_amount": "1000",            # executed amount
+#     "deal_fee": "23564.5798468",      # transaction fee
+#     "deal_money": "11782289.9234",    # executed value
+#     "id": 300021,                     # order no.
+#     "left": "9.4",                    # unexecuted amount
+#     "maker_fee_rate": "0.001",        # maker fee
+#     "market": "BTCBCH",               # market
+#     "order_type": "limit",            # order type
+#     "price": "7000",                  # order price
+#     "status": "done",                 # order status
+#     "taker_fee_rate": "0.002",        # taker fee
+#     "type": "sell"                    # order type
+#     }
+#   },
+#   "message": "Ok"
+# }
+
+
     def order_pending(self, market):
         request_client = RequestClient()
         params = {
@@ -119,7 +171,38 @@ class accountSourceCoinEx(object):
         except AttributeError:
             print("Internet connectivity error, order_pending", flush=True)
             exit()
-        return latest['data']
+        return latest['data']['data'][0]
+# Response
+# {
+#   "code": 0,
+#   "data": {
+#     "count": 1,                   # current page rows
+#     "curr_page": 1,               # current page
+#     "data": [                     # return in reverse of order time with latest order on top
+#       {
+#         "amount": "1.00",         # order count 
+#         "avg_price": "0.00",      # average order price
+#         "create_time": 1494320533,# order placing time
+#         "deal_amount": "0.001",   # executed amount
+#         "deal_fee": "130.3792",   # transaction fee
+#         "deal_money": "65189.6",  # executed value
+#         "id": 32,                 # order no.
+#         "left": 32,               # unexecuted amount
+#         "maker_fee_rate": "0",    # maker fee
+#         "market": "BTCBCH",       # market type
+#         "order_type": "limit",    # order type
+#         "price": "10.00",         # order price
+#         "status": "not_deal",     # order status
+#         "taker_fee_rate": "0.002",# taker fee
+#         "type": "sell",           # buy/sell type
+#         "client_id": "xxxxx",     # order client id
+#       }
+#     ],
+#     "has_next": true              # Is there a next page
+#   },
+#   "message": "Ok"
+# }
+
 
 
     def order_finished(self, market, page, limit, trader):
@@ -135,7 +218,28 @@ class accountSourceCoinEx(object):
                 params=params
         )
         latest = complex_json.loads(response.data)
-
+# name           # type    description
+# amount         # String  order count
+# avg_price      # String  average price
+# create_time    # Interger    time when placing order
+# deal_amount    # String  count
+# deal_fee       # String  transaction fee
+# deal_money     # String  executed value
+# finished_time  # Interger    complete time
+# id             # Interger    Order No.
+# maker_fee_rate # String  maker fee
+# market         # String  See <API invocation description·market>
+# order_type     # String  limit:limit order; market:market order;
+# price          # String  order price
+# status         # String  not_deal: unexecuted;
+#                          part_deal: partly executed;
+#                          done: executed;
+# taker_fee_rate # String  taker fee
+# type           # String  sell: sell order;
+#                          buy: buy order;
+# client_id      # String  order client id
+        if latest['data']['count'] == 0:
+            return []
         return latest['data']['data']
         # print(complex_json.dumps(latest, indent = 4, sort_keys=True))
 

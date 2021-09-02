@@ -35,7 +35,7 @@ Either command will ask for your <dbPassword>
 
 ## python requirements:
 
-`sudo apt-get install python3-pip screen`
+`sudo apt-get install python3-pip screen redis`
 
 `pip3 install mariadb pytz redis numpy plotext`
 
