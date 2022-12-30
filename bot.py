@@ -263,7 +263,7 @@ class Bot:
 
     feeAsPercent=0.14
     fee=0.00112
-    startPeakFeeMultiple=1.15
+    startPeakFeeMultiple=2
 
     tradeId="0"
     remaining="0"
@@ -448,6 +448,7 @@ class Bot:
         self.actionValue=0.0
         self.completedTradeId=0
         self.priceData = get_latest(self, self.market, 200)
+        self.getOutsidePrice()
         if self.checkOrderPending():
             self.mode = 'in-progress'
         else:
@@ -1151,7 +1152,7 @@ class Bot:
             self.mode = 'wait'
             self.tradeId = "0"
             # get price
-            self.greenPrice = self.feeCalc(self.lastPrice, self.fee, self.startPeakFeeMultiple, self.nextActionType())
+            self.setGreenPrice()
             self.setInitalGuidePrice()
             self.updateGuidePrice(self.guidePrice)
         else:
@@ -1195,12 +1196,12 @@ class Bot:
         if self.tryingToSell():
             priceRange = float(self.priceData['highPrice']) - float(self.priceData['lowPrice'])
             newLastPrice = float(self.priceData['lowPrice']) + ( ( priceRange * ( self.lowStartPercent * 100 ) ) / 100 )
-            if newLastPrice < self.lastPrice:
+            if newLastPrice < self.lastPrice or self.lastPrice == 0:
                 self.lastPrice = newLastPrice
         else:
             priceRange = float(self.priceData['highPrice']) - float(self.priceData['lowPrice'])
             newLastPrice = float(self.priceData['lowPrice']) + ( ( priceRange * ( self.highStartPercent * 100 ) ) / 100)
-            if newLastPrice > self.lastPrice:
+            if newLastPrice > self.lastPrice or self.lastPrice == 0:
                 self.lastPrice = newLastPrice
         # print('<><><><><><>pick new last price: '+str(self.lastPrice))
 
@@ -1661,7 +1662,24 @@ class Bot:
             return True
         return False
 
+    def checkGreenPrice(self):
+        if self.greenPrice <= 0:
+            self.setGreenPrice()
+        if self.greenPrice <= 0:
+            print("LAST PRICE ERROR!",flush=True)
+            print("LAST PRICE ERROR!",flush=True)
+            print("LAST PRICE ERROR!",flush=True)
+            print("LAST PRICE ERROR!",flush=True)
+            self.pickNewLastPrice()
+            self.setGreenPrice()
+
+    def setGreenPrice(self):
+        self.greenPrice = self.feeCalc(self.lastPrice, self.fee, self.startPeakFeeMultiple, self.nextActionType())
+
     def addCurrentPrice(self, priceData):
+
+        self.checkGreenPrice()
+
         self.priceData=priceData
         modeWas = self.mode
         if (self.tryingToSell() and
@@ -2496,7 +2514,7 @@ class Bot:
         print(' deal money: '+totalChangeDeal24 +' amount: '+totalChangeAmount24)
         print('in 12hr '+str(total12)+' trades '+str(buys12)+' buys '+str(sells12)+' sells')
         print(' deal money: '+totalChangeDeal12 +' amount: '+totalChangeAmount12)
-        monthDeal = self.changeFormat(self.endDealMoney, 26.65, self.sellCoin)
+        monthDeal = self.changeFormat(self.endDealMoney, 37.56, self.sellCoin)
         print('Summer reboot: '+monthDeal, flush=True)
         since = datetime.now() - now
         s1 = since.total_seconds()
@@ -2728,6 +2746,9 @@ class Bot:
 
             if not expiringTrades:
                 print("No expiringTrades")
+
+            # print("self.lastPrice {0} self.fee {1} self.startPeakFeeMultiple {2} self.nextActionType() {3}".format(self.lastPrice, self.fee, self.startPeakFeeMultiple, self.nextActionType()), flush=True)
+            # print("self.priceData {0}".format(self.priceData))
 
                         # print(self.priceData['currentPrice'])
             # print("  30 sec slope {0:0.4f}".format(self.tSecSlope))
@@ -3567,7 +3588,11 @@ if __name__ == '__main__':
     print("<><><><><><    BOT INIT    ><><><><><>")
     # pp = pprint.PrettyPrinter(indent=4)
     while True:
-        trader.go()
+        # trader.go()
+        trader.priceData = get_latest(trader, trader.market, 200)
+        trader.getOutsidePrice()
+        print(" ")
+        print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         time.sleep(callTime[trader.mode])
         # currentData = get_latest(self, trader)
         # # pp.pprint(currentData['currentPrice'])

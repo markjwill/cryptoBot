@@ -28,20 +28,7 @@ import credentials
 
 
 
-try:
-    conn = mariadb.connect(
-        user=credentials.dbUser,
-        password=credentials.dbPassword,
-        host=credentials.dbHost,
-        port=credentials.dbPort,
-        database=credentials.dbName
-    )
-except mariadb.Error as e:
-    print(f"Error connecting to MariaDB Platform: {e}")
-    sys.exit(1)
 
-# Get Cursor
-cur = conn.cursor()
 
 def isOverPrediction(predictionSet):
     if predictionSet['value'] > 0:
@@ -82,6 +69,100 @@ isValidNinetyOneTwenty = isValidBetween(90, 120)
 
 class marketProvider:
 
+  r = redis.StrictRedis(host='localhost',port=6377,db=0)
+
+  avgSets = []
+  predictionString = ''
+
+  def __init__(self, buyCoin, sellCoin, marketSource):
+    self.marketSource = marketSource
+    self.buyCoin = buyCoin
+    self.sellCoin = sellCoin
+    self.market=self.buyCoin + self.sellCoin
+    # Connect to MariaDB Platform
+    try:
+      self.conn = mariadb.connect(
+        user=credentials.dbUser,
+        password=credentials.dbPassword,
+        host=credentials.dbHost,
+        port=credentials.dbPort,
+        database=credentials.dbName
+      )
+    except mariadb.Error as e:
+      print(f"Error connecting to MariaDB Platform: {e}")
+      sys.exit(1)
+
+    # Get Cursor
+    self.cur = self.conn.cursor()
+
+  def getLatestData(self):
+    self.getLatestTrades()
+
+
+  def getLatestTrades(self):
+    # global callTime
+    # request_client = RequestClient()
+    # params = {
+    #     'market': self.market,
+    #     'limit': limit
+    # }
+    # response = request_client.request(
+    #         'GET',
+    #         '{url}/v1/market/deals'.format(url=request_client.url),
+    #         params=params
+    # )
+    # try:
+    #     latest = complex_json.loads(response.data)
+    #     # print(complex_json.dumps(latest, indent = 4, sort_keys=True))
+    # except AttributeError:
+    #     print("Internet connectivity error, get_latest", flush=True)
+    #     exit()
+
+    latest = self.marketSource.get_latest(self.market)
+
+    addTrades(latest, trader)
+
+    self.currentPrice = latest[0]['price']
+
+  def getLatestPrice(self, market):
+    latest = self.marketSource.get_latest(market, 1)
+
+    return latest[0]['price']
+
+
+  def addTrades(self, newTrades):
+    values = ''
+    for trade in newTrades:
+      values += '({0:d},"{1:s}",{2:d},{3:d},"{4:s}","{5:s}","{6:s}"),'.format(trade['id'], trade['amount'], trade['date'], trade['date_ms'], trade['price'], trade['type'], self.market)
+    cur.execute(
+      "INSERT IGNORE INTO {0:s}(id, amount, date, date_ms, price, type, market) VALUES ".format(self.dbTable) + values[:-1])
+    conn.commit()
+    (trades, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg, fourEightyAvg) = liveCruncher.getLatestNumbers(self.trades)
+    self.trades = trades
+    self.latestTrade = self.trades[0]
+    self.avgSets.append({
+      'tSecAvg' : float(tSecAvg),
+      'fiveAvg' : float(fiveAvg),
+      'thirtyAvg' : float(thirtyAvg),
+      'oneTwentyAvg' : float(oneTwentyAvg),
+      'fourEightyAvg' : float(fourEightyAvg)
+    })
+    self.r.lpush(self.avgSetsQueue, pickle.dumps({
+      'tSecAvg' : float(tSecAvg),
+      'fiveAvg' : float(fiveAvg),
+      'thirtyAvg' : float(thirtyAvg),
+      'oneTwentyAvg' : float(oneTwentyAvg),
+      'fourEightyAvg' : float(fourEightyAvg)
+    }))
+
+
+
+
+
+
+
+
+
     currentPrice = 0.0
     previousCurrentPrice=1.0
 
@@ -104,8 +185,6 @@ class marketProvider:
     sellCoin = ''
     dbTable = ''
 
-    avgSets = []
-    predictionString = ''
 
     tSecPrediction = 0.0
     fivePrediction = 0.0
@@ -133,7 +212,6 @@ class marketProvider:
     thirtyPredictionSetQueue = ''
     oneTwentyPredictionSetQueue = ''
 
-    r = redis.StrictRedis(host='localhost',port=6377,db=0)
 
     def __init__(self, buyCoin, sellCoin, dataSource):
         self.buyCoin = buyCoin
@@ -477,56 +555,4 @@ class marketProvider:
 
 
 
-    def getLatestTrades(self):
-        # global callTime
-        # request_client = RequestClient()
-        # params = {
-        #     'market': self.market,
-        #     'limit': limit
-        # }
-        # response = request_client.request(
-        #         'GET',
-        #         '{url}/v1/market/deals'.format(url=request_client.url),
-        #         params=params
-        # )
-        # try:
-        #     latest = complex_json.loads(response.data)
-        #     # print(complex_json.dumps(latest, indent = 4, sort_keys=True))
-        # except AttributeError:
-        #     print("Internet connectivity error, get_latest", flush=True)
-        #     exit()
-
-        latest = self.dataSource.get_latest(self.market)
-
-        addTrades(latest, trader)
-
-        self.currentPrice = latest[0]['price']
-
-    def getLatestPrice(self, market):
-        latest = self.dataSource.get_latest(market, 1)
-
-        return latest[0]['price']
-
-
-    def addTrades(self, newTrades):
-        values = ''
-        for trade in newTrades:
-            values += '({0:d},"{1:s}",{2:d},{3:d},"{4:s}","{5:s}","{6:s}"),'.format(trade['id'], trade['amount'], trade['date'], trade['date_ms'], trade['price'], trade['type'], self.market)
-        cur.execute(
-            "INSERT IGNORE INTO {0:s}(id, amount, date, date_ms, price, type, market) VALUES ".format(self.dbTable) + values[:-1])
-        conn.commit()
-        (trades, tSecAvg, fiveAvg, thirtyAvg, oneTwentyAvg) = liveCruncher.getLatestNumbers(self.trades)
-        self.trades = trades
-        self.avgSets.append({
-            'tSecAvg' : float(tSecAvg),
-            'fiveAvg' : float(fiveAvg),
-            'thirtyAvg' : float(thirtyAvg),
-            'oneTwentyAvg' : float(oneTwentyAvg)
-        })
-        self.r.lpush(self.avgSetsQueue, pickle.dumps({
-            'tSecAvg' : float(tSecAvg),
-            'fiveAvg' : float(fiveAvg),
-            'thirtyAvg' : float(thirtyAvg),
-            'oneTwentyAvg' : float(oneTwentyAvg)
-        }))
 

@@ -12,35 +12,11 @@ import mariadb
 import pprint
 from pytz import timezone
 import math
+from timeit import default_timer as timer
+sys.path.insert(1, '/home/debby/bot/CryptoMLModel/')
+import mydb
 
 market = 'BTCUSDT'
-
-# startTimestamp=1614663293
-
-
-
-#restart
-startTimestamp=1614774240 #Wed Mar 03 2021 12:24:00 GMT+0000
-# endTimestamp=1614783293 #Wed Mar 03 2021 14:54:53 GMT+0000
-
-# startTimestamp=1614783294 #Wed Mar 03 2021 14:54:54 GMT+0000
-# endTimestamp=1614921971 #Fri Mar 05 2021 05:26:11 GMT+0000
-endTimestamp=int(datetime.now().timestamp())
-
-try:
-    conn = mariadb.connect(
-        user="MrBot",
-        password="8fdvaoivposriong",
-        host="127.0.0.1",
-        port=3306,
-        database="botscape"
-    )
-except mariadb.Error as e:
-    print("Error connecting to MariaDB Platform: {0}".format(e))
-    sys.exit(1)
-
-# Get Cursor
-cur = conn.cursor()
 
 def getRawTrades(market, end_ms, seconds):
     pastTime = math.floor(end_ms + (seconds * 1000 ))
@@ -48,7 +24,7 @@ def getRawTrades(market, end_ms, seconds):
     trades = cur.fetchall()
 
     if not len(trades):
-        print("No rows found, selecting most recent")
+        # print("No rows found for %s seconds, selecting most recent",seconds)
         cur.execute("SELECT price, amount, type FROM trades WHERE date_ms < {0:d} ORDER BY date_ms DESC LIMIT 1".format(end_ms))
         trades = cur.fetchall()
 
@@ -141,15 +117,15 @@ def getCalcTrades(market, period, id_col, end_ms):
 previousDate_ms = 0
 
 while True:
+    start = timer()
+    conn = mydb.connect()
+    cur = conn.cursor()
     updatedTime = datetime.now() - timedelta(minutes=125)
     twoHrsAgo = updatedTime.timestamp() * 1000
-    cur.execute("SELECT id, date_ms, f_fiveSec_lowPrice, f_tenSec_lowPrice, f_thirtySec_lowPrice, f_oneMin_lowPrice, f_threeMin_lowPrice, f_fiveMin_lowPrice, f_tenMin_lowPrice, f_fifteenMin_lowPrice, f_thirtyMin_lowPrice, f_sixtyMin_lowPrice, f_oneTwentyMin_lowPrice FROM trades WHERE p_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NULL AND date_ms < "+str(twoHrsAgo)+" ORDER BY date_ms DESC LIMIT 100")
+    cur.execute("SELECT id, date_ms, f_fiveSec_lowPrice, f_tenSec_lowPrice, f_thirtySec_lowPrice, f_oneMin_lowPrice, f_threeMin_lowPrice, f_fiveMin_lowPrice, f_tenMin_lowPrice, f_fifteenMin_lowPrice, f_thirtyMin_lowPrice, f_sixtyMin_lowPrice, f_oneTwentyMin_lowPrice FROM trades WHERE p_oneTwentyMin_changePercent IS NOT NULL AND f_oneTwentyMin_changePercent IS NULL AND date_ms < "+str(twoHrsAgo)+" ORDER BY date_ms DESC LIMIT 100,100")
     rows = cur.fetchall()
 
-
-
     for row in rows:
-        print("FutureCruncher "+datetime.fromtimestamp(math.floor(row[1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%S%p")+" "+str(math.floor(row[1] / 1000)), flush=True)
         if row[2] is None or row[2] == 0:
             getCalcTrades(market, 'fiveSec', row[0], row[1])
         if row[3] is None or row[3] == 0:
@@ -173,10 +149,12 @@ while True:
         if row[12] is None or row[12] == 0:
             getCalcTrades(market, 'oneTwentyMin', row[0], row[1])
 
-    if len(rows):
-        previousDate_ms=row[1]
-    print("Future Filler Takin a break.", flush=True)
-    time.sleep(3)
+    previousDate_ms=row[1]
+    cur.close()
+    conn.close()
+    end = timer()
+    print(datetime.fromtimestamp(round(rows[0][1] / 1000)).astimezone(timezone('US/Central')).strftime("%Y-%m-%d %I:%M:%p"))
+    print("elapsed: ",timedelta(seconds=end-start))
 
 
 

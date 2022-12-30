@@ -57,7 +57,7 @@ class accountProvider:
 
   orders = deque()
 
-  redis = redis.StrictRedis(host='localhost',port=6377,db=0)
+  redis = redis.StrictRedis(host=creadentials.redisHost, port=credentials.redisPort, db=credentials.redisDb)
 
   def __init__(self, buyCoin, sellCoin, accountSource):
     self.accountSource = accountSource

@@ -92,3 +92,5 @@ class predictionEngine:
             KEY `{3}` (`{3}`) USING BTREE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """.format(self.name, columns, averageGroupsIndex, predictionTargetsIndex))
+
+

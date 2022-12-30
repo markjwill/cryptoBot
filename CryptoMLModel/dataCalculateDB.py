@@ -1,8 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-"""
-Created by bu on 2018-01-17
-"""
 from __future__ import unicode_literals
 import time
 from datetime import datetime, timedelta
@@ -13,20 +8,10 @@ import pprint
 from pytz import timezone
 import math
 from timeit import default_timer as timer
-sys.path.insert(1, '/home/debby/bot/CryptoMLModel/')
 import mydb
 
 market = 'BTCUSDT'
 
-# startTimestamp=1614663293
-# endTimestamp=1614783293
-
-
-# startTimestamp=1614783294
-# endTimestamp=1614985672
-
-# startTimestamp=1614783294
-# endTimestamp=int(datetime.now().timestamp())
 
 def getRawTrades(market, end_ms, seconds = 0):
     pastTime = round(end_ms - (seconds * 1000 ))
