@@ -16,7 +16,7 @@ import pandas as pd
 # trades[2] type
 # trades[3] date_ms
 
-# trades must be in Ascending order
+# trades must always be in Ascending order
 
 #  Add Column
 # df.insert(loc, column, value)
@@ -31,6 +31,8 @@ import pandas as pd
 # Insert Dict to the dataframe using DataFrame.append()
 # new_row = {'Courses':'Hyperion', 'Fee':24000, 'Duration':'55days', 'Discount':1800}
 # df2 = df.append(new_row, ignore_index=True)
+
+MILLISECONDS_GAP_TOLERATED = 5000
 
 TIME_PERIODS = {
     'fiveSeconds': 5,
@@ -70,20 +72,61 @@ PERIOD_FEATURES = {
 def noDataGaps(trades):
     lastTimeMilliSeconds = trades[0][3]
     for trade in trades:
-        if trade[3] - 300 > lastTimeMilliSeconds:
+        if trade[3] - MILLISECONDS_GAP_TOLERATED > lastTimeMilliSeconds:
             return False
         lastTimeMilliSeconds = trade[3]
     return True
 
-def selectTrades(tradePool, startTimeMiliSeconds, endTimeMilliSeconds):
-    trades = []
+def getPoolStartIndex(tradePool, previousTrades):
+    startTradeId = previousTrades[0][0]
+    for targetIndex, trade in tradePool:
+        if trade[0] == startTradeId
+            return targetIndex
+
+def getPoolEndIndex(tradePool, previousTrades):
+    endTradeId = previousTrades[-1][0]
+    for targetIndex, trade in reversed(list(enumerate(trades))):
+        if trade[0] == endTradeId
+            return targetIndex
+
+def selectTrades(tradePool, preveiousTrades, startTimeMilliSeconds, endTimeMilliSeconds, previousPoolStartIndex, previousPoolEndIndex):
     if tradePool[0][3] > endTimeMilliSeconds:
         return False
     if tradePool[-1][3] < startTimeMilliSeconds:
         return False
-    for trade in tradePool:
-        if trade[3] > startTimeMiliSeconds and trade[3] < endTimeMilliSeconds:
-            trades.append(trade)
+    try:
+        tradePool[previousPoolStartIndex]
+        tradePool[previousPoolEndIndex]
+    except IndexError:
+        return False
+    trades = preveiousTrades
+
+    # check if we need to add trades to the start or remove trades from the start
+    firstTradeMilliSeconds = trades[0][3]
+    if startTimeMilliSeconds > endTimeMilliSeconds:
+        while firstTradeMilliSeconds > startTimeMilliSeconds:
+            previousPoolStartIndex -= 1
+            trades.insert(0,tradePool[previousPoolStartIndex])
+            firstTradeMilliSeconds = trades[0][3]
+    else:
+        while firstTradeMilliSeconds < startTimeMilliSeconds:
+            previousPoolStartIndex += 1
+            trades.pop(0)
+            firstTradeMilliSeconds = trades[0][3]
+
+    # check if we need to add trades to the end or remove trades from the end
+    lastTradeMilliSeconds = trades[-1][3]
+    if firstTradeMilliSeconds > startTimeMilliSeconds:
+        while lastTradeMilliSeconds > startTimeMilliSeconds:
+            previousPoolEndIndex -= 1
+            trades.pop()
+            firstTradeMilliSeconds = trades[-1][3]
+    else:
+        while lastTradeMilliSeconds < startTimeMilliSeconds:
+            previousPoolEndIndex += 1
+            trades.append(tradePool[previousPoolEndIndex])
+            firstTradeMilliSeconds = trades[-1][3]
+
     return trades
 
 def setupDataFrame():
@@ -104,15 +147,15 @@ def calculateFeatures(df, trades, tradeTimeMilliSeconds):
     allFeatures= {}
 
     for name, periodMilliseconds in TIME_PERIODS.items():
-        startTimeMiliSeconds = tradeTimeMiliSeconds - PeriodMilliSeconds
-        endTimeMiliseconds = tradeTimeMilliSeconds
+        startTimeMilliSeconds = tradeTimeMilliSeconds - PeriodMilliSeconds
+        endTimeMilliseconds = tradeTimeMilliSeconds
         periodTrades = selectTrades(trades, startTimeMilliSeconds, endTimeMilliSeconds)
         pastFeatures = calculatePastFeatures(periodTrades, PeriodMilliSeconds)
         pastFeatures = {f'past_{name}_{k}': v for k, v in pastFeatures.items()}
         allFeatures = allFeatures | pastFeatures
 
-        startTimeMiliSeconds = tradeTimeMiliSeconds 
-        endTimeMiliseconds = tradeTimeMilliSeconds + PeriodMilliSeconds
+        startTimeMilliSeconds = tradeTimeMilliSeconds 
+        endTimeMilliseconds = tradeTimeMilliSeconds + PeriodMilliSeconds
         periodTrades = selectTrades(trades, startTimeMilliSeconds, endTimeMilliSeconds)
         futureFeatures = calculateFutureFeatures(periodTrades)
         futureFeatures = {f'future_{name}_{k}': v for k, v in pastFeatures.items()}
