@@ -3,20 +3,21 @@
 # trades[2] type
 # trades[3] date_ms
 
-class: t=TradePool
+class: TradePool
 
     MILLISECONDS_GAP_TOLERATED = 5000
 
-    def __init__(self, ascendingOrderTrades):
-          self.trades = ascendingOrderTrades
+    def __init__(self, ascendingOrderTradeList):
+          self.tradeList = ascendingOrderTradeList
           self.childTradePools = {}
-          self.noDataGaps()
+          self.parentStartIndex = 0
+          self.parentEndIndex = -1
 
     def getFirstInPool():
-        return self.trades[0]
+        return self.tradeList[0]
 
     def getLastInPool():
-        return self.trades[-1]
+        return self.tradeList[-1]
 
     def getTradeId(trade):
         return trade[0]
@@ -30,12 +31,26 @@ class: t=TradePool
     def getTradeMilliseconds(trade):
         return trade[3]
 
-    def getTrades():
-        return self.trades
+    def getTradeList():
+        return self.tradeList
 
     def addChildPool(name, trades):
         if name not in self.childTradePools:
             self.childTradePool[name] = TradePool(trades)
+
+    def rotateTradesIntoThePast(newTrades):
+        if n := len(newTrades):
+            del self.tradeList[-n:]
+            self.tradeList = newTrades + self.tradeList
+            return True
+        return False
+
+    def rotateTradesIntoTheFuture(newTrades):
+        if n := len(newTrades):
+            del self.tradeList[:n]
+            self.tradeList = self.tradeList + newTrades
+            return True
+        return False
 
     def noDataGaps():
         previousTimeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
@@ -45,54 +60,45 @@ class: t=TradePool
             previousTimeMilliSeconds = self.getTradeMilliseconds(trade)
         return True
 
-    def getPoolStartIndex(previousTrades):
-        startTradeId = self.getTradeId(previousTrades.getFirstInPool())
-        for targetIndex, trade in previousTrades.getTrades():
-            if self.getTradeId(trade) == startTradeId
-                return targetIndex
+    def getTrades(name, startTimeMilliSeconds, endTimeMilliSeconds):
+        self.addChildPool(name, self.getTradeList())
+        self.childTradePool[name].selectTrades(self, startTimeMilliSeconds, endTimeMilliSeconds)
 
-    def getPoolEndIndex(previousTrades):
-        endTradeId = self.getTradeId(previousTrades.getLastInPool())
-        for targetIndex, trade in reversed(list(enumerate(previousTrades.getTrades()))):
-            if self.getTradeId(trade) == endTradeId
-                return targetIndex
+        return self.childTradePool[name].getTradeList()
 
-    def selectTrades(previousTrades, startTimeMilliSeconds, endTimeMilliSeconds, previousPoolStartIndex, previousPoolEndIndex):
-        if self.getTradeMilliseconds(self.getFirstInPool()) < startTimeMilliSeconds:
+    def selectTrades(parentTrades, startTimeMilliSeconds, endTimeMilliSeconds):
+        if self.getTradeMilliseconds(parentTrades.getFirstInPool()) < startTimeMilliSeconds:
             return False
-        if self.getTradeMilliseconds(self.getLastInPool()) > endTimeMilliSeconds:
+        if self.getTradeMilliseconds(parentTrades.getLastInPool()) > endTimeMilliSeconds:
             return False
         try:
-            self.trades[previousPoolStartIndex]
-            self.trades[previousPoolEndIndex]
+            parentTrades.tradeList[self.parentStartIndex]
+            parentTrades.tradeList[self.parentEndIndex]
         except IndexError:
             return False
-        trades = previousTrades
 
-        # check if we need to add trades to the start or remove trades from the start
-        firstTradeMilliSeconds = self.getTradeMilliseconds(trades.getFirstInPool())
+        firstTradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
 
         while firstTradeMilliSeconds > startTimeMilliSeconds:
-            previousPoolStartIndex -= 1
-            trades.insert(0,self.trades[previousPoolStartIndex])
-            firstTradeMilliSeconds = self.getTradeMilliseconds(trades.getFirstInPool())
+            self.parentStartIndex -= 1
+            trades.insert(0,parentTrades.trades[self.parentStartIndex])
+            firstTradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
 
         while firstTradeMilliSeconds < startTimeMilliSeconds:
-            previousPoolStartIndex += 1
+            self.parentStartIndex += 1
             trades.pop(0)
-            firstTradeMilliSeconds = self.getTradeMilliseconds(trades.getFirstInPool())
+            firstTradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
 
-        # check if we need to add trades to the end or remove trades from the end
-        lastTradeMilliSeconds = self.getTradeMilliseconds(trades.getLastInPool())
+        lastTradeMilliSeconds = self.getTradeMilliseconds(self.getLastInPool())
 
         while lastTradeMilliSeconds > endTimeMilliSeconds:
-            previousPoolEndIndex -= 1
+            self.parentEndIndex -= 1
             trades.pop()
-            lastTradeMilliSeconds = self.getTradeMilliseconds(trades.getLastInPool())
+            lastTradeMilliSeconds = self.getTradeMilliseconds(self.getLastInPool())
 
         while lastTradeMilliSeconds < startTimeMilliSeconds:
-            previousPoolEndIndex += 1
-            trades.append(self.trades[previousPoolEndIndex])
-            lastTradeMilliSeconds = self.getTradeMilliseconds(trades.getLastInPool())
+            self.parentEndIndex += 1
+            trades.append(parentTrades.trades[self.parentEndIndex])
+            lastTradeMilliSeconds = self.getTradeMilliseconds(self.getLastInPool())
 
-        return trades, previousPoolStartIndex, previousPoolEndIndex
+        return trades

@@ -1,14 +1,3 @@
-from __future__ import unicode_literals
-import time
-from datetime import datetime, timedelta
-import ssl
-import sys
-import mariadb
-import pprint
-from pytz import timezone
-import math
-from timeit import default_timer as timer
-import mydb
 import pandas as pd
 import copy
 
@@ -68,54 +57,22 @@ PERIOD_FEATURES = {
     'tradeCount' : 0 #number of trades
 }
 
-def setupDataFrame():
-    df = pd.DataFrame()
-    columns = []
-    for periodName, periodMilliseconds in TIME_PERIODS.items():
-        for featureName in PERIOD_FEATURES:
-            columns.append(f'past_{periodName}_{featureName}')
 
-    for periodName, periodMilliseconds in TIME_PERIODS.items():
-        columns.append(f'future_{periodName}_endPrice')
+def calculateFeatures(timeGroup, trades, millieSeconds):
+    if timeGroup == 'future':
+        features = {
+            'endPrice' : trades[0][0], #end price
+        }
+        return features
 
-    df = df.reindex(columns = columns)
-
-    return df
-
-def calculateFeatures(df, tradePool, tradeTimeMilliSeconds):
-    allFeatures= {}
-
-    for name, periodMilliseconds in TIME_PERIODS.items():
-        startTimeMilliSeconds = tradeTimeMilliSeconds - PeriodMilliSeconds
-        endTimeMilliseconds = tradeTimeMilliSeconds
-        periodTrades = tradePool.selectTrades(name, startTimeMilliSeconds, endTimeMilliSeconds)
-        pastFeatures = calculatePastFeatures(periodTrades, PeriodMilliSeconds)
-        pastFeatures = {f'past_{name}_{k}': v for k, v in pastFeatures.items()}
-        allFeatures = allFeatures | pastFeatures
-
-        startTimeMilliSeconds = tradeTimeMilliSeconds 
-        endTimeMilliseconds = tradeTimeMilliSeconds + PeriodMilliSeconds
-        periodTrades = selectTrades(trades, startTimeMilliSeconds, endTimeMilliSeconds)
-        futureFeatures = calculateFutureFeatures(periodTrades)
-        futureFeatures = {f'future_{name}_{k}': v for k, v in pastFeatures.items()}
-        allFeatures = allFeatures | futureFeatures
-
-    df.append(allFeatures)
-
-
-def calcuateFutureFeatures(trades):
-    features = {
-        'endPrice' : trades[0][0], #end price
-    }
-    return features
-
-def calculatePastFeatures(trades, millieSeconds):
     features = copy.copy(PERIOD_FEATURES)
     features['startPrice'] = trades[-1][0]
     features['endPrice'] = trades[0][0]
 
     for trade in trades:
         features['tradeCount'] += 1
+        features['volumeAtPrice'] += trade[1] * trade[0]
+
         if trade[0] > features['highPrice']:
             features['highPrice'] = trade[0]
 
@@ -139,7 +96,7 @@ def calculatePastFeatures(trades, millieSeconds):
     if features['lowPrice'] == 0:
         return False
 
-    features['avgPrice'] = features['totalPrice'] / features['tradeCount']
+    features['avgPrice'] = features['volumeAtPrice'] / features['volume']
     features['volumePrMinute'] = features['volume'] / millieSeconds * 60 * 1000
     features['changeReal'] = features['endPrice'] - features['startPrice']
     features['changePercent'] = features['changeReal'] * 100 / features['startPrice']
@@ -150,6 +107,45 @@ def calculatePastFeatures(trades, millieSeconds):
     features['sellsPrMinute'] = features['sells'] / millieSeconds * 60 * 1000
 
     return features
+
+def setupDataFrame():
+    df = pd.DataFrame()
+    columns = []
+    for periodName, periodMilliseconds in TIME_PERIODS.items():
+        for featureName in PERIOD_FEATURES:
+            columns.append(f'past_{periodName}_{featureName}')
+
+    for periodName, periodMilliseconds in TIME_PERIODS.items():
+        columns.append(f'future_{periodName}_endPrice')
+
+    df = df.reindex(columns = columns)
+
+    return df
+
+def calculateAllFeatureGroups(df, tradePool, tradeTimeMilliSeconds):
+    allFeatures= {}
+
+    for name, periodMilliseconds in TIME_PERIODS.items():
+        timeGroup = 'past'
+        startTimeMilliSeconds = tradeTimeMilliSeconds - PeriodMilliSeconds
+        endTimeMilliseconds = tradeTimeMilliSeconds
+        pastFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, endTimeMilliSeconds)
+        allFeatures = allFeatures | pastFeatures
+
+        timeGroup = 'future'
+        startTimeMilliSeconds = tradeTimeMilliSeconds 
+        endTimeMilliseconds = tradeTimeMilliSeconds + PeriodMilliSeconds
+        futureFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, endTimeMilliSeconds)
+        allFeatures = allFeatures | futureFeatures
+
+    df.append(allFeatures)
+
+def calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, endTimeMilliSeconds):
+    periodTrades = tradePool.getTrades(f'{timeGoup}_{name}', startTimeMilliSeconds, endTimeMilliSeconds)
+    periodFeatures = calculateFeatures(timeGroup, periodTrades, PeriodMilliSeconds)
+    periodFeatures = {f'{timeGoup}_{name}_{k}': v for k, v in periodFeatures.items()}
+
+    return periodFeatures
 
 
 
