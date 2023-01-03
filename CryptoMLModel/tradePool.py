@@ -2,6 +2,7 @@
 # trades[1] amount
 # trades[2] type
 # trades[3] date_ms
+# trades[4] trade_id
 
 class: TradePool
 
@@ -19,7 +20,7 @@ class: TradePool
     def getLastInPool():
         return self.tradeList[-1]
 
-    def getTradeId(trade):
+    def getTradePrice(trade):
         return trade[0]
 
     def getTradeAmount(trade):
@@ -31,6 +32,9 @@ class: TradePool
     def getTradeMilliseconds(trade):
         return trade[3]
 
+    def getTradeId(trade):
+        return trade[4]
+
     def getTradeList():
         return self.tradeList
 
@@ -38,12 +42,14 @@ class: TradePool
         if name not in self.childTradePools:
             self.childTradePool[name] = TradePool(trades)
 
-    def rotateTradesIntoThePast(newTrades):
-        if n := len(newTrades):
-            del self.tradeList[-n:]
-            self.tradeList = newTrades + self.tradeList
-            return True
-        return False
+    # Marking for removal, I think we will only ever allow
+    # computing from past into the futuer
+    # def rotateTradesIntoThePast(newTrades):
+    #     if n := len(newTrades):
+    #         del self.tradeList[-n:]
+    #         self.tradeList = newTrades + self.tradeList
+    #         return True
+    #     return False
 
     def rotateTradesIntoTheFuture(newTrades):
         if n := len(newTrades):
@@ -60,13 +66,13 @@ class: TradePool
             previousTimeMilliSeconds = self.getTradeMilliseconds(trade)
         return True
 
-    def getTrades(name, startTimeMilliSeconds, endTimeMilliSeconds):
+    def getTrades(name, timeGroup, pivotTradeId, startTimeMilliSeconds, endTimeMilliSeconds):
         self.addChildPool(name, self.getTradeList())
-        self.childTradePool[name].selectTrades(self, startTimeMilliSeconds, endTimeMilliSeconds)
+        self.childTradePool[name].selectTrades(self, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds)
 
         return self.childTradePool[name].getTradeList()
 
-    def selectTrades(parentTrades, startTimeMilliSeconds, endTimeMilliSeconds):
+    def selectTrades(parentTrades, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds):
         if self.getTradeMilliseconds(parentTrades.getFirstInPool()) < startTimeMilliSeconds:
             return False
         if self.getTradeMilliseconds(parentTrades.getLastInPool()) > endTimeMilliSeconds:
@@ -76,6 +82,8 @@ class: TradePool
             parentTrades.tradeList[self.parentEndIndex]
         except IndexError:
             return False
+
+        # adjust here so that past timeGroups select last trades in pool via tradeId instead of milliesecond
 
         firstTradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
 

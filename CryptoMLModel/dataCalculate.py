@@ -1,10 +1,11 @@
 import pandas as pd
 import copy
 
-# trades[0] price
-# trades[1] amount
-# trades[2] type
-# trades[3] date_ms
+# trade[0] price
+# trade[1] amount
+# trade[2] type
+# trade[3] date_ms
+# trade[4] trade_id
 
 # trades must always be in Ascending order
 
@@ -122,26 +123,27 @@ def setupDataFrame():
 
     return df
 
-def calculateAllFeatureGroups(df, tradePool, tradeTimeMilliSeconds):
-    allFeatures= {}
+def calculateAllFeatureGroups(df, tradePool, pivotTradeId, tradeTimeMilliSeconds):
+    allFeatures = {}
 
     for name, periodMilliseconds in TIME_PERIODS.items():
         timeGroup = 'past'
         startTimeMilliSeconds = tradeTimeMilliSeconds - PeriodMilliSeconds
         endTimeMilliseconds = tradeTimeMilliSeconds
-        pastFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, endTimeMilliSeconds)
+        pastFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds)
         allFeatures = allFeatures | pastFeatures
 
         timeGroup = 'future'
         startTimeMilliSeconds = tradeTimeMilliSeconds 
         endTimeMilliseconds = tradeTimeMilliSeconds + PeriodMilliSeconds
-        futureFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, endTimeMilliSeconds)
+        futureFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds)
         allFeatures = allFeatures | futureFeatures
 
     df.append(allFeatures)
+    return allFeatures
 
-def calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, endTimeMilliSeconds):
-    periodTrades = tradePool.getTrades(f'{timeGoup}_{name}', startTimeMilliSeconds, endTimeMilliSeconds)
+def calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds):
+    periodTrades = tradePool.getTrades(f'{timeGoup}_{name}', timeGroup, pivotTradeId, startTimeMilliSeconds, endTimeMilliSeconds)
     periodFeatures = calculateFeatures(timeGroup, periodTrades, PeriodMilliSeconds)
     periodFeatures = {f'{timeGoup}_{name}_{k}': v for k, v in periodFeatures.items()}
 

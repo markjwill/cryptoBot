@@ -18,8 +18,12 @@ def main():
 
     df = dataCalculate.setupDataFrame()
     for trade in tradePool.getTradeList():
-        if trade[4] not in doneTrades:
-            calculateAllFeatureGroups(df, tradePool, trade[3])
+        if trade[4] > farthestCompleteTradeId:
+            if trade[3] == previousMilliseconds:
+
+                continue
+            previousFeatures = calculateAllFeatureGroups(df, tradePool, trade[4], trade[3])
+            previousMilliseconds = trade[3]
 
     # millions of trades have the same date_ms, 
     # we need to not calculate the features multiple times for these
