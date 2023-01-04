@@ -1,6 +1,7 @@
 import mydb
 import tradePool
 import dataCalculate
+import logger
 
 selectTrades = """
 SELECT price, amount, type, date_ms, trade_id
@@ -10,29 +11,51 @@ OFFSET ?
 ORDER BY date_ms ASC
 """
 
+dbBatchIndex = 0
+tradeBatchSize = 100000
+
 def main():
-    numberOfTrades = 500000
-    offset = i * numberOfTrades
-    tradeList = mydb.selectAll(selectTrades % str(numberOfTrades), (offset,))
+    offset = dbBatchIndex * tradeBatchSize
+    dbBatchIndex += 2
+    tradeList = mydb.selectAll(selectTrades % str(tradeBatchSize * 2), (offset,))
     tradePool = TradePool(tradeList)
 
     df = dataCalculate.setupDataFrame()
-    for trade in tradePool.getTradeList():
+    while index < len(tradePool.getTradeList()):
+        trade = tradePool.getTradeList()[index]
         if trade[4] > farthestCompleteTradeId:
-            if trade[3] == previousMilliseconds:
-
-                continue
-            previousFeatures = calculateAllFeatureGroups(df, tradePool, trade[4], trade[3])
-            previousMilliseconds = trade[3]
-
-    # millions of trades have the same date_ms, 
-    # we need to not calculate the features multiple times for these
+            index = tryFeatureCalculation(df, tradePool, index, trade[4], trade[3])
 
     df.saveToDb() #placeholder
 
+def tryFeatureCalculation(df, tradePool, pivotTradeId, index, tradeTimeMilliSeconds):
+    try:
+        previousFeatures = dataCalculate.calculateAllFeatureGroups(df, tradePool, pivotTradeId, tradeTimeMilliSeconds)
+        previousMilliseconds = trade[3]
+        return index += 1
+    except AssertionError as error:
+        logger.error(error)
+        raise
+    except IndexError as error:
+        logger.error(error)
+        if error.args[1]:
+            if addMoreTrades(tradePool)
+                return index - tradeBatchSize
+            raise StopIteration('Not enough trades available to continue.')
+        raise
+
+def addMoreTrades(tradePool)
+    offset = dbBatchIndex * tradeBatchSize
+    dbBatchIndex += 1
+    tradeList = mydb.selectAll(selectTrades % str(tradeBatchSize), (offset,))
+    tradePool.rotateTradesIntoTheFuture(tradeList)
+
 if __name__ == '__main__':
-    main()
-    print("script end reached")
+    try:
+        main()
+    except StopIteration:
+        logger.error(error)
+        print("script end reached")
 
 
 

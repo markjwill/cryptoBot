@@ -62,13 +62,13 @@ PERIOD_FEATURES = {
 def calculateFeatures(timeGroup, trades, millieSeconds):
     if timeGroup == 'future':
         features = {
-            'endPrice' : trades[0][0], #end price
+            'endPrice' : trades[-1][0], #end price
         }
         return features
 
     features = copy.copy(PERIOD_FEATURES)
-    features['startPrice'] = trades[-1][0]
-    features['endPrice'] = trades[0][0]
+    features['startPrice'] = trades[0][0]
+    features['endPrice'] = trades[-1][0]
 
     for trade in trades:
         features['tradeCount'] += 1
@@ -92,11 +92,6 @@ def calculateFeatures(timeGroup, trades, millieSeconds):
             features['buysVsSell'] -= 1
             features['buyVsSellVolume'] -= trade[1]
 
-    if features['tradeCount'] == 0:
-        return False
-    if features['lowPrice'] == 0:
-        return False
-
     features['avgPrice'] = features['volumeAtPrice'] / features['volume']
     features['volumePrMinute'] = features['volume'] / millieSeconds * 60 * 1000
     features['changeReal'] = features['endPrice'] - features['startPrice']
@@ -107,11 +102,19 @@ def calculateFeatures(timeGroup, trades, millieSeconds):
     features['buysPrMinute'] = features['buys'] / millieSeconds * 60 * 1000
     features['sellsPrMinute'] = features['sells'] / millieSeconds * 60 * 1000
 
+    for featureName in PERIOD_FEATURES:
+        if float(features[featureName]) == 0.0:
+            raise AssertionError(
+                f'{featureName} feature calculated as 0.\n'
+                'Ensure every defined PERIOD_FEATURES has a calculation defined in calculateFeatures'
+            )
+
     return features
 
 def setupDataFrame():
     df = pd.DataFrame()
     columns = []
+    columns.append('tradeId')
     for periodName, periodMilliseconds in TIME_PERIODS.items():
         for featureName in PERIOD_FEATURES:
             columns.append(f'past_{periodName}_{featureName}')
