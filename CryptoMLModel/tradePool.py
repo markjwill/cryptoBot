@@ -43,15 +43,6 @@ class: TradePool
         if name not in self.childTradePools:
             self.childTradePool[name] = TradePool(trades)
 
-    # Marking for removal, I think we will only ever allow
-    # computing from past into the futuer
-    # def rotateTradesIntoThePast(newTrades):
-    #     if n := len(newTrades):
-    #         del self.tradeList[-n:]
-    #         self.tradeList = newTrades + self.tradeList
-    #         return True
-    #     return False
-
     def rotateTradesIntoTheFuture(newTrades):
         if n := len(newTrades):
             del self.tradeList[:n]
@@ -77,14 +68,14 @@ class: TradePool
                 True
             )
 
-    def millisecondsRangeCheck(tradePool, startTimeMilliSeconds, endTimeMilliSeconds):
-        if self.getTradeMilliseconds(tradePool.getFirstInPool()) < startTimeMilliSeconds:
+    def isMillisecondsInPool(tradePool, targetMilliSeconds):
+        if self.getTradeMilliseconds(tradePool.getFirstInPool()) < targetMilliSeconds:
             raise IndexError(
                 'A trade father in the past than the set of trades in the pool was requested by milliseconds.\n'
                 'Calculation must always traverse trades from the past to the future.',
                 False
             )
-        if self.getTradeMilliseconds(tradePool.getLastInPool()) > endTimeMilliSeconds:
+        if self.getTradeMilliseconds(tradePool.getLastInPool()) > targetMilliSeconds:
             raise IndexError(
                 'A trade father in the future than the set of trades in the pool was requested by milliseconds.',
                 True
@@ -101,29 +92,54 @@ class: TradePool
     def getTrades(name, timeGroup, pivotTradeId, startTimeMilliSeconds, endTimeMilliSeconds):
         if name not in self.childTradePools:
             self.addChildPool(name, self.getTradeList())
-        self.childTradePool[name].selectTrades(self, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds)
+        if timeGroup == 'future':
+            self.childTradePool[name].selectFutureTrade(self, endTimeMilliSeconds)
+            return self.childTradePool[name].getTradeList()
 
+        self.childTradePool[name].selectPastTrades(self, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds)
         return self.childTradePool[name].getTradeList()
 
-    def selectPastTrades(parentTrades, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds):
-        self.millisecondsRangeCheck(parentTrades, startTimeMilliSeconds, endTimeMilliSeconds)
+    def selectFutureTrade(parentTrades, targetMilliSeconds):
+        self.isMillisecondsInPool(parentTrades, targetMilliSeconds)
         self.indexExistsCheck(parentTrades, self.parentStartIndex)
         self.indexExistsCheck(parentTrades, self.parentEndIndex)
 
-        # adjust here so that past timeGroups select last trades in pool via tradeId instead of milliesecond
+        tradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
+
+        while tradeMilliSeconds >= targetMilliSeconds:
+            self.parentEndIndex -= 1
+            self.indexExistsCheck(parentTrades, self.parentEndIndex)
+            self.tradeList.insert(0,parentTrades.trades[self.parentEndIndex])
+            self.tradeList.pop()
+            tradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
+
+        while tradeMilliSeconds < targetMilliSeconds:
+            self.parentEndIndex += 1
+            self.indexExistsCheck(parentTrades, self.parentEndIndex)
+            self.tradeList.append(parentTrades.trades[self.parentEndIndex])
+            self.tradeList.pop(0)
+            tradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
+
+        return self.getTradeList()
+
+    def selectPastTrades(parentTrades, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds):
+        self.isMillisecondsInPool(parentTrades, startTimeMilliSeconds)
+        self.isMillisecondsInPool(parentTrades, endTimeMilliSeconds)
+        self.indexExistsCheck(parentTrades, self.parentStartIndex)
+        self.indexExistsCheck(parentTrades, self.parentEndIndex)
 
         firstTradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
 
         while firstTradeMilliSeconds > startTimeMilliSeconds:
             self.parentStartIndex -= 1
             self.indexExistsCheck(parentTrades, self.parentStartIndex)
-            trades.insert(0,parentTrades.trades[self.parentStartIndex])
+            self.tradeList.insert(0,parentTrades.trades[self.parentStartIndex])
             firstTradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
 
         while firstTradeMilliSeconds < startTimeMilliSeconds:
             self.parentStartIndex += 1
             self.indexExistsCheck(parentTrades, self.parentStartIndex)
-            trades.pop(0)
+            self.tradeList.pop(0)
             firstTradeMilliSeconds = self.getTradeMilliseconds(self.getFirstInPool())
 
         lastTradeMilliSeconds = self.getTradeMilliseconds(self.getLastInPool())
@@ -131,13 +147,13 @@ class: TradePool
         while lastTradeMilliSeconds > endTimeMilliSeconds:
             self.parentEndIndex -= 1
             self.indexExistsCheck(parentTrades, self.parentEndIndex)
-            trades.pop()
+            self.tradeList.pop()
             lastTradeMilliSeconds = self.getTradeMilliseconds(self.getLastInPool())
 
         while lastTradeMilliSeconds < endTimeMilliSeconds:
             self.parentEndIndex += 1
             self.indexExistsCheck(parentTrades, self.parentEndIndex)
-            trades.append(parentTrades.trades[self.parentEndIndex])
+            self.tradeList.append(parentTrades.trades[self.parentEndIndex])
             lastTradeMilliSeconds = self.getTradeMilliseconds(self.getLastInPool())
             if pivotTradeId == self.getTradeId(self.getLastInPool()):
                 continue
@@ -145,6 +161,6 @@ class: TradePool
         while pivotTradeId != self.getTradeId(self.getLastInPool()):
             self.parentEndIndex += 1
             self.indexExistsCheck(parentTrades, self.parentEndIndex)
-            trades.append(parentTrades.trades[self.parentEndIndex])
+            self.tradeList.append(parentTrades.trades[self.parentEndIndex])
 
-        return trades
+        return self.getTradeList()
