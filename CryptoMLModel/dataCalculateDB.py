@@ -1,78 +1,66 @@
 import mydb
-import tradePool
+import tradePool as tp
 import dataCalculate
-import logger
-
-selectTrades = """
-SELECT price, amount, type, date_ms, trade_id
-FROM trades
-WHERE trade_id > ?
-LIMIT %s
-OFFSET ?
-ORDER BY date_ms ASC
-"""
-
-selectFarthestCompleteTrade = """
-SELECT trade_id
-FROM tradesCalculated
-LIMIT 1
-ORDER BY trade_id DESC
-"""
-
-dbBatchIndex = 0
-tradeBatchSize = 100000
-farthestCompleteTradeId = mydb.selectOneStatic(selectFarthestCompleteTrade)
-offsetId = farthestCompleteTradeId - tradeBatchSize
+import logging
+import tradeDbManager as tdm
+import datetime
 
 def main():
-    offset = dbBatchIndex * tradeBatchSize
-    dbBatchIndex += 2
-    tradeList = mydb.selectAll(selectTrades % str(tradeBatchSize * 2), (offsetId, offset))
-    tradePool = TradePool(tradeList)
+    tradeManager = tdm.TradeDbManager()
+    farthestCompleteTradeId = tradeManager.getFarthestCompleteTradeId()
+    tradeList = tradeManager.getStarterTradeList()
+    try:
+        tradePool = tp.TradePool(tradeList)
+    except IndexError as error:
+        logging.error(error)
+        if error.args[1] and not addMoreTrades(tradePool, tradeManager):
+            raise StopIteration('No additional trades available to continue.')
 
+    poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
     df = dataCalculate.setupDataFrame()
+    index = 0
     while index < len(tradePool.getTradeList()):
         trade = tradePool.getTradeList()[index]
+        if farthestCompleteTradeId == 0:
+            if poolStartMilliseconds > trade[3] - dataCalculate.MAX_PERIOD:
+                logging.info(f'Skipping trade recorded at {tradeDatetime}')
+                continue
         if trade[4] > farthestCompleteTradeId:
-            index = tryFeatureCalculation(df, tradePool, index, trade[4], trade[3])
+            tradeDatetime = datetime.datetime.fromtimestamp(tradelist[0][3]/1000.0).strftime('%Y-%m-%d %H:%M:%S')
+            logging.info(f'Attempting feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
+            index = tryFeatureCalculation(df, tradePool, tradeManager, index, trade)
+            logging.info(f'Completed feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
+            farthestCompleteTradeId = trade[4]
+            break # For Testing Only
 
     engine = mydb.getEngine()
     df.to_sql('tradesCalculated', con = engine, if_exists = 'append', chunksize = 1000)
 
-def tryFeatureCalculation(df, tradePool, pivotTradeId, index, tradeTimeMilliSeconds):
+def tryFeatureCalculation(df, tradePool, tradeManager, index, pivotTrade):
     try:
-        previousFeatures = dataCalculate.calculateAllFeatureGroups(df, tradePool, pivotTradeId, tradeTimeMilliSeconds)
-        previousMilliseconds = trade[3]
+        dataCalculate.calculateAllFeatureGroups(df, tradePool, pivotTrade)
         index += 1
         return index
     except AssertionError as error:
-        logger.error(error)
+        logging.error(error)
         raise
     except IndexError as error:
-        logger.error(error)
+        logging.error(error)
         if error.args[1]:
-            if addedTradeCount := addMoreTrades(tradePool):
-                return index - addedTradeCount
+            if addedTradeCount := addMoreTrades(tradePool, tradeManager):
+                return max(0,index - addedTradeCount)
             raise StopIteration('No additional trades available to continue.')
         raise
 
-def addMoreTrades(tradePool):
-    offset = dbBatchIndex * tradeBatchSize
-    dbBatchIndex += 1
-    tradeList = mydb.selectAll(selectTrades % str(tradeBatchSize), (offsetId, offset))
+def addMoreTrades(tradePool, tradeManager):
+    tradeList = tradeManager.getAdditionalTradeList()
     tradePool.rotateTradesIntoTheFuture(tradeList)
     return len(tradeList)
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     try:
         main()
     except StopIteration:
-        logger.error(error)
+        logging.error(error)
         print("script end reached")
-
-
-
-
-
-
-

@@ -2,10 +2,11 @@ import mariadb
 import pymysql
 import credentials
 from sqlalchemy import create_engine
+import sys
 
 def connect():
   try:
-    conn = pymysql.connect(
+    conn = mariadb.connect(
       user=credentials.dbUser,
       password=credentials.dbPassword,
       host=credentials.dbHost,

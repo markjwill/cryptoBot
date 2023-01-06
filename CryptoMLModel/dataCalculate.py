@@ -1,5 +1,6 @@
 import pandas as pd
 import copy
+import logging
 
 # trade[0] price
 # trade[1] amount
@@ -24,18 +25,20 @@ import copy
 # df2 = df.append(new_row, ignore_index=True)
 
 TIME_PERIODS = {
-    'fiveSeconds': 5,
-    'tenSeconds': 10,
-    'thirtySeconds': 30,
-    'oneMinute': 60,
-    'threeMinutes': 180,
-    'fiveMinutes': 300,
-    'tenMinutes': 600,
-    'fifteenMinutes': 900,
-    'thirtyMinutes': 1800,
-    'sixtyMinutes': 3600,
-    'oneTwentyMinutes': 7200
+    'fiveSeconds': 5000,
+    'tenSeconds': 10000,
+    'thirtySeconds': 30000,
+    'oneMinute': 60000,
+    'threeMinutes': 180000,
+    'fiveMinutes': 300000,
+    'tenMinutes': 600000,
+    'fifteenMinutes': 900000,
+    'thirtyMinutes': 1800000,
+    'sixtyMinutes': 3600000,
+    'oneTwentyMinutes': 7200000
 }
+
+MAX_PERIOD = 7200000
 
 PERIOD_FEATURES = {
     'avgPrice' : 0.0, #avg Price
@@ -59,7 +62,7 @@ PERIOD_FEATURES = {
 }
 
 
-def calculateFeatures(timeGroup, trades, millieSeconds):
+def calculateFeatures(timeGroup, trades, milliseconds):
     if timeGroup == 'future':
         features = {
             'endPrice' : trades[-1][0], #end price
@@ -93,14 +96,14 @@ def calculateFeatures(timeGroup, trades, millieSeconds):
             features['buyVsSellVolume'] -= trade[1]
 
     features['avgPrice'] = features['volumeAtPrice'] / features['volume']
-    features['volumePrMinute'] = features['volume'] / millieSeconds * 60 * 1000
+    features['volumePrMinute'] = features['volume'] / milliseconds * 60 * 1000
     features['changeReal'] = features['endPrice'] - features['startPrice']
     features['changePercent'] = features['changeReal'] * 100 / features['startPrice']
     features['travelReal'] = features['highPrice'] - features['lowPrice']
     features['travelPercent'] = features['travelReal'] * 100 / features['lowPrice']
-    features['tradesPrMinute'] = features['tradeCount'] / millieSeconds * 60 * 1000
-    features['buysPrMinute'] = features['buys'] / millieSeconds * 60 * 1000
-    features['sellsPrMinute'] = features['sells'] / millieSeconds * 60 * 1000
+    features['tradesPrMinute'] = features['tradeCount'] / milliseconds * 60 * 1000
+    features['buysPrMinute'] = features['buys'] / milliseconds * 60 * 1000
+    features['sellsPrMinute'] = features['sells'] / milliseconds * 60 * 1000
 
     for featureName in PERIOD_FEATURES:
         if float(features[featureName]) == 0.0:
@@ -115,39 +118,40 @@ def setupDataFrame():
     df = pd.DataFrame()
     columns = []
     columns.append('tradeId')
-    for periodName, periodMilliseconds in TIME_PERIODS.items():
+    for periodName in TIME_PERIODS:
         for featureName in PERIOD_FEATURES:
             columns.append(f'past_{periodName}_{featureName}')
 
-    for periodName, periodMilliseconds in TIME_PERIODS.items():
+    for periodName in TIME_PERIODS:
         columns.append(f'future_{periodName}_endPrice')
 
     df = df.reindex(columns = columns)
-
+    logging.info(f"Dataframe colums set as: {*columns,}")
     return df
 
-def calculateAllFeatureGroups(df, tradePool, pivotTradeId, tradeTimeMilliSeconds):
+def calculateAllFeatureGroups(df, tradePool, pivotTrade):
     allFeatures = {}
-
+    tradeTimeMilliseconds = pivotTrade[3]
+    pivotTradeId = pivotTrade[4]
     for name, periodMilliseconds in TIME_PERIODS.items():
         timeGroup = 'past'
-        startTimeMilliSeconds = tradeTimeMilliSeconds - PeriodMilliSeconds
-        endTimeMilliseconds = tradeTimeMilliSeconds
-        pastFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds)
+        startTimeMilliseconds = tradeTimeMilliseconds - periodMilliseconds
+        endTimeMilliseconds = tradeTimeMilliseconds
+        pastFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
         allFeatures = allFeatures | pastFeatures
 
         timeGroup = 'future'
-        startTimeMilliSeconds = tradeTimeMilliSeconds 
-        endTimeMilliseconds = tradeTimeMilliSeconds + PeriodMilliSeconds
-        futureFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds)
+        startTimeMilliseconds = tradeTimeMilliseconds 
+        endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
+        futureFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
         allFeatures = allFeatures | futureFeatures
-
     df.append(allFeatures)
-    return allFeatures
+    logger.info('Allf feature groups calculated')
+    return
 
-def calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliSeconds, pivotTradeId, endTimeMilliSeconds):
-    periodTrades = tradePool.getTrades(f'{timeGoup}_{name}', timeGroup, pivotTradeId, startTimeMilliSeconds, endTimeMilliSeconds)
-    periodFeatures = calculateFeatures(timeGroup, periodTrades, PeriodMilliSeconds)
+def calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds):
+    periodTrades = tradePool.getTrades(f'{timeGroup}_{name}', timeGroup, pivotTradeId, startTimeMilliseconds, endTimeMilliseconds)
+    periodFeatures = calculateFeatures(timeGroup, periodTrades, periodMilliseconds)
     periodFeatures = {f'{timeGoup}_{name}_{k}': v for k, v in periodFeatures.items()}
 
     return periodFeatures
