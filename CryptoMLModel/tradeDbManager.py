@@ -13,8 +13,8 @@ LIMIT %s, %s
 """
 
     selectFarthestCompleteTrade = """
-SELECT `trade_id`
-FROM `tradesCalculated`
+SELECT `index`
+FROM `%s`
 LIMIT 1
 ORDER BY `trade_id` DESC
 """
@@ -23,14 +23,20 @@ ORDER BY `trade_id` DESC
     tradeBatchSize = 30000
     farthestCompleteTradeId = 0
     offsetId = 0
+    calculatedTableName = 'tradesCalculated'
 
+    def setCalculatedTableName(self, tableName):
+        self.calculatedTableName = tableName
 
     def getFarthestCompleteTradeId(self):
         try:
-            self.farthestCompleteTradeId = mydb.selectOneStatic(self.selectFarthestCompleteTrade)
+            self.farthestCompleteTradeId = mydb.selectOneStatic(
+                self.selectFarthestCompleteTrade % self.calculatedTableName
+            )
             self.offsetId = self.farthestCompleteTradeId - self.tradeBatchSize
         except mydb.mariadb.ProgrammingError as error:
             logging.info('No existing tradesCalculated table found')
+        logging.info(f'Farthest complete tradeId {self.farthestCompleteTradeId}')
         return self.farthestCompleteTradeId
 
     def getStarterTradeList(self):
@@ -49,3 +55,6 @@ ORDER BY `trade_id` DESC
         lastTradeDatetime = datetime.datetime.fromtimestamp(tradeList[-1][3]/1000.0).strftime('%Y-%m-%d %H:%M:%S')
         logging.debug(f'Trade List from {firstTradeDatetime} to {lastTradeDatetime} with limit {limit} collected {len(tradeList)} trades.')
         return tradeList
+
+    def logTime(self, milliseconds):
+        return datetime.datetime.fromtimestamp(milliseconds/1000.0).strftime('%Y-%m-%d %H:%M:%S')

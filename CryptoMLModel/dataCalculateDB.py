@@ -3,9 +3,16 @@ import tradePool as tp
 import dataCalculate
 import logging
 import tradeDbManager as tdm
+import hashlib
+import json
 
 def main():
+    calculateTableName = getUniqueTableName(
+        dataCalculate.TIME_PERIODS, 
+        dataCalculate.PERIOD_FEATURES
+    )
     tradeManager = tdm.TradeDbManager()
+    tradeManager.setCalculatedTableName(calculateTableName)
     farthestCompleteTradeId = tradeManager.getFarthestCompleteTradeId()
     tradeList = tradeManager.getStarterTradeList()
     tradePool = tp.TradePool()
@@ -24,16 +31,16 @@ def main():
                 logging.debug(f'Skipping trade recorded at {tradeDatetime}')
                 continue
         if trade[4] > farthestCompleteTradeId:
-            logging.info(f'Attempting feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
+            logging.debug(f'Attempting feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
             df, index = tryFeatureCalculation(df, tradePool, tradeManager, index, trade)
             logging.info(f'Completed feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
             farthestCompleteTradeId = trade[4]
             testBatcher += 1
-            if testBatcher == 10:
+            if testBatcher == 1000:
                 break
 
     engine = mydb.getEngine()
-    df.to_sql('tradesCalculated', con = engine, if_exists = 'append', chunksize = 1000)
+    df.to_sql(calculateTableName, con = engine, if_exists = 'append', chunksize = 1000)
 
 def tryFeatureCalculation(df, tradePool, tradeManager, index, pivotTrade):
     try:
@@ -52,17 +59,27 @@ def tryFeatureCalculation(df, tradePool, tradeManager, index, pivotTrade):
         raise
 
 def addMoreTrades(tradePool, tradeManager, batchMultiplier):
+    logging.info('Adding more trades.')
     cumulativeCount = 0
     tradeList = tradeManager.getAdditionalTradeList(batchMultiplier)
     cumulativeCount += len(tradeList)
     tradePool.rotateTradesIntoTheFuture(tradeList)
     while tradePool.dataGaps():
+        logging.info('Adding more trades to get past data gaps.')
         #consider a more fine grained approach here
         tradeList = tradeManager.getAdditionalTradeList(0.25)
         cumulativeCount += len(tradeList)
         tradePool.rotateTradesIntoTheFuture(tradeList)
 
     return cumulativeCount
+
+    # Move to db manager
+def getUniqueTableName(periods, features):
+    combinedDictionary = periods | features
+    dhash = hashlib.md5()
+    encoded = json.dumps(combinedDictionary, sort_keys=True).encode()
+    dhash.update(encoded)
+    return f'tradesCalculated_{dhash.hexdigest()}'
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)

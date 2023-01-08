@@ -52,7 +52,9 @@ class TradePool:
     def getTradeList(self, name):
         startIndex = self.subPools[name]["startIndex"]
         endIndex = self.subPools[name]["endIndex"]
-        return self.tradeList[startIndex:endIndex]
+        if endIndex == -1:
+            return self.tradeList[startIndex:]
+        return self.tradeList[startIndex:endIndex + 1]
 
     def addPool(self, name):
         if name not in self.subPools:
@@ -142,8 +144,9 @@ class TradePool:
         logging.debug(f'Moving Indes for subPool: {name}')
         if timeGroup == 'future':
             return self.selectFutureTrade(name, endTimeMilliseconds)
-
-        return self.selectPastTrades(name, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
+        pastTrades = self.selectPastTrades(name, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
+        logging.debug(f'Getting {len(pastTrades)} trades for {name} {timeGroup} at tradeId {pivotTradeId}')
+        return pastTrades
 
     def selectFutureTrade(self, name, targetMilliseconds):
         self.isMillisecondsInPool(targetMilliseconds)

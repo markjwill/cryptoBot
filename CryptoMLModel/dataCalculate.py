@@ -8,22 +8,6 @@ import logging
 # trade[3] date_ms
 # trade[4] trade_id
 
-# trades must always be in Ascending order
-
-#  Add Column
-# df.insert(loc, column, value)
-
-#  Add Column with Formula
-# df.assign(temp_f=lambda x: x.temp_c * 9 / 5 + 32)
-
-#  Assign 1 value
-# df.at['C', 'x'] = 10
-# df.at[7, 'Product_Name'] = 'Test Product'
-
-# Insert Dict to the dataframe using DataFrame.append()
-# new_row = {'Courses':'Hyperion', 'Fee':24000, 'Duration':'55days', 'Discount':1800}
-# df2 = df.append(new_row, ignore_index=True)
-
 TIME_PERIODS = {
     # 'fiveSeconds': 5000,
     'tenSeconds': 10000,
@@ -51,14 +35,14 @@ PERIOD_FEATURES = {
     'travelReal' : 0.0, #low to high change in price
     'travelPercent' : 0.0, #low to high change price percent
     'volume' : 0.0, #sum of trade amounts
-    'volumePrMillisecond' : 0.0, #sum of trade amounts per minute
-    'sellsPrMillisecond' : 0.0, #number of sells per minute
+    'volumePrMinute' : 0.0, #sum of trade amounts per minute
+    'sellsPrMinute' : 0.0, #number of sells per minute
     'sells' : 0, #number of sells
-    'buysPrMillisecond' : 0.0, #number of buys per minute
+    'buysPrMinute' : 0.0, #number of buys per minute
     'buys' : 0, #number of buys
     'buyVsSell' : 0, #sum of buys as +1 and sells as -1
     'buyVsSellVolume' : 0,  #sum of buys as +volume and sells as -volume
-    'tradesPrMillisecond' : 0, #number of trades per minute
+    'tradesPrMinute' : 0, #number of trades per minute
     'tradeCount' : 0 #number of trades
 }
 
@@ -72,8 +56,10 @@ def calculateFeatures(timeGroup, trades, milliseconds):
         return features
 
     features = copy.copy(PERIOD_FEATURES)
-    features['startPrice'] = trades[0][0]
-    features['endPrice'] = trades[-1][0]
+    firstTrade = trades[0]
+    features['startPrice'] = firstTrade[0]
+    lastTrade = trades[-1]
+    features['endPrice'] = lastTrade[0]
     volumeAtPrice = 0
 
     for trade in trades:
@@ -99,14 +85,14 @@ def calculateFeatures(timeGroup, trades, milliseconds):
             features['buyVsSellVolume'] -= trade[1]
 
     features['avgPrice'] = volumeAtPrice / features['volume']
-    features['volumePrMillisecond'] = features['volume'] / milliseconds
+    features['volumePrMinute'] = features['volume'] / ( milliseconds / 60000 )
     features['changeReal'] = features['endPrice'] - features['startPrice']
     features['changePercent'] = features['changeReal'] * 100 / features['startPrice']
     features['travelReal'] = features['highPrice'] - features['lowPrice']
     features['travelPercent'] = features['travelReal'] * 100 / features['lowPrice']
-    features['tradesPrMillisecond'] = features['tradeCount'] / milliseconds
-    features['buysPrMillisecond'] = features['buys'] / milliseconds
-    features['sellsPrMillisecond'] = features['sells'] / milliseconds
+    features['tradesPrMinute'] = features['tradeCount'] / ( milliseconds / 60000 )
+    features['buysPrMinute'] = features['buys'] / ( milliseconds / 60000 )
+    features['sellsPrMinute'] = features['sells'] / ( milliseconds / 60000 )
 
     if float(features['startPrice']) == 0.0:
         raise AssertionError(
@@ -146,16 +132,16 @@ def calculateAllFeatureGroups(df, tradePool, pivotTrade):
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
         futureFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
-        allFeatures = allFeatures | futureFeatures
+        allFeatures = allFeatures| futureFeatures
 
     data = { pivotTradeId: list(allFeatures.values()) }
     concatDf = pd.DataFrame.from_dict(data, orient='index', columns=columns)
     df = pd.concat([df, concatDf])
-    logging.info('All feature groups calculated')
+    logging.debug('All feature groups calculated')
     return df
 
 def calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds):
-    logging.info(f'Collecting trades and calculating Group {timeGroup}_{name}')
+    logging.debug(f'Collecting trades and calculating Group {timeGroup}_{name}')
     periodTrades = tradePool.getTrades(f'{timeGroup}_{name}', timeGroup, pivotTradeId, startTimeMilliseconds, endTimeMilliseconds)
     periodFeatures = calculateFeatures(timeGroup, periodTrades, endTimeMilliseconds - startTimeMilliseconds)
     periodFeatures = {f'{timeGroup}_{name}_{k}': v for k, v in periodFeatures.items()}
