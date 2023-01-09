@@ -1,6 +1,7 @@
 import mydb
 import tradePool as tp
 import dataCalculate
+import argparse
 import logging
 import tradeDbManager as tdm
 
@@ -8,7 +9,7 @@ def main():
     tradeManager = tdm.TradeDbManager()
     calculateTableName = tradeManager.getUniqueTableName(
         dataCalculate.TIME_PERIODS,
-        dataCalculate.PERIOD_FEATURES
+        dataCalculate.PERIOD_FEATURES | dataCalculate.NON_PERIOD_FEATURES
     )
     tradeManager.setMaxTimePeriod(dataCalculate.MAX_PERIOD)
     farthestCompleteTradeId = tradeManager.getFarthestCompleteTradeId()
@@ -26,7 +27,7 @@ def main():
         if poolStartMilliseconds + 1000 >= trade[3] - dataCalculate.MAX_PERIOD:
             index += 1
             logging.debug(
-                f'Skipping trade recorded at {tradeDatetime} for being'
+                f'Skipping trade recorded at {tradeDatetime} for being '
                 'less than MAX_PERIOD + 1 second into the tradesPool'
             )
             continue
@@ -37,7 +38,7 @@ def main():
             farthestCompleteTradeId = trade[4]
             # For inital testing purposes only
             testBatcher += 1
-            if testBatcher == 1000:
+            if testBatcher == 100000:
                 break
         logging.debug(f'Skipping trade recorded at {tradeDatetime} for being already calculated.')
         index += 1
@@ -77,7 +78,16 @@ def addMoreTrades(tradePool, tradeManager, batchMultiplier):
     return cumulativeCount
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    parser = argparse.ArgumentParser()
+    parser.add_argument( '-log',
+                         '--loglevel',
+                         default='warning',
+                         help='Provide logging level. Example --loglevel debug, default=warning' )
+
+    args = parser.parse_args()
+
+    logging.basicConfig( level=args.loglevel.upper() )
+    logging.info( 'Logging now setup.' )
     try:
         main()
     except StopIteration:

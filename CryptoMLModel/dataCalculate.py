@@ -1,12 +1,16 @@
 import pandas as pd
 import copy
 import logging
+import datetime
+import numpy as np
 
 # trade[0] price
 # trade[1] amount
 # trade[2] type
 # trade[3] date_ms
 # trade[4] trade_id
+
+# Add outside trade data here
 
 TIME_PERIODS = {
     # 'fiveSeconds': 5000,
@@ -46,9 +50,20 @@ PERIOD_FEATURES = {
     'tradeCount' : 0 #number of trades
 }
 
+NON_PERIOD_FEATURES = {
+    'secondsIntoDaySin' : 0 # seconds in day sin
+    'secondsIntoDayCos' : 0 # seconds in day cos
+    'dayIntoWeekSin' : 0 # day in week sin
+    'dayIntoWeekCos' : 0 # day in week cos
+    'dayIntoYearSin' : 0 # day in year sin
+    'dayIntoYearCos' : 0 # day in year cos
+    'volume' : 0 # amount traded
+    'type' : 0 # 1 = buy, -1 = sell
+}
+
 columns = []
 
-def calculateFeatures(timeGroup, trades, milliseconds):
+def calculatePeriodFeatures(timeGroup, trades, milliseconds):
     if timeGroup == 'future':
         features = {
             'endPrice' : trades[-1][0], #end price
@@ -61,6 +76,18 @@ def calculateFeatures(timeGroup, trades, milliseconds):
     lastTrade = trades[-1]
     features['endPrice'] = lastTrade[0]
     volumeAtPrice = 0
+
+    if float(features['startPrice']) == 0.0:
+        raise AssertionError(
+            f'Start price feature calculated as 0 at tradeId {lastTrade[4]}.\n'
+            'Ensure every defined PERIOD_FEATURES has a calculation defined in calculateFeatures'
+        )
+
+    if float(features['endPrice']) == 0.0:
+        raise AssertionError(
+            f'End price feature calculated as 0 at tradeId {lastTrade[4]}.\n'
+            'Ensure every defined PERIOD_FEATURES has a calculation defined in calculateFeatures'
+        )
 
     for trade in trades:
         features['tradeCount'] += 1
@@ -94,17 +121,27 @@ def calculateFeatures(timeGroup, trades, milliseconds):
     features['buysPrMinute'] = features['buys'] / ( milliseconds / 60000 )
     features['sellsPrMinute'] = features['sells'] / ( milliseconds / 60000 )
 
-    if float(features['startPrice']) == 0.0:
-        raise AssertionError(
-            f'Start price feature calculated as {features[featureName]}.\n'
-            'Ensure every defined PERIOD_FEATURES has a calculation defined in calculateFeatures'
-        )
+    features['avgPrice'] = lastTrade[0] - features['avgPrice']
+    features['lowPrice'] = lastTrade[0] - features['lowPrice']
+    features['highPrice'] = lastTrade[0] - features['highPrice']
+    features['startPrice'] = lastTrade[0] - features['startPrice']
+    features['endPrice'] = lastTrade[0] - features['endPrice']
 
-    if float(features['endPrice']) == 0.0:
-        raise AssertionError(
-            f'End price feature calculated as {features[featureName]}.\n'
-            'Ensure every defined PERIOD_FEATURES has a calculation defined in calculateFeatures'
-        )
+    return features
+
+def calculateNonPeriodFeatures(trade):
+    dt = datetime.datetime.fromtimestamp(trade[2])
+    t = dt.time()
+    secondsIntoDay = (t.hour * 60 + t.minute) * 60 + t.second
+    dayIntoYear = dt.timetuple().tm_yday
+    features['secondsIntoDaySin'] = np.sin(secondsIntoDay * (2 * np.pi / 86400)) # seconds_in_day_sin
+    features['secondsIntoDayCos'] = np.cos(secondsIntoDay * (2 * np.pi / 86400)) # seconds_in_day_cos
+    features['dayIntoWeekSin'] = np.sin(dt.weekday() * (2 * np.pi / 7)) # day_in_week_sin
+    features['dayIntoWeekCos'] = np.cos(dt.weekday() * (2 * np.pi / 7)) # day_in_week_cos
+    features['dayIntoYearSin'] = np.sin(dayIntoYear * (2 * np.pi / 365)) # day_in_year_sin
+    features['dayIntoYearCos'] = np.cos(dayIntoYear * (2 * np.pi / 365)) # day_in_year_cos
+    features['volume'] = trade[1] # amount_traded
+    features['type'] = 1 if trade[4] == 'buy' else -1 # type
 
     return features
 
@@ -121,6 +158,9 @@ def calculateAllFeatureGroups(df, tradePool, pivotTrade):
     tradeTimeMilliseconds = pivotTrade[3]
     pivotTradeId = pivotTrade[4]
     allFeatures = {}
+
+    allFeatures = allFeatures | calculateNonPeriodFeatures(pivotTrade)
+
     for name, periodMilliseconds in TIME_PERIODS.items():
         timeGroup = 'past'
         startTimeMilliseconds = tradeTimeMilliseconds - periodMilliseconds
@@ -132,7 +172,7 @@ def calculateAllFeatureGroups(df, tradePool, pivotTrade):
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
         futureFeatures = calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
-        allFeatures = allFeatures| futureFeatures
+        allFeatures = allFeatures | futureFeatures
 
     data = { pivotTradeId: list(allFeatures.values()) }
     concatDf = pd.DataFrame.from_dict(data, orient='index', columns=columns)
@@ -143,7 +183,7 @@ def calculateAllFeatureGroups(df, tradePool, pivotTrade):
 def calculateFeatureGroup(timeGroup, name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds):
     logging.debug(f'Collecting trades and calculating Group {timeGroup}_{name}')
     periodTrades = tradePool.getTrades(f'{timeGroup}_{name}', timeGroup, pivotTradeId, startTimeMilliseconds, endTimeMilliseconds)
-    periodFeatures = calculateFeatures(timeGroup, periodTrades, endTimeMilliseconds - startTimeMilliseconds)
+    periodFeatures = calculatePeriodFeatures(timeGroup, periodTrades, endTimeMilliseconds - startTimeMilliseconds)
     periodFeatures = {f'{timeGroup}_{name}_{k}': v for k, v in periodFeatures.items()}
 
     return periodFeatures

@@ -93,25 +93,25 @@ class TradePool:
     def startIndexExistsCheck(self, listIndex):
         if listIndex == -1:
             raise IndexError(
-                'A trade father in the past than the set of trades in the pool was requested by index.  '
+                f'A trade father in the past than the set of trades in the pool was requested by a start index at {listIndex}. '
                 'Calculation must always traverse trades from the past to the future.',
                 False
             )
         if listIndex > self.maxIndex:
             raise IndexError(
-                'A trade father in the future than the set of trades in the pool was requested by index.',
+                f'A trade father in the future than the set of trades in the pool was requested by a start index at {listIndex}. ',
                 True
             )
 
     def endIndexExistsCheck(self, listIndex):
         if listIndex == 0:
             raise IndexError(
-                'A trade father in the future than the set of trades in the pool was requested by index.',
+                f'A trade father in the future than the set of trades in the pool was requested by an end index at {listIndex}. ',
                 True
             )
         if listIndex < self.maxIndex * -1:
             raise IndexError(
-                'A trade father in the past than the set of trades in the pool was requested by index.  '
+                f'A trade father in the past than the set of trades in the pool was requested by an end index at {listIndex}. '
                 'Calculation must always traverse trades from the past to the future.',
                 False
             )
