@@ -3,20 +3,18 @@ import tradePool as tp
 import dataCalculate
 import logging
 import tradeDbManager as tdm
-import hashlib
-import json
 
 def main():
-    calculateTableName = getUniqueTableName(
-        dataCalculate.TIME_PERIODS, 
+    tradeManager = tdm.TradeDbManager()
+    calculateTableName = tradeManager.getUniqueTableName(
+        dataCalculate.TIME_PERIODS,
         dataCalculate.PERIOD_FEATURES
     )
-    tradeManager = tdm.TradeDbManager()
-    tradeManager.setCalculatedTableName(calculateTableName)
+    tradeManager.setMaxTimePeriod(dataCalculate.MAX_PERIOD)
     farthestCompleteTradeId = tradeManager.getFarthestCompleteTradeId()
     tradeList = tradeManager.getStarterTradeList()
     tradePool = tp.TradePool()
-    addMoreTrades(tradePool, tradeManager, 3)
+    addMoreTrades(tradePool, tradeManager, 1)
 
     df = dataCalculate.setupDataFrame()
     index = 0
@@ -25,19 +23,24 @@ def main():
         trade = tradePool.getTradeAt(index)
         poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool(False))
         tradeDatetime = tradePool.logTime(trade[3])
-        if farthestCompleteTradeId == 0:
-            if poolStartMilliseconds + 1000 >= trade[3] - dataCalculate.MAX_PERIOD:
-                index += 1
-                logging.debug(f'Skipping trade recorded at {tradeDatetime}')
-                continue
+        if poolStartMilliseconds + 1000 >= trade[3] - dataCalculate.MAX_PERIOD:
+            index += 1
+            logging.debug(
+                f'Skipping trade recorded at {tradeDatetime} for being'
+                'less than MAX_PERIOD + 1 second into the tradesPool'
+            )
+            continue
         if trade[4] > farthestCompleteTradeId:
             logging.debug(f'Attempting feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
             df, index = tryFeatureCalculation(df, tradePool, tradeManager, index, trade)
             logging.info(f'Completed feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
             farthestCompleteTradeId = trade[4]
+            # For inital testing purposes only
             testBatcher += 1
             if testBatcher == 1000:
                 break
+        logging.debug(f'Skipping trade recorded at {tradeDatetime} for being already calculated.')
+        index += 1
 
     engine = mydb.getEngine()
     df.to_sql(calculateTableName, con = engine, if_exists = 'append', chunksize = 1000)
@@ -72,14 +75,6 @@ def addMoreTrades(tradePool, tradeManager, batchMultiplier):
         tradePool.rotateTradesIntoTheFuture(tradeList)
 
     return cumulativeCount
-
-    # Move to db manager
-def getUniqueTableName(periods, features):
-    combinedDictionary = periods | features
-    dhash = hashlib.md5()
-    encoded = json.dumps(combinedDictionary, sort_keys=True).encode()
-    dhash.update(encoded)
-    return f'tradesCalculated_{dhash.hexdigest()}'
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)

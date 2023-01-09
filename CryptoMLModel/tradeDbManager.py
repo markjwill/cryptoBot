@@ -1,6 +1,8 @@
 import mydb
 import logging
 import datetime
+import hashlib
+import json
 
 class TradeDbManager:
 
@@ -15,28 +17,48 @@ LIMIT %s, %s
     selectFarthestCompleteTrade = """
 SELECT `index`
 FROM `%s`
+ORDER BY `index` DESC
 LIMIT 1
-ORDER BY `trade_id` DESC
 """
 
+    selectDateMsById = """
+SELECT `date_ms`
+FROM `trades`
+WHERE `id` = ?
+"""
+
+    selectMaxPeriodAgoId = """
+SELECT `id`
+FROM `trades`
+WHERE `date_ms` < ?
+ORDER BY `date_ms` DESC
+LIMIT 1
+"""
     offset = 0
     tradeBatchSize = 30000
     farthestCompleteTradeId = 0
     offsetId = 0
     calculatedTableName = 'tradesCalculated'
-
-    def setCalculatedTableName(self, tableName):
-        self.calculatedTableName = tableName
+    maxTimePeriod = 0
 
     def getFarthestCompleteTradeId(self):
         try:
-            self.farthestCompleteTradeId = mydb.selectOneStatic(
+            self.farthestCompleteTradeId, *x = mydb.selectOneStatic(
                 self.selectFarthestCompleteTrade % self.calculatedTableName
             )
-            self.offsetId = self.farthestCompleteTradeId - self.tradeBatchSize
+            farthestCompleteTradeMilliseconds, *x = mydb.selectOne(
+                self.selectDateMsById, self.farthestCompleteTradeId
+            )
+            self.offsetId, *x = mydb.selectOne(
+                self.selectMaxPeriodAgoId, (
+                    farthestCompleteTradeMilliseconds - self.maxTimePeriod
+                )
+            )
         except mydb.mariadb.ProgrammingError as error:
             logging.info('No existing tradesCalculated table found')
-        logging.info(f'Farthest complete tradeId {self.farthestCompleteTradeId}')
+            logging.debug('Or some other mysql problem exists:')
+            logging.debug(error)
+        logging.info(f'Farthest complete tradeId {self.farthestCompleteTradeId} OffsetId set to {self.offsetId}')
         return self.farthestCompleteTradeId
 
     def getStarterTradeList(self):
@@ -58,3 +80,17 @@ ORDER BY `trade_id` DESC
 
     def logTime(self, milliseconds):
         return datetime.datetime.fromtimestamp(milliseconds/1000.0).strftime('%Y-%m-%d %H:%M:%S')
+
+    def setMaxTimePeriod(self, maxTimePeriod):
+        self.maxTimePeriod = maxTimePeriod
+
+    def getUniqueTableName(self, periods, features):
+        combinedDictionary = periods | features
+        dhash = hashlib.md5()
+        encoded = json.dumps(combinedDictionary, sort_keys=True).encode()
+        dhash.update(encoded)
+        self.calculatedTableName = f'tradesCalculated_{dhash.hexdigest()}'
+        return self.calculatedTableName
+
+
+
