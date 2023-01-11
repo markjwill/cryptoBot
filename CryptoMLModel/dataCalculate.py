@@ -29,7 +29,8 @@ TIME_PERIODS = {
 MAX_PERIOD = 7200000
 
 PERIOD_FEATURES = {
-    'avgPrice' : 0.0, #avg Price
+    'avgByVolumePrice' : 0.0, #avg Price by volume
+    'avgByTradesPrice' : 0.0, #avg Price by number of trades
     'highPrice' : 0.0, #high price
     'lowPrice' : 0.0, #low price
     'startPrice' : 0.0, #start price
@@ -51,13 +52,13 @@ PERIOD_FEATURES = {
 }
 
 NON_PERIOD_FEATURES = {
-    'secondsIntoDaySin' : 0 # seconds in day sin
-    'secondsIntoDayCos' : 0 # seconds in day cos
-    'dayIntoWeekSin' : 0 # day in week sin
-    'dayIntoWeekCos' : 0 # day in week cos
-    'dayIntoYearSin' : 0 # day in year sin
-    'dayIntoYearCos' : 0 # day in year cos
-    'volume' : 0 # amount traded
+    'secondsIntoDaySin' : 0, # seconds in day sin
+    'secondsIntoDayCos' : 0, # seconds in day cos
+    'dayIntoWeekSin' : 0, # day in week sin
+    'dayIntoWeekCos' : 0, # day in week cos
+    'dayIntoYearSin' : 0, # day in year sin
+    'dayIntoYearCos' : 0, # day in year cos
+    'volume' : 0, # amount traded
     'type' : 0 # 1 = buy, -1 = sell
 }
 
@@ -76,6 +77,7 @@ def calculatePeriodFeatures(timeGroup, trades, milliseconds):
     lastTrade = trades[-1]
     features['endPrice'] = lastTrade[0]
     volumeAtPrice = 0
+    priceSum = 0
 
     if float(features['startPrice']) == 0.0:
         raise AssertionError(
@@ -91,15 +93,15 @@ def calculatePeriodFeatures(timeGroup, trades, milliseconds):
 
     for trade in trades:
         features['tradeCount'] += 1
+        priceSum += trade[0]
         volumeAtPrice += trade[1] * trade[0]
+        features['volume'] += trade[1]
 
         if trade[0] > features['highPrice']:
             features['highPrice'] = trade[0]
 
         if trade[0] < features['lowPrice'] or features['lowPrice'] == 0.0:
             features['lowPrice'] = trade[0]
-
-        features['volume'] += trade[1]
 
         if trade[2] == 'buy':
             features['buys'] += 1
@@ -111,7 +113,8 @@ def calculatePeriodFeatures(timeGroup, trades, milliseconds):
             features['buyVsSell'] -= 1
             features['buyVsSellVolume'] -= trade[1]
 
-    features['avgPrice'] = volumeAtPrice / features['volume']
+    features['avgByVolumePrice'] = volumeAtPrice / features['volume']
+    features['avgByTradesPrice'] = priceSum / features['tradeCount']
     features['volumePrMinute'] = features['volume'] / ( milliseconds / 60000 )
     features['changeReal'] = features['endPrice'] - features['startPrice']
     features['changePercent'] = features['changeReal'] * 100 / features['startPrice']
@@ -121,7 +124,8 @@ def calculatePeriodFeatures(timeGroup, trades, milliseconds):
     features['buysPrMinute'] = features['buys'] / ( milliseconds / 60000 )
     features['sellsPrMinute'] = features['sells'] / ( milliseconds / 60000 )
 
-    features['avgPrice'] = lastTrade[0] - features['avgPrice']
+    features['avgByVolumePrice'] = lastTrade[0] - features['avgByVolumePrice']
+    features['avgByTradesPrice'] = lastTrade[0] - features['avgByTradesPrice']
     features['lowPrice'] = lastTrade[0] - features['lowPrice']
     features['highPrice'] = lastTrade[0] - features['highPrice']
     features['startPrice'] = lastTrade[0] - features['startPrice']
@@ -130,7 +134,8 @@ def calculatePeriodFeatures(timeGroup, trades, milliseconds):
     return features
 
 def calculateNonPeriodFeatures(trade):
-    dt = datetime.datetime.fromtimestamp(trade[2])
+    features = copy.copy(NON_PERIOD_FEATURES)
+    dt = datetime.datetime.fromtimestamp(trade[3]/1000)
     t = dt.time()
     secondsIntoDay = (t.hour * 60 + t.minute) * 60 + t.second
     dayIntoYear = dt.timetuple().tm_yday
@@ -147,6 +152,8 @@ def calculateNonPeriodFeatures(trade):
 
 def setupDataFrame():
     df = pd.DataFrame()
+    for featureName in NON_PERIOD_FEATURES:
+        columns.append(f'past_{featureName}')
     for periodName in TIME_PERIODS:
         for featureName in PERIOD_FEATURES:
             columns.append(f'past_{periodName}_{featureName}')

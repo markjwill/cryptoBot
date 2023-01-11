@@ -84,10 +84,9 @@ LIMIT 1
     def setMaxTimePeriod(self, maxTimePeriod):
         self.maxTimePeriod = maxTimePeriod
 
-    def getUniqueTableName(self, periods, features):
-        combinedDictionary = periods | features
+    def getUniqueTableName(self, periodsAndfeatures):
         dhash = hashlib.md5()
-        encoded = json.dumps(combinedDictionary, sort_keys=True).encode()
+        encoded = json.dumps(periodsAndfeatures, sort_keys=True).encode()
         dhash.update(encoded)
         self.calculatedTableName = f'tradesCalculated_{dhash.hexdigest()}'
         return self.calculatedTableName
