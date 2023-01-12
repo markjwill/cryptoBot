@@ -71,13 +71,15 @@ class TradePool:
 
         logging.info(f'Pool max index {self.maxIndex}')
         poolStartTime = self.logTime(self.getTradeMilliseconds(self.getFirstInPool()))
-        poolEndTime = self.logTime(self.getTradeMilliseconds(self.getFirstInPool()))
+        poolEndTime = self.logTime(self.getTradeMilliseconds(self.getLastInPool()))
         logging.info(f'Pool startTime: {poolStartTime} endTime: {poolEndTime}')
-        if logging.DEBUG == logger.getEffectiveLevel():
+        if logging.DEBUG == logging.getLogger().getEffectiveLevel():
             for name, indexes in self.subPools.items():
+                logging.debug(f'{name} startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
                 subPoolStartTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]["startIndex"])))
                 subPoolEndTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]["endIndex"])))
                 logging.debug(f'{name} startTime: {subPoolStartTime} endTime: {subPoolEndTime}')
+        logging.debug('logPoolDetails complete.')
 
     def dataGaps(self):
         logging.debug('Starting data gap check')
@@ -96,11 +98,15 @@ class TradePool:
         if n := len(newTrades):
             del self.tradeList[:n]
             self.tradeList = self.tradeList + newTrades
+            self.maxIndex = len(self.tradeList)
+            if n > self.maxIndex:
+                for name, indexes in self.subPools.items():
+                    indexes["startIndex"] = 0
+                    indexes["endIndex"] = -1
+                    return
             for name, indexes in self.subPools.items():
                 indexes["startIndex"] -= n
                 indexes["endIndex"] += n
-            self.maxIndex = len(self.tradeList)
-            return True
         raise AssertionError(
             'An empty set of trades was recieved when trying to add more trades to a pool.'
         )
@@ -162,7 +168,7 @@ class TradePool:
         if name not in self.subPools:
             self.addPool(name)
         logging.debug(f'Inital startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
-        logging.debug(f'Moving Indes for subPool: {name}')
+        logging.debug(f'Moving Indexs for subPool: {name}')
         if timeGroup == 'future':
             return self.selectFutureTrade(name, endTimeMilliseconds)
         pastTrades = self.selectPastTrades(name, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)

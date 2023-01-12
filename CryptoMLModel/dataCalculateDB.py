@@ -38,7 +38,7 @@ def main():
 
         logging.debug(f'Attempting feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
         df, index = tryFeatureCalculation(df, tradePool, tradeManager, index, trade)
-        logging.info(f'Completed feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
+        logging.debug(f'Completed feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
         farthestCompleteTradeId = trade[4]
         # For inital testing purposes only
         testBatcher += 1
@@ -79,7 +79,7 @@ def addMoreTrades(tradePool, tradeManager, batchMultiplier):
         tradeList = tradeManager.getAdditionalTradeList(0.25)
         cumulativeCount += len(tradeList)
         tradePool.rotateTradesIntoTheFuture(tradeList)
-    logging.info('Finished adding more trades.')
+    logging.info(f'Finished adding {cumulativeCount} more trades.')
     tradePool.logPoolDetails()
     exit()
     return cumulativeCount
