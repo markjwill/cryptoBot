@@ -5,6 +5,9 @@ import datetime
 # trades[2] type
 # trades[3] date_ms
 # trades[4] trade_id
+# trades[5] coinbasePrice
+# trades[6] huobiPrice
+# trades[7] binancePrice
 
 class TradePool:
 
@@ -95,21 +98,21 @@ class TradePool:
     def rotateTradesIntoTheFuture(self, newTrades):
         if self.maxIndex == 0:
             return self.setInitalTrades(newTrades)
-        if n := len(newTrades):
-            del self.tradeList[:n]
-            self.tradeList = self.tradeList + newTrades
-            self.maxIndex = len(self.tradeList)
-            if n > self.maxIndex:
-                for name, indexes in self.subPools.items():
-                    indexes["startIndex"] = 0
-                    indexes["endIndex"] = -1
-                    return
-            for name, indexes in self.subPools.items():
-                indexes["startIndex"] -= n
-                indexes["endIndex"] += n
-        raise AssertionError(
-            'An empty set of trades was recieved when trying to add more trades to a pool.'
-        )
+        numberOfTrades = len(newTrades)
+        if numberOfTrades == 0:
+            raise AssertionError(
+                'An empty set of trades was recieved when trying to add more trades to a pool.'
+            )
+        del self.tradeList[:numberOfTrades]
+        self.tradeList = self.tradeList + newTrades
+        self.maxIndex = len(self.tradeList)
+        for name, indexes in self.subPools.items():
+            indexes["startIndex"] -= numberOfTrades
+            if indexes["startIndex"] < 0:
+                indexes["startIndex"] = 0
+            indexes["endIndex"] -= numberOfTrades
+            if indexes["endIndex"] < self.maxIndex * -1:
+                indexes["endIndex"] = -1
 
     def startIndexExistsCheck(self, listIndex, name, debug):
         if listIndex <= -1:

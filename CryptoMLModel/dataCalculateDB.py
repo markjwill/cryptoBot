@@ -8,7 +8,11 @@ import tradeDbManager as tdm
 def main():
     tradeManager = tdm.TradeDbManager()
     calculateTableName = tradeManager.getUniqueTableName(
-        dataCalculate.TIME_PERIODS | dataCalculate.PERIOD_FEATURES | dataCalculate.NON_PERIOD_FEATURES
+        dataCalculate.TIME_PERIODS | 
+        dataCalculate.PRICE_ONLY_PERIOD_FEATURES | 
+        dataCalculate.RICH_PERIOD_FEATURES | 
+        dataCalculate.FEATURE_INDEXES | 
+        dataCalculate.NON_PERIOD_FEATURES
     )
     tradeManager.setMaxTimePeriod(dataCalculate.MAX_PERIOD)
     farthestCompleteTradeId = tradeManager.getFarthestCompleteTradeId()
@@ -43,6 +47,7 @@ def main():
         # For inital testing purposes only
         testBatcher += 1
         if testBatcher == 100000:
+            logging.info('testBatcher limit hit')
             break
         
         index += 1

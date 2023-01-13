@@ -7,9 +7,10 @@ import json
 class TradeDbManager:
 
     selectTrades = """
-SELECT `price`, `amount`, `type`, `date_ms`, `id`
+SELECT `price`, `amount`, `type`, `date_ms`, `trades`.`id`, `coinbasePrice`, `huobiPrice` ,`binancePrice`
 FROM `trades`
-WHERE `id` > ?
+LEFT JOIN `outsidePrices` on ( `trades`.`id` = `outsidePrices`.`tradeId` )
+WHERE `trades`.`id` > ?
 ORDER BY `date_ms` ASC
 LIMIT %s, %s
 """
@@ -71,6 +72,9 @@ LIMIT 1
 
     def getTradeList(self, batchCount):
         limit = int(self.tradeBatchSize * batchCount)
+        logging.debug('More Trades Query:'
+            f' {self.selectTrades % (str(self.offset), str(limit))}'
+            f' with offset {self.offsetId}.')
         tradeList = mydb.selectAll(self.selectTrades % (str(self.offset), str(limit)), (self.offsetId,))
         self.offset = self.offset + limit
         firstTradeDatetime = datetime.datetime.fromtimestamp(tradeList[0][3]/1000.0).strftime('%Y-%m-%d %H:%M:%S')

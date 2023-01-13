@@ -9,8 +9,9 @@ import numpy as np
 # trade[2] type
 # trade[3] date_ms
 # trade[4] trade_id
-
-# Add outside trade data here
+# trades[5] coinbasePrice
+# trades[6] huobiPrice
+# trades[7] binancePrice
 
 TIME_PERIODS = {
     # 'fiveSeconds': 5000,
@@ -28,27 +29,39 @@ TIME_PERIODS = {
 
 MAX_PERIOD = 7200000
 
-PERIOD_FEATURES = {
+PRICE_PERIOD_FEATURES = {
+    'highPrice'        : 0.0, #high price
+    'lowPrice'         : 0.0, #low price
+    'startPrice'       : 0.0, #start price
+    'endPrice'         : 0.0, #end price
+    'changeReal'       : 0.0, #start to end change price
+    'changePercent'    : 0.0, #start to end change price percent
+    'travelReal'       : 0.0, #low to high change in price
+    'travelPercent'    : 0.0, #low to high change price percent
+    'upVsDown'         : 0, #sum of price increases as +1 and price decreases as -1
+}
+
+RICH_PERIOD_FEATURES {
+    'avgByTimePrice'   : 0.0, #avg Price by time
     'avgByVolumePrice' : 0.0, #avg Price by volume
     'avgByTradesPrice' : 0.0, #avg Price by number of trades
-    'highPrice' : 0.0, #high price
-    'lowPrice' : 0.0, #low price
-    'startPrice' : 0.0, #start price
-    'endPrice' : 0.0, #end price
-    'changeReal' : 0.0, #start to end change price
-    'changePercent' : 0.0, #start to end change price percent
-    'travelReal' : 0.0, #low to high change in price
-    'travelPercent' : 0.0, #low to high change price percent
-    'volume' : 0.0, #sum of trade amounts
-    'volumePrMinute' : 0.0, #sum of trade amounts per minute
-    'sellsPrMinute' : 0.0, #number of sells per minute
-    'sells' : 0, #number of sells
-    'buysPrMinute' : 0.0, #number of buys per minute
-    'buys' : 0, #number of buys
-    'buyVsSell' : 0, #sum of buys as +1 and sells as -1
-    'buyVsSellVolume' : 0,  #sum of buys as +volume and sells as -volume
-    'tradesPrMinute' : 0, #number of trades per minute
-    'tradeCount' : 0 #number of trades
+    'volume'           : 0.0, #sum of trade amounts
+    'volumePrMinute'   : 0.0, #sum of trade amounts per minute
+    'sellsPrMinute'    : 0.0, #number of sells per minute
+    'sells'            : 0, #number of sells
+    'buysPrMinute'     : 0.0, #number of buys per minute
+    'buys'             : 0, #number of buys
+    'buyVsSell'        : 0, #sum of buys as +1 and sells as -1
+    'buyVsSellVolume'  : 0.0, #sum of buys as +volume and sells as -volume
+    'tradesPrMinute'   : 0.0, #number of trades per minute
+    'tradeCount'       : 0, #number of trades
+}
+
+FEATURE_INDEXES = {
+    'exchange' : { 'price' : 0, 'volume' : 1,     'type' : 2    , 'quantity' : True  },
+    'coinbase' : { 'price' : 5, 'volume' : False, 'type' : False, 'quantity' : False },
+    'huobi'    : { 'price' : 6, 'volume' : False, 'type' : False, 'quantity' : False },
+    'binance'  : { 'price' : 7, 'volume' : False, 'type' : False, 'quantity' : False },
 }
 
 NON_PERIOD_FEATURES = {
@@ -62,76 +75,126 @@ NON_PERIOD_FEATURES = {
     'type' : 0 # 1 = buy, -1 = sell
 }
 
-columns = []
+COLUMNS = []
+FEATURES = {}
+
+def initFeatures():
+    if COLUMNS:
+        return
+    if FEATURES:
+        return
+    for source, settings in FEATURE_INDEXES.items():
+        if settings['price'] is not False:
+            for feature, default in PRICE_PERIOD_FEATURES.items()
+                name = f'{source}_{feature}'
+                FEATURES[name] = default
+                COLUMNS.append(name)
+        if settings['price'] is not False
+                and settings['volume'] is not False
+                and settings['type'] is not False
+                and settings['quantity'] is not False:
+            for feature, default in RICH_PERIOD_FEATURES.items()
+                name = f'{source}_{feature}'
+                FEATURES[name] = default
+                COLUMNS.append(name)
 
 def calculatePeriodFeatures(timeGroup, trades, milliseconds):
     if timeGroup == 'future':
-        features = {
+        richFeatures = {
             'endPrice' : trades[-1][0], #end price
         }
-        return features
+        return richFeatures
 
-    features = copy.copy(PERIOD_FEATURES)
+    features = copy.copy(FEATURES)
+
     firstTrade = trades[0]
-    features['startPrice'] = firstTrade[0]
     lastTrade = trades[-1]
-    features['endPrice'] = lastTrade[0]
-    volumeAtPrice = 0
-    priceSum = 0
 
-    if float(features['startPrice']) == 0.0:
-        raise AssertionError(
-            f'Start price feature calculated as 0 at tradeId {lastTrade[4]}.\n'
-            'Ensure every defined PERIOD_FEATURES has a calculation defined in calculateFeatures'
-        )
+    volumeAtPrice = {}
+    priceSum = {}
 
-    if float(features['endPrice']) == 0.0:
-        raise AssertionError(
-            f'End price feature calculated as 0 at tradeId {lastTrade[4]}.\n'
-            'Ensure every defined PERIOD_FEATURES has a calculation defined in calculateFeatures'
-        )
+    for name, settings in FEATURE_INDEXES.items():
+        if settings['price'] is not False:
+            features[f'{name}_startPrice'] = firstTrade[settings['price']]
+            features[f'{name}_endPrice'] = lastTrade[settings['price']]
+            if float(features[f'{name}_startPrice']) == 0.0:
+                raise AssertionError(
+                    f'Start price feature calculated as 0 at tradeId {firstTrade[4]}.\n'
+                )
+            if float(features[f'{name}_endPrice']) == 0.0:
+                raise AssertionError(
+                    f'End price feature calculated as 0 at tradeId {lastTrade[4]}.\n'
+                )
+        if settings['price'] is not False 
+                and settings['volume'] is not False 
+                and settings['type'] is not False 
+                and settings['quantity'] is not False :
+            volumeAtPrice[name] = 0.0
+            priceSum[name] = 0.0
+
+    previousTrade = firstTrade
+
+
 
     for trade in trades:
-        features['tradeCount'] += 1
-        priceSum += trade[0]
-        volumeAtPrice += trade[1] * trade[0]
-        features['volume'] += trade[1]
+        for name, settings in FEATURE_INDEXES.items():
+            if settings['price'] is not False:
+                # do price only stuff
+                if trade[FEATURE_INDEXES[name]['price']] > features[f'{name}_highPrice']:
+                    features[f'{name}_highPrice'] = trade[FEATURE_INDEXES[name]['price']]
 
-        if trade[0] > features['highPrice']:
-            features['highPrice'] = trade[0]
+                if trade[FEATURE_INDEXES[name]['price']] < features[f'{name}_lowPrice'] 
+                        or features[f'{name}_lowPrice'] == 0.0:
+                    features[f'{name}_lowPrice'] = trade[FEATURE_INDEXES[name]['price']]
 
-        if trade[0] < features['lowPrice'] or features['lowPrice'] == 0.0:
-            features['lowPrice'] = trade[0]
+            if settings['price'] is not False 
+                    and settings['volume'] is not False 
+                    and settings['type'] is not False 
+                    and settings['quantity'] is not False :
+                # do rich stuff
+                features[f'{name}_tradeCount'] += 1
+                priceSum[name] += trade[FEATURE_INDEXES[name]['price']]
+                volumeAtPrice[name] += trade[FEATURE_INDEXES[name]['volume']] * trade[FEATURE_INDEXES[name]['price']]
+
+                features[f'{name}_volume'] += trade[FEATURE_INDEXES[name]['volume']]
+
+
 
         if trade[2] == 'buy':
-            features['buys'] += 1
-            features['buyVsSell'] += 1
-            features['buyVsSellVolume'] += trade[1]
+            richFeatures['buys'] += 1
+            richFeatures['buyVsSell'] += 1
+            richFeatures['buyVsSellVolume'] += trade[1]
 
         if trade[2] == 'sell':
-            features['sells'] += 1
-            features['buyVsSell'] -= 1
-            features['buyVsSellVolume'] -= trade[1]
+            richFeatures['sells'] += 1
+            richFeatures['buyVsSell'] -= 1
+            richFeatures['buyVsSellVolume'] -= trade[1]
 
-    features['avgByVolumePrice'] = volumeAtPrice / features['volume']
-    features['avgByTradesPrice'] = priceSum / features['tradeCount']
-    features['volumePrMinute'] = features['volume'] / ( milliseconds / 60000 )
-    features['changeReal'] = features['endPrice'] - features['startPrice']
-    features['changePercent'] = features['changeReal'] * 100 / features['startPrice']
-    features['travelReal'] = features['highPrice'] - features['lowPrice']
-    features['travelPercent'] = features['travelReal'] * 100 / features['lowPrice']
-    features['tradesPrMinute'] = features['tradeCount'] / ( milliseconds / 60000 )
-    features['buysPrMinute'] = features['buys'] / ( milliseconds / 60000 )
-    features['sellsPrMinute'] = features['sells'] / ( milliseconds / 60000 )
+        if trade[0] > previousTrade[0]:
+            richFeatures['upVsDown'] += 1
 
-    features['avgByVolumePrice'] = lastTrade[0] - features['avgByVolumePrice']
-    features['avgByTradesPrice'] = lastTrade[0] - features['avgByTradesPrice']
-    features['lowPrice'] = lastTrade[0] - features['lowPrice']
-    features['highPrice'] = lastTrade[0] - features['highPrice']
-    features['startPrice'] = lastTrade[0] - features['startPrice']
-    features['endPrice'] = lastTrade[0] - features['endPrice']
+        if trade[0] < previousTrade[0]:
+            richFeatures['upVsDown'] -= 1
 
-    return features
+    richFeatures['avgByVolumePrice'] = volumeAtPrice / richFeatures['volume']
+    richFeatures['avgByTradesPrice'] = priceSum / richFeatures['tradeCount']
+    richFeatures['volumePrMinute'] = richFeatures['volume'] / ( milliseconds / 60000 )
+    richFeatures['changeReal'] = richFeatures['endPrice'] - richFeatures['startPrice']
+    richFeatures['changePercent'] = richFeatures['changeReal'] * 100 / richFeatures['startPrice']
+    richFeatures['travelReal'] = richFeatures['highPrice'] - richFeatures['lowPrice']
+    richFeatures['travelPercent'] = richFeatures['travelReal'] * 100 / richFeatures['lowPrice']
+    richFeatures['tradesPrMinute'] = richFeatures['tradeCount'] / ( milliseconds / 60000 )
+    richFeatures['buysPrMinute'] = richFeatures['buys'] / ( milliseconds / 60000 )
+    richFeatures['sellsPrMinute'] = richFeatures['sells'] / ( milliseconds / 60000 )
+
+    richFeatures['avgByVolumePrice'] = lastTrade[0] - richFeatures['avgByVolumePrice']
+    richFeatures['avgByTradesPrice'] = lastTrade[0] - richFeatures['avgByTradesPrice']
+    richFeatures['lowPrice'] = lastTrade[0] - richFeatures['lowPrice']
+    richFeatures['highPrice'] = lastTrade[0] - richFeatures['highPrice']
+    richFeatures['startPrice'] = lastTrade[0] - richFeatures['startPrice']
+    richFeatures['endPrice'] = lastTrade[0] - richFeatures['endPrice']
+
+    return richFeatures
 
 def calculateNonPeriodFeatures(trade):
     features = copy.copy(NON_PERIOD_FEATURES)
@@ -152,13 +215,8 @@ def calculateNonPeriodFeatures(trade):
 
 def setupDataFrame():
     df = pd.DataFrame()
-    for featureName in NON_PERIOD_FEATURES:
-        columns.append(f'past_{featureName}')
-    for periodName in TIME_PERIODS:
-        for featureName in PERIOD_FEATURES:
-            columns.append(f'past_{periodName}_{featureName}')
-        columns.append(f'future_{periodName}_endPrice')
-    logging.debug(f"Dataframe colums set as: {*columns,}")
+    initFeatures()
+    logging.debug(f"Dataframe colums set as: {*COLUMNS,}")
     return df
 
 def calculateAllFeatureGroups(df, tradePool, pivotTrade):
@@ -182,7 +240,7 @@ def calculateAllFeatureGroups(df, tradePool, pivotTrade):
         allFeatures = allFeatures | futureFeatures
 
     data = { pivotTradeId: list(allFeatures.values()) }
-    concatDf = pd.DataFrame.from_dict(data, orient='index', columns=columns)
+    concatDf = pd.DataFrame.from_dict(data, orient='index', columns=COLUMNS)
     df = pd.concat([df, concatDf])
     logging.debug('All feature groups calculated')
     return df
