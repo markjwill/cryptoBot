@@ -40,8 +40,7 @@ PRICE_PERIOD_FEATURES = {
     'upVsDown'         : 0, #sum of price increases as +1 and price decreases as -1
 }
 
-RICH_PERIOD_FEATURES {
-
+RICH_PERIOD_FEATURES = {
     'avgByVolumePrice' : 0.0, #avg Price by volume
     'avgByTradesPrice' : 0.0, #avg Price by number of trades
     'volume'           : 0.0, #sum of trade amounts
@@ -84,15 +83,15 @@ def initFeatures():
         return
     for source, index in FEATURE_INDEXES.items():
         if index['price'] is not False:
-            for feature, default in PRICE_PERIOD_FEATURES.items()
+            for feature, default in PRICE_PERIOD_FEATURES.items():
                 name = f'{source}_{feature}'
                 FEATURES[name] = default
                 COLUMNS.append(name)
-        if index['price'] is not False
-                and index['volume'] is not False
-                and index['type'] is not False
-                and index['quantity'] is not False:
-            for feature, default in RICH_PERIOD_FEATURES.items()
+        if index['price'] is not False and \
+           index['volume'] is not False and \
+           index['type'] is not False and \
+           index['quantity'] is not False:
+            for feature, default in RICH_PERIOD_FEATURES.items():
                 name = f'{source}_{feature}'
                 FEATURES[name] = default
                 COLUMNS.append(name)
@@ -127,10 +126,10 @@ def calculatePeriodFeatures(timeGroup, trades, milliseconds):
                 raise AssertionError(
                     f'End price feature calculated as 0 at tradeId {lastTrade[4]}.\n'
                 )
-        if index['price'] is not False
-                and index['volume'] is not False
-                and index['type'] is not False
-                and index['quantity'] is not False:
+        if index['price'] is not False and \
+           index['volume'] is not False and \
+           index['type'] is not False and \
+           index['quantity'] is not False:
             volumeAtPrice[name] = 0.0
 
     previousTrade = firstTrade
@@ -141,7 +140,7 @@ def calculatePeriodFeatures(timeGroup, trades, milliseconds):
                 if trade[index['price']] > features[f'{name}_highPrice']:
                     features[f'{name}_highPrice'] = trade[index['price']]
 
-                if trade[index['price']] < features[f'{name}_lowPrice'] 
+                if trade[index['price']] < features[f'{name}_lowPrice'] \
                         or features[f'{name}_lowPrice'] == 0.0:
                     features[f'{name}_lowPrice'] = trade[index['price']]
 
@@ -153,10 +152,10 @@ def calculatePeriodFeatures(timeGroup, trades, milliseconds):
 
                 priceSum[name] += trade[index['price']]
 
-            if index['price'] is not False
-                    and index['volume'] is not False
-                    and index['type'] is not False
-                    and index['quantity'] is not False:
+            if index['price'] is not False and \
+               index['volume'] is not False and \
+               index['type'] is not False and \
+               index['quantity'] is not False:
                 features[f'{name}_tradeCount'] += 1
                 volumeAtPrice[name] += trade[index['volume']] * trade[index['price']]
 
@@ -186,10 +185,10 @@ def calculatePeriodFeatures(timeGroup, trades, milliseconds):
             features[f'{name}_highPrice'] = endPrice[name] - features[f'{name}_highPrice']
             features[f'{name}_startPrice'] = endPrice[name] - features[f'{name}_startPrice']
 
-        if index['price'] is not False
-                and index['volume'] is not False
-                and index['type'] is not False
-                and index['quantity'] is not False:
+        if index['price'] is not False and \
+           index['volume'] is not False and \
+           index['type'] is not False and \
+           index['quantity'] is not False:
             features[f'{name}_volumePrMinute'] = features[f'{name}_volume'] / ( milliseconds / 60000 )
             features[f'{name}_tradesPrMinute'] = features[f'{name}_tradeCount'] / ( milliseconds / 60000 )
             features[f'{name}_buysPrMinute'] = features[f'{name}_buys'] / ( milliseconds / 60000 )

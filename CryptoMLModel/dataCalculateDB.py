@@ -6,11 +6,11 @@ import logging
 import tradeDbManager as tdm
 
 def main():
-    batchSize = 500000
+    batchSize = 200000
     tradeManager = tdm.TradeDbManager()
     calculateTableName = tradeManager.getUniqueTableName(
         dataCalculate.TIME_PERIODS | 
-        dataCalculate.PRICE_ONLY_PERIOD_FEATURES | 
+        dataCalculate.PRICE_PERIOD_FEATURES | 
         dataCalculate.RICH_PERIOD_FEATURES | 
         dataCalculate.FEATURE_INDEXES | 
         dataCalculate.NON_PERIOD_FEATURES
