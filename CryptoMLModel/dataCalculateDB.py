@@ -6,6 +6,7 @@ import logging
 import tradeDbManager as tdm
 
 def main():
+    batchSize = 500000
     tradeManager = tdm.TradeDbManager()
     calculateTableName = tradeManager.getUniqueTableName(
         dataCalculate.TIME_PERIODS | 
@@ -22,7 +23,7 @@ def main():
 
     df = dataCalculate.setupDataFrame()
     index = 0
-    testBatcher = 0
+    recordsInBatch = 0
     while index < tradePool.maxIndex:
         trade = tradePool.getTradeAt(index)
         poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
@@ -44,16 +45,18 @@ def main():
         df, index = tryFeatureCalculation(df, tradePool, tradeManager, index, trade)
         logging.debug(f'Completed feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
         farthestCompleteTradeId = trade[4]
-        # For inital testing purposes only
-        testBatcher += 1
-        if testBatcher == 100000:
-            logging.info('testBatcher limit hit')
-            break
-        
-        index += 1
 
-    engine = mydb.getEngine()
-    df.to_sql(calculateTableName, con = engine, if_exists = 'append', chunksize = 1000)
+        recordsInBatch += 1
+        if recordsInBatch >= batchSize:
+            engine = mydb.getEngine()
+            df.to_sql(tableName, con = engine, if_exists = 'append')
+            engine.dispose()
+            df = df[0:0]
+            recordsInBatch = 0
+
+
+
+
 
 def tryFeatureCalculation(df, tradePool, tradeManager, index, pivotTrade):
     try:
@@ -86,7 +89,6 @@ def addMoreTrades(tradePool, tradeManager, batchMultiplier):
         tradePool.rotateTradesIntoTheFuture(tradeList)
     logging.info(f'Finished adding {cumulativeCount} more trades.')
     tradePool.logPoolDetails()
-    exit()
     return cumulativeCount
 
 if __name__ == '__main__':
@@ -104,4 +106,4 @@ if __name__ == '__main__':
         main()
     except StopIteration as error:
         logging.error(error)
-        print("script end reached")
+    print("script end reached")

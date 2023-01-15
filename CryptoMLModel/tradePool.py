@@ -98,21 +98,17 @@ class TradePool:
     def rotateTradesIntoTheFuture(self, newTrades):
         if self.maxIndex == 0:
             return self.setInitalTrades(newTrades)
-        numberOfTrades = len(newTrades)
-        if numberOfTrades == 0:
-            raise AssertionError(
-                'An empty set of trades was recieved when trying to add more trades to a pool.'
-            )
-        del self.tradeList[:numberOfTrades]
-        self.tradeList = self.tradeList + newTrades
-        self.maxIndex = len(self.tradeList)
-        for name, indexes in self.subPools.items():
-            indexes["startIndex"] -= numberOfTrades
-            if indexes["startIndex"] < 0:
+        if n := len(newTrades):
+            del self.tradeList[:n]
+            self.tradeList = self.tradeList + newTrades
+            self.maxIndex = len(self.tradeList)
+            for name, indexes in self.subPools.items():
                 indexes["startIndex"] = 0
-            indexes["endIndex"] -= numberOfTrades
-            if indexes["endIndex"] < self.maxIndex * -1:
                 indexes["endIndex"] = -1
+            return
+        raise AssertionError(
+            'An empty set of trades was recieved when trying to add more trades to a pool.'
+        )
 
     def startIndexExistsCheck(self, listIndex, name, debug):
         if listIndex <= -1:
@@ -181,7 +177,7 @@ class TradePool:
     def selectFutureTrade(self, name, targetMilliseconds):
         self.isMillisecondsInPool(targetMilliseconds, name, 'target time > pool start time and < pool end time')
         self.startIndexExistsCheck(self.subPools[name]["startIndex"], name, 'inital index check')
-        self.subPools[name]["endIndex"] = self.subPools[name]["startIndex"] + 1
+        self.subPools[name]["endIndex"] = self.subPools[name]["startIndex"]
 
         initalStartTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]["startIndex"])))
         targetStartTime = self.logTime(targetMilliseconds)
