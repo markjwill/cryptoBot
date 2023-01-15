@@ -99,14 +99,10 @@ class TradePool:
             del self.tradeList[:n]
             self.tradeList = self.tradeList + newTrades
             self.maxIndex = len(self.tradeList)
-            if n > self.maxIndex:
-                for name, indexes in self.subPools.items():
-                    indexes["startIndex"] = 0
-                    indexes["endIndex"] = -1
-                    return
             for name, indexes in self.subPools.items():
-                indexes["startIndex"] -= n
-                indexes["endIndex"] += n
+                indexes["startIndex"] = 0
+                indexes["endIndex"] = -1
+            return
         raise AssertionError(
             'An empty set of trades was recieved when trying to add more trades to a pool.'
         )
@@ -178,7 +174,7 @@ class TradePool:
     def selectFutureTrade(self, name, targetMilliseconds):
         self.isMillisecondsInPool(targetMilliseconds, name, 'target time > pool start time and < pool end time')
         self.startIndexExistsCheck(self.subPools[name]["startIndex"], name, 'inital index check')
-        self.subPools[name]["endIndex"] = self.subPools[name]["startIndex"] + 1
+        self.subPools[name]["endIndex"] = self.subPools[name]["startIndex"]
 
         initalStartTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]["startIndex"])))
         targetStartTime = self.logTime(targetMilliseconds)

@@ -46,19 +46,23 @@ LIMIT 1
             self.farthestCompleteTradeId, *x = mydb.selectOneStatic(
                 self.selectFarthestCompleteTrade % self.calculatedTableName
             )
+            logging.debug(f'FarthestCompleteTradeId: {self.farthestCompleteTradeId}')
             farthestCompleteTradeMilliseconds, *x = mydb.selectOne(
-                self.selectDateMsById, self.farthestCompleteTradeId
+                self.selectDateMsById, (self.farthestCompleteTradeId, )
             )
+            logging.debug(f'FarthestCompleteTradeMilliseconds: {farthestCompleteTradeMilliseconds} date: {self.logTime(farthestCompleteTradeMilliseconds)}')
+            targetStartMilliseconds = farthestCompleteTradeMilliseconds - self.maxTimePeriod
             self.offsetId, *x = mydb.selectOne(
-                self.selectMaxPeriodAgoId, (
-                    farthestCompleteTradeMilliseconds - self.maxTimePeriod
-                )
+                self.selectMaxPeriodAgoId, (targetStartMilliseconds, )
             )
+            logging.debug(f'targetMilliseconds: {targetStartMilliseconds} date: {self.logTime(targetStartMilliseconds)}')
+
         except mydb.mariadb.ProgrammingError as error:
             logging.info('No existing tradesCalculated table found')
             logging.debug('Or some other mysql problem exists:')
             logging.debug(error)
         logging.info(f'Farthest complete tradeId {self.farthestCompleteTradeId} OffsetId set to {self.offsetId}')
+
         return self.farthestCompleteTradeId
 
     def getStarterTradeList(self):
@@ -91,5 +95,7 @@ LIMIT 1
         self.calculatedTableName = f'tradesCalculated_{dhash.hexdigest()}'
         return self.calculatedTableName
 
+    def logTime(self, milliseconds):
+        return datetime.datetime.fromtimestamp(milliseconds/1000.0).strftime('%Y-%m-%d %H:%M:%S')
 
 
