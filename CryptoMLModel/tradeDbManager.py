@@ -9,8 +9,11 @@ class TradeDbManager:
     selectTrades = """
 SELECT `price`, `amount`, `type`, `date_ms`, `trades`.`id`, `coinbasePrice`, `huobiPrice` ,`binancePrice`
 FROM `trades`
-LEFT JOIN `outsidePrices` on ( `trades`.`id` = `outsidePrices`.`tradeId` )
+JOIN `outsidePrices` on ( `trades`.`id` = `outsidePrices`.`tradeId` )
 WHERE `trades`.`id` > ?
+AND `coinbasePrice`!= 0
+AND `huobiPrice`!= 0
+AND `binancePrice`!= 0
 ORDER BY `date_ms` ASC
 LIMIT %s, %s
 """
