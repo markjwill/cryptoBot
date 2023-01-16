@@ -256,7 +256,7 @@ def calculateAllFeatureGroups(df, tradePool, pivotTrade):
 
     allFeatures = allFeatures | calculateNonPeriodFeatures(pivotTrade)
 
-    for name, periodMilliseconds in TIME_PERIODS.items():
+    for timeName, periodMilliseconds in TIME_PERIODS.items():
         timeGroup = 'past'
         startTimeMilliseconds = tradeTimeMilliseconds - periodMilliseconds
         endTimeMilliseconds = tradeTimeMilliseconds
