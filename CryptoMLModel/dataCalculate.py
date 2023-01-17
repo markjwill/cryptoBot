@@ -115,18 +115,18 @@ def addFeatureName(name, default):
 def calculateFuturePeriodFeatures(trades, pivotPrice):
     if not trades:
         raise AssertionError(
-            f'Empty trade list sent to feature calculation {firstTrade[4]}.\n'
+            f'Empty trade list sent to future feature calculation.\n'
         )
 
     features = {
-        'futurePrice' : pivotPrice - trades[-1][0], #end price
+        'futurePrice' : trades[-1][0] - pivotPrice #end price
     }
     return features
 
 def calculatePastPeriodFeatures(trades, milliseconds):
     if not trades:
         raise AssertionError(
-            f'Empty trade list sent to feature calculation {firstTrade[4]}.\n'
+            f'Empty trade list sent to past feature calculation.\n'
         )
 
     features = copy.copy(FEATURES)
@@ -204,15 +204,15 @@ def calculatePastPeriodFeatures(trades, milliseconds):
     for sourceName, index in FEATURE_INDEXES.items():
         pivotPrice = endPrice[sourceName]
         if index['price'] is not False:
-            features[f'{sourceName}_changeReal'] = pivotPrice - features[f'{sourceName}_startPrice']
+            features[f'{sourceName}_changeReal'] = features[f'{sourceName}_startPrice'] - pivotPrice
             features[f'{sourceName}_changePercent'] = features[f'{sourceName}_changeReal'] * 100 / features[f'{sourceName}_startPrice']
             features[f'{sourceName}_travelReal'] = features[f'{sourceName}_highPrice'] - features[f'{sourceName}_lowPrice']
             features[f'{sourceName}_travelPercent'] = features[f'{sourceName}_travelReal'] * 100 / features[f'{sourceName}_lowPrice']
 
-            features[f'{sourceName}_avgByTradesPrice'] = pivotPrice - ( priceSum[sourceName] / tradeCount )
-            features[f'{sourceName}_lowPrice'] = pivotPrice - features[f'{sourceName}_lowPrice']
-            features[f'{sourceName}_highPrice'] = pivotPrice - features[f'{sourceName}_highPrice']
-            features[f'{sourceName}_startPrice'] = pivotPrice - features[f'{sourceName}_startPrice']
+            features[f'{sourceName}_avgByTradesPrice'] = ( priceSum[sourceName] / tradeCount ) - pivotPrice
+            features[f'{sourceName}_lowPrice'] = features[f'{sourceName}_lowPrice'] - pivotPrice
+            features[f'{sourceName}_highPrice'] = features[f'{sourceName}_highPrice'] - pivotPrice
+            features[f'{sourceName}_startPrice'] = features[f'{sourceName}_startPrice'] - pivotPrice
 
         if    index['price'] is not False and \
              index['volume'] is not False and \
@@ -222,7 +222,7 @@ def calculatePastPeriodFeatures(trades, milliseconds):
             features[f'{sourceName}_tradesPrMinute'] = features['tradeCount'] / ( milliseconds / 60000 )
             features[f'{sourceName}_buysPrMinute'] = features[f'{sourceName}_buys'] / ( milliseconds / 60000 )
             features[f'{sourceName}_sellsPrMinute'] = features[f'{sourceName}_sells'] / ( milliseconds / 60000 )
-            features[f'{sourceName}_avgByVolumePrice'] = pivotPrice - ( volumeAtPrice[sourceName] / features[f'{sourceName}_volume'] )
+            features[f'{sourceName}_avgByVolumePrice'] = ( volumeAtPrice[sourceName] / features[f'{sourceName}_volume'] ) - pivotPrice
 
     return features, endPrice['exchange']
 
@@ -260,15 +260,16 @@ def calculateAllFeatureGroups(df, tradePool, pivotTrade):
         timeGroup = 'past'
         startTimeMilliseconds = tradeTimeMilliseconds - periodMilliseconds
         endTimeMilliseconds = tradeTimeMilliseconds
-        pastFeatures, pivotPrice = calculatePastFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
+        pastFeatures, pivotPrice = calculatePastFeatureGroup(timeName, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
         allFeatures = allFeatures | pastFeatures
 
         timeGroup = 'future'
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
-        futureFeatures = calculateFutureFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, pivotPrice)
+        futureFeatures = calculateFutureFeatureGroup(timeName, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, pivotPrice)
         allFeatures = allFeatures | futureFeatures
 
+    # move dataFrame concat to a seperate function
     data = { pivotTradeId: list(allFeatures.values()) }
     concatDf = pd.DataFrame.from_dict(data, orient='index', columns=COLUMNS)
     df = pd.concat([df, concatDf])

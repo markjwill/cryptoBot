@@ -4,11 +4,60 @@ import dataCalculate
 import argparse
 import logging
 import tradeDbManager as tdm
+import timing
 
 def main():
     batchSize = 200000
+    tradeManager, tradeList, farthestCompleteTradeId, calculatedTableName = setupTradeManager()
+    tradePool = setupTradePool(tradeList)
+    df = dataCalculate.setupDataFrame()
+    timing.log('Inital setup complete')
+
+    index = 0
+    recordsInBatch = 0
+    firstCalculation = True
+    while index < tradePool.maxIndex:
+        pivotTrade = tradePool.getTradeAt(index)
+        poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
+        tradeDatetime = tradePool.logTime(pivotTrade[3])
+        if poolStartMilliseconds + 1000 >= pivotTrade[3] - dataCalculate.MAX_PERIOD:
+            index += 1
+            logging.debug(
+                f'Skipping trade recorded at {tradeDatetime} for being '
+                'less than MAX_PERIOD + 1 second into the tradesPool'
+            )
+            continue
+
+        if pivotTrade[4] <= farthestCompleteTradeId:
+            index += 1
+            logging.debug(f'Skipping trade recorded at {tradeDatetime} for being already calculated.')
+            continue
+
+        if firstCalculation == True:
+            timing.log('Starting first calcuation')
+            batchCalculationStart = timing.startCalculation()
+            firstCalculation = False
+
+        logging.debug(f'Attempting feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
+        df, index = tryFeatureCalculation(df, tradePool, tradeManager, index, pivotTrade)
+        logging.debug(f'Completed feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
+        farthestCompleteTradeId = pivotTrade[4]
+
+        recordsInBatch += 1
+        if recordsInBatch >= batchSize:
+            timing.endCalculation(batchCalculationStart, recordsInBatch)
+            timing.log(f'{recordsInBatch} calculations complete, Starting calcuated data save')
+            logging.info(f'Completed feature calcuation through {tradeDatetime}')
+            engine = mydb.getEngine()
+            df.to_sql(calculatedTableName, con = engine, if_exists = 'append')
+            engine.dispose()
+            df = df[0:0]
+            recordsInBatch = 0
+            batchCalculationStart = timing.startCalculation()
+
+def setupTradeManager():
     tradeManager = tdm.TradeDbManager()
-    calculateTableName = tradeManager.getUniqueTableName(
+    calculatedTableName = tradeManager.getUniqueTableName(
         dataCalculate.TIME_PERIODS | 
         dataCalculate.PRICE_PERIOD_FEATURES | 
         dataCalculate.RICH_PERIOD_FEATURES | 
@@ -18,45 +67,12 @@ def main():
     tradeManager.setMaxTimePeriod(dataCalculate.MAX_PERIOD)
     farthestCompleteTradeId = tradeManager.getFarthestCompleteTradeId()
     tradeList = tradeManager.getStarterTradeList()
+    return tradeManager, tradeList, farthestCompleteTradeId, calculatedTableName
+
+def setupTradePool(tradeList):
     tradePool = tp.TradePool()
     tradePool.setInitalTrades(tradeList)
-
-    df = dataCalculate.setupDataFrame()
-    index = 0
-    recordsInBatch = 0
-    while index < tradePool.maxIndex:
-        trade = tradePool.getTradeAt(index)
-        poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
-        tradeDatetime = tradePool.logTime(trade[3])
-        if poolStartMilliseconds + 1000 >= trade[3] - dataCalculate.MAX_PERIOD:
-            index += 1
-            logging.debug(
-                f'Skipping trade recorded at {tradeDatetime} for being '
-                'less than MAX_PERIOD + 1 second into the tradesPool'
-            )
-            continue
-
-        if trade[4] <= farthestCompleteTradeId:
-            index += 1
-            logging.debug(f'Skipping trade recorded at {tradeDatetime} for being already calculated.')
-            continue
-
-        logging.debug(f'Attempting feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
-        df, index = tryFeatureCalculation(df, tradePool, tradeManager, index, trade)
-        logging.debug(f'Completed feature calcuation for tradeId {trade[4]} recorded at {tradeDatetime}')
-        farthestCompleteTradeId = trade[4]
-
-        recordsInBatch += 1
-        if recordsInBatch >= batchSize:
-            engine = mydb.getEngine()
-            df.to_sql(tableName, con = engine, if_exists = 'append')
-            engine.dispose()
-            df = df[0:0]
-            recordsInBatch = 0
-
-
-
-
+    return tradePool
 
 def tryFeatureCalculation(df, tradePool, tradeManager, index, pivotTrade):
     try:
@@ -102,8 +118,9 @@ if __name__ == '__main__':
 
     logging.basicConfig( level=args.loglevel.upper() )
     logging.info( 'Logging now setup.' )
+    timing.startTiming()
     try:
         main()
     except StopIteration as error:
         logging.error(error)
-    print("script end reached")
+    logging.info("script end reached")
