@@ -7,7 +7,7 @@ import tradeDbManager as tdm
 import timing
 
 def main():
-    batchSize = 200000
+    batchSize = 50000
     tradeManager, tradeList, farthestCompleteTradeId, calculatedTableName = setupTradeManager()
     tradePool = setupTradePool(tradeList)
     df = dataCalculate.setupDataFrame()
@@ -34,6 +34,7 @@ def main():
             continue
 
         if firstCalculation == True:
+            logging.info(f'Starting feature calcuation at {tradeDatetime}')
             timing.log('Starting first calcuation')
             batchCalculationStart = timing.startCalculation()
             firstCalculation = False

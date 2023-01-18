@@ -13,6 +13,7 @@ import numpy as np
 # trades[6] huobiPrice
 # trades[7] binancePrice
 
+#consider moving uppercase lists & dicts to a 'features' file or class
 TIME_PERIODS = {
     'tenSeconds'       : 10000,
     'thirtySeconds'    : 30000,
@@ -26,10 +27,10 @@ TIME_PERIODS = {
 MAX_PERIOD = 7200000
 
 PRICE_PERIOD_FEATURES = {
-    'avgByTradesPrice' : 0.0, #avg Price by number of trades
-    'highPrice'        : 0.0, #high price
-    'lowPrice'         : 0.0, #low price
-    'startPrice'       : 0.0, #start price
+    'avgByTradesPrice' : 0.0, #avg Price by number of trades - pivot price
+    'highPrice'        : 0.0, #high price - pivot price
+    'lowPrice'         : 0.0, #low price - pivot price
+    'startPrice'       : 0.0, #start price - pivot price
     'changeReal'       : 0.0, #start to end change price
     'changePercent'    : 0.0, #start to end change price percent
     'travelReal'       : 0.0, #low to high change in price
@@ -38,7 +39,7 @@ PRICE_PERIOD_FEATURES = {
 }
 
 RICH_PERIOD_FEATURES = {
-    'avgByVolumePrice' : 0.0, #avg Price by volume
+    'avgByVolumePrice' : 0.0, #avg Price by volume - pivot price
     'volume'           : 0.0, #sum of trade amounts
     'volumePrMinute'   : 0.0, #sum of trade amounts per minute
     'sellsPrMinute'    : 0.0, #number of sells per minute
@@ -69,8 +70,33 @@ NON_PERIOD_FEATURES = {
     'dayIntoYearSin'    : 0, # day in year sin
     'dayIntoYearCos'    : 0, # day in year cos
     'volume'            : 0, # amount traded
-    'type'              : 0 # 1 = buy, -1 = sell
+    'type'              : 0  # 1 = buy, -1 = sell
 }
+
+#something like
+#normDf = df[i for i in df<cols> if i not in dataCalculate.DO_NOT_NORMALIZE]
+#df[(np.abs(stats.zscore(normDf)) < 3).all(axis=1)]
+
+DO_NOT_NORMALIZE = [
+    'type',
+    'secondsIntoDaySin',
+    'secondsIntoDayCos',
+    'dayIntoWeekSin',
+    'dayIntoWeekCos',
+    'dayIntoYearSin',
+    'dayIntoYearCos',
+]
+
+DO_NOT_OUTLIERS = [
+    'type',
+    'secondsIntoDaySin',
+    'secondsIntoDayCos',
+    'dayIntoWeekSin',
+    'dayIntoWeekCos',
+    'dayIntoYearSin',
+    'dayIntoYearCos',
+]
+
 
 COLUMNS = []
 FEATURES = {}
