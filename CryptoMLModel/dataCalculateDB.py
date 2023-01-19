@@ -5,12 +5,15 @@ import argparse
 import logging
 import tradeDbManager as tdm
 import timing
+import features
+import pandas as pd
 
-def main():
+def main(workerCount, workerIndex):
     batchSize = 50000
-    tradeManager, tradeList, farthestCompleteTradeId, calculatedTableName = setupTradeManager()
+    features = setupFeatures()
+    tradeDbManager, tradeList, farthestCompleteTradeId, calculatedTableName = setupTradeManager()
     tradePool = setupTradePool(tradeList)
-    df = dataCalculate.setupDataFrame()
+    df = pd.DataFrame()
     timing.log('Inital setup complete')
 
     index = 0
@@ -20,7 +23,7 @@ def main():
         pivotTrade = tradePool.getTradeAt(index)
         poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
         tradeDatetime = tradePool.logTime(pivotTrade[3])
-        if poolStartMilliseconds + 1000 >= pivotTrade[3] - dataCalculate.MAX_PERIOD:
+        if poolStartMilliseconds + 1000 >= pivotTrade[3] - features.MAX_PERIOD:
             index += 1
             logging.debug(
                 f'Skipping trade recorded at {tradeDatetime} for being '
@@ -40,7 +43,7 @@ def main():
             firstCalculation = False
 
         logging.debug(f'Attempting feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
-        df, index = tryFeatureCalculation(df, tradePool, tradeManager, index, pivotTrade)
+        df, index = tryFeatureCalculation(df, tradePool, tradeDbManager, features, index, pivotTrade)
         logging.debug(f'Completed feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
         farthestCompleteTradeId = pivotTrade[4]
 
@@ -56,28 +59,28 @@ def main():
             recordsInBatch = 0
             batchCalculationStart = timing.startCalculation()
 
-def setupTradeManager():
-    tradeManager = tdm.TradeDbManager()
-    calculatedTableName = tradeManager.getUniqueTableName(
-        dataCalculate.TIME_PERIODS | 
-        dataCalculate.PRICE_PERIOD_FEATURES | 
-        dataCalculate.RICH_PERIOD_FEATURES | 
-        dataCalculate.FEATURE_INDEXES | 
-        dataCalculate.NON_PERIOD_FEATURES
+def setupTradeManager(features):
+    tradeDbManager = tdm.TradeDbManager()
+    calculatedTableName = tradeDbManager.getUniqueTableName(
+        features.getDictForTableName()
     )
-    tradeManager.setMaxTimePeriod(dataCalculate.MAX_PERIOD)
-    farthestCompleteTradeId = tradeManager.getFarthestCompleteTradeId()
-    tradeList = tradeManager.getStarterTradeList()
-    return tradeManager, tradeList, farthestCompleteTradeId, calculatedTableName
+    tradeDbManager.setMaxTimePeriod(features.MAX_PERIOD)
+    farthestCompleteTradeId = tradeDbManager.getFarthestCompleteTradeId()
+    tradeList = tradeDbManager.getStarterTradeList()
+    return tradeDbManager, tradeList, farthestCompleteTradeId, calculatedTableName
 
 def setupTradePool(tradeList):
     tradePool = tp.TradePool()
     tradePool.setInitalTrades(tradeList)
     return tradePool
 
-def tryFeatureCalculation(df, tradePool, tradeManager, index, pivotTrade):
+def setupFeatures():
+    features = Features()
+    return features
+
+def tryFeatureCalculation(df, tradePool, tradeDbManager, features, index, pivotTrade):
     try:
-        df = dataCalculate.calculateAllFeatureGroups(df, tradePool, pivotTrade)
+        df = dataCalculate.calculateAllFeatureGroups(df, tradePool, features, pivotTrade)
         index += 1
         return df, index
     except AssertionError as error:
@@ -86,22 +89,22 @@ def tryFeatureCalculation(df, tradePool, tradeManager, index, pivotTrade):
     except IndexError as error:
         logging.error(error)
         if error.args[1]:
-            if addedTradeCount := addMoreTrades(tradePool, tradeManager, 1):
+            if addedTradeCount := addMoreTrades(tradePool, tradeDbManager, 1):
                 return df, max(0,index - addedTradeCount)
             raise StopIteration('No additional trades available to continue.')
         raise
 
-def addMoreTrades(tradePool, tradeManager, batchMultiplier):
+def addMoreTrades(tradePool, tradeDbManager, batchMultiplier):
     tradePool.logPoolDetails()
     logging.info('Starting adding more trades.')
     cumulativeCount = 0
-    tradeList = tradeManager.getAdditionalTradeList(batchMultiplier)
+    tradeList = tradeDbManager.getAdditionalTradeList(batchMultiplier)
     cumulativeCount += len(tradeList)
     tradePool.rotateTradesIntoTheFuture(tradeList)
     while tradePool.dataGaps():
         logging.info('Adding more trades to get past data gaps.')
         #consider a more fine grained approach here
-        tradeList = tradeManager.getAdditionalTradeList(0.25)
+        tradeList = tradeDbManager.getAdditionalTradeList(0.25)
         cumulativeCount += len(tradeList)
         tradePool.rotateTradesIntoTheFuture(tradeList)
     logging.info(f'Finished adding {cumulativeCount} more trades.')
@@ -114,6 +117,16 @@ if __name__ == '__main__':
                          '--loglevel',
                          default='warning',
                          help='Provide logging level. Example --loglevel debug, default=warning' )
+
+    parser.add_argument( '-i',
+                         '--index',
+                         default='warning',
+                         help='Provide worker index. Example --index 2, default=warning' )
+
+    parser.add_argument( '-workers',
+                         '--workers',
+                         default='warning',
+                         help='Provide how many workers will be running. Example --workers 3, default=warning' )
 
     args = parser.parse_args()
 

@@ -1,4 +1,3 @@
-import pandas as pd
 import copy
 import logging
 import datetime
@@ -13,130 +12,7 @@ import numpy as np
 # trades[6] huobiPrice
 # trades[7] binancePrice
 
-#consider moving uppercase lists & dicts to a 'features' file or class
-TIME_PERIODS = {
-    'tenSeconds'       : 10000,
-    'thirtySeconds'    : 30000,
-    'ninetySeconds'    : 90000,
-    'fiveMinutes'      : 300000,
-    'fifteenMinutes'   : 900000,
-    'fortyFiveMinutes' : 2700000,
-    'twoHours'         : 7200000
-}
-
-MAX_PERIOD = 7200000
-
-PRICE_PERIOD_FEATURES = {
-    'avgByTradesPrice' : 0.0, #avg Price by number of trades - pivot price
-    'highPrice'        : 0.0, #high price - pivot price
-    'lowPrice'         : 0.0, #low price - pivot price
-    'startPrice'       : 0.0, #start price - pivot price
-    'changeReal'       : 0.0, #start to end change price
-    'changePercent'    : 0.0, #start to end change price percent
-    'travelReal'       : 0.0, #low to high change in price
-    'travelPercent'    : 0.0, #low to high change price percent
-    'upVsDown'         : 0,   #sum of price increases as +1 and price decreases as -1
-}
-
-RICH_PERIOD_FEATURES = {
-    'avgByVolumePrice' : 0.0, #avg Price by volume - pivot price
-    'volume'           : 0.0, #sum of trade amounts
-    'volumePrMinute'   : 0.0, #sum of trade amounts per minute
-    'sellsPrMinute'    : 0.0, #number of sells per minute
-    'sells'            : 0,   #number of sells
-    'buysPrMinute'     : 0.0, #number of buys per minute
-    'buys'             : 0,   #number of buys
-    'buyVsSell'        : 0,   #sum of buys as +1 and sells as -1
-    'buyVsSellVolume'  : 0.0, #sum of buys as +volume and sells as -volume
-    'tradesPrMinute'   : 0.0, #number of trades per minute
-}
-
-SINGLE_PERIOD_FEATURES = {
-    'tradeCount' : 0, #number of trades
-}
-
-FEATURE_INDEXES = {
-    'exchange' : { 'price' : 0, 'volume' : 1,     'type' : 2,     'quantity' : True  },
-    'coinbase' : { 'price' : 5, 'volume' : False, 'type' : False, 'quantity' : False },
-    'huobi'    : { 'price' : 6, 'volume' : False, 'type' : False, 'quantity' : False },
-    'binance'  : { 'price' : 7, 'volume' : False, 'type' : False, 'quantity' : False },
-}
-
-NON_PERIOD_FEATURES = {
-    'secondsIntoDaySin' : 0, # seconds in day sin
-    'secondsIntoDayCos' : 0, # seconds in day cos
-    'dayIntoWeekSin'    : 0, # day in week sin
-    'dayIntoWeekCos'    : 0, # day in week cos
-    'dayIntoYearSin'    : 0, # day in year sin
-    'dayIntoYearCos'    : 0, # day in year cos
-    'volume'            : 0, # amount traded
-    'type'              : 0  # 1 = buy, -1 = sell
-}
-
-#something like
-#normDf = df[i for i in df<cols> if i not in dataCalculate.DO_NOT_NORMALIZE]
-#df[(np.abs(stats.zscore(normDf)) < 3).all(axis=1)]
-
-DO_NOT_NORMALIZE = [
-    'type',
-    'secondsIntoDaySin',
-    'secondsIntoDayCos',
-    'dayIntoWeekSin',
-    'dayIntoWeekCos',
-    'dayIntoYearSin',
-    'dayIntoYearCos',
-]
-
-DO_NOT_OUTLIERS = [
-    'type',
-    'secondsIntoDaySin',
-    'secondsIntoDayCos',
-    'dayIntoWeekSin',
-    'dayIntoWeekCos',
-    'dayIntoYearSin',
-    'dayIntoYearCos',
-]
-
-
-COLUMNS = []
-FEATURES = {}
-
-def initFeatures():
-    if COLUMNS:
-        return
-    if FEATURES:
-        return
-
-    for featureName, default in SINGLE_PERIOD_FEATURES.items():
-        FEATURES[featureName] = default
-
-    for sourceName, index in FEATURE_INDEXES.items():
-        if index['price'] is not False:
-            for feature, default in PRICE_PERIOD_FEATURES.items():
-                FEATURES[f'{sourceName}_{feature}'] = default
-        if    index['price'] is not False and \
-             index['volume'] is not False and \
-               index['type'] is not False and \
-           index['quantity'] is not False:
-            for feature, default in RICH_PERIOD_FEATURES.items():
-                FEATURES[f'{sourceName}_{feature}'] = default
-
-    for featureName, default in NON_PERIOD_FEATURES.items():
-        COLUMNS.append(featureName)
-
-    for timeName in TIME_PERIODS:
-        for featureName in FEATURES:
-            COLUMNS.append(f'{timeName}_{featureName}')
-        COLUMNS.append(f'{timeName}_futurePrice')
-
-    logging.debug('COLUMNS:')
-    logging.debug(COLUMNS)
-    logging.debug('FEATURES:')
-    logging.debug(FEATURES)
-
-def addFeatureName(name, default):
-    FEATURES[name] = default
-    COLUMNS.append(name)
+# update all trade[n] syntax to use named tradePool functions instead
 
 def calculateFuturePeriodFeatures(trades, pivotPrice):
     if not trades:
@@ -149,13 +25,13 @@ def calculateFuturePeriodFeatures(trades, pivotPrice):
     }
     return features
 
-def calculatePastPeriodFeatures(trades, milliseconds):
+def calculatePastPeriodFeatures(trades, milliseconds, features):
     if not trades:
         raise AssertionError(
             f'Empty trade list sent to past feature calculation.\n'
         )
 
-    features = copy.copy(FEATURES)
+    features = copy.copy(features.PERIOD_FEATURES)
 
     firstTrade = trades[0]
     lastTrade = trades[-1]
@@ -167,7 +43,7 @@ def calculatePastPeriodFeatures(trades, milliseconds):
 
     features['tradeCount'] = len(trades)
 
-    for sourceName, index in FEATURE_INDEXES.items():
+    for sourceName, index in features.FEATURE_INDEXES.items():
         logging.debug(index)
         if index['price'] is not False:
             features[f'{sourceName}_startPrice'] = firstTrade[index['price']]
@@ -190,7 +66,7 @@ def calculatePastPeriodFeatures(trades, milliseconds):
     previousTrade = firstTrade
 
     for trade in trades:
-        for sourceName, index in FEATURE_INDEXES.items():
+        for sourceName, index in features.FEATURE_INDEXES.items():
             if index['price'] is not False:
                 if trade[index['price']] > features[f'{sourceName}_highPrice']:
                     features[f'{sourceName}_highPrice'] = trade[index['price']]
@@ -227,7 +103,7 @@ def calculatePastPeriodFeatures(trades, milliseconds):
 
         previousTrade = trade
 
-    for sourceName, index in FEATURE_INDEXES.items():
+    for sourceName, index in features.FEATURE_INDEXES.items():
         pivotPrice = endPrice[sourceName]
         if index['price'] is not False:
             features[f'{sourceName}_changeReal'] = features[f'{sourceName}_startPrice'] - pivotPrice
@@ -252,8 +128,8 @@ def calculatePastPeriodFeatures(trades, milliseconds):
 
     return features, endPrice['exchange']
 
-def calculateNonPeriodFeatures(trade):
-    features = copy.copy(NON_PERIOD_FEATURES)
+def calculateNonPeriodFeatures(trade, features):
+    features = copy.copy(features.NON_PERIOD_FEATURES)
     dt = datetime.datetime.fromtimestamp(trade[3]/1000)
     t = dt.time()
     secondsIntoDay = (t.hour * 60 + t.minute) * 60 + t.second
@@ -269,24 +145,24 @@ def calculateNonPeriodFeatures(trade):
 
     return features
 
-def setupDataFrame():
-    df = pd.DataFrame()
-    initFeatures()
-    logging.debug(f"Dataframe colums set as: {*COLUMNS,}")
-    return df
-
-def calculateAllFeatureGroups(df, tradePool, pivotTrade):
+def calculateAllFeatureGroups(df, tradePool, features, pivotTrade):
     tradeTimeMilliseconds = pivotTrade[3]
     pivotTradeId = pivotTrade[4]
     allFeatures = {}
 
-    allFeatures = allFeatures | calculateNonPeriodFeatures(pivotTrade)
+    allFeatures = allFeatures | calculateNonPeriodFeatures(pivotTrade, features)
 
     for timeName, periodMilliseconds in TIME_PERIODS.items():
         timeGroup = 'past'
         startTimeMilliseconds = tradeTimeMilliseconds - periodMilliseconds
         endTimeMilliseconds = tradeTimeMilliseconds
-        pastFeatures, pivotPrice = calculatePastFeatureGroup(timeName, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
+        pastFeatures, pivotPrice = calculatePastFeatureGroup(
+                timeName, 
+                tradePool, 
+                startTimeMilliseconds, 
+                pivotTradeId, 
+                endTimeMilliseconds, 
+                features )
         allFeatures = allFeatures | pastFeatures
 
         timeGroup = 'future'
@@ -302,10 +178,10 @@ def calculateAllFeatureGroups(df, tradePool, pivotTrade):
     logging.debug('All feature groups calculated')
     return df
 
-def calculatePastFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds):
+def calculatePastFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features):
     logging.debug(f'Collecting trades and calculating Group past_{name}')
     periodTrades = tradePool.getTrades(f'past_{name}', 'past', pivotTradeId, startTimeMilliseconds, endTimeMilliseconds)
-    pastFeatures, pivotPrice = calculatePastPeriodFeatures(periodTrades, endTimeMilliseconds - startTimeMilliseconds)
+    pastFeatures, pivotPrice = calculatePastPeriodFeatures(periodTrades, endTimeMilliseconds - startTimeMilliseconds, features)
     pastFeatures = {f'{name}_{k}': v for k, v in pastFeatures.items()}
 
     return pastFeatures, pivotPrice
