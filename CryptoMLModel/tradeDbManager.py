@@ -18,9 +18,22 @@ ORDER BY `date_ms` ASC
 LIMIT %s, %s
 """
 
+    selectWorkerOffsetTrade = """
+SELECT `trades`.`id`
+FROM `trades`
+JOIN `outsidePrices` on ( `trades`.`id` = `outsidePrices`.`tradeId` )
+WHERE `coinbasePrice`!= 0
+AND `huobiPrice`!= 0
+AND `binancePrice`!= 0
+ORDER BY `trades`.`id` ASC
+LIMIT %s, %s
+"""
+
     selectFarthestCompleteTrade = """
 SELECT `index`
 FROM `%s`
+WHERE `index` > ?
+AND `index` < ?
 ORDER BY `index` DESC
 LIMIT 1
 """
@@ -44,11 +57,35 @@ LIMIT 1
     offsetId = 0
     calculatedTableName = 'tradesCalculated'
     maxTimePeriod = 0
+    WorkerStartId = 0
+    WorkerEndId = 0
+    workerCount = 1
+    workerIndex = 0
+    APROXIMATE_RECORD_COUNT = 13000000
+    MAX_WORKERS = 3
+
+    def __init__(self, workerCount, workerIndex):
+        if workerCount > self.MAX_WORKERS:
+            raise AssertionError
+        if workerIndex >= workerCount:
+            raise AssertionError
+        self.workerCount = workerCount
+        self.workerIndex = workerIndex
+        workerNumberOfRecords = int(self.APROXIMATE_RECORD_COUNT / self.workerCount)
+        workerStartOffset = workerNumberOfRecords * self.workerIndex
+        WorkerEndOffset = workerNumberOfRecords * ( self.workerIndex + 1 )
+        self.WorkerStartId, *x = mydb.selectOne(
+            self.selectWorkerOffsetTrade % workerStartOffset, 1
+        )
+        self.WorkerEndId, *x = mydb.selectOne(
+            self.selectWorkerOffsetTrade % workerEndOffset, 1
+        )
 
     def getFarthestCompleteTradeId(self):
         try:
-            self.farthestCompleteTradeId, *x = mydb.selectOneStatic(
-                self.selectFarthestCompleteTrade % self.calculatedTableName
+            self.farthestCompleteTradeId, *x = mydb.selectOne(
+                self.selectFarthestCompleteTrade % self.calculatedTableName,
+                (self.WorkerStartId, self.WorkerEndId)
             )
             logging.debug(f'FarthestCompleteTradeId: {self.farthestCompleteTradeId}')
             farthestCompleteTradeMilliseconds, *x = mydb.selectOne(

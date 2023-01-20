@@ -3,14 +3,14 @@ from time import time, strftime, localtime
 from datetime import timedelta
 import logging
 
-def secondsToStr(elapsed=None, perRecord=None):
+def secondsToStr(elapsed=None, timeDelta=None):
     if elapsed is None:
         return strftime("%Y-%m-%d %H:%M:%S", localtime())
-    if perRecord is None:
+    if timeDelta is None:
         return f'{str(timedelta(seconds=elapsed)).split(".")[0]}'
     return f'{str(timedelta(seconds=elapsed))}'
 
-def log(s, elapsed=None, perRecord=None):
+def log(s, elapsed=None, perRecord=None, estimatedTotal=None):
     line = "="*40
     logging.info(line)
     logging.info(f'{secondsToStr()} - {s}')
@@ -18,6 +18,8 @@ def log(s, elapsed=None, perRecord=None):
         logging.info(f'Elapsed time: {elapsed}')
     if perRecord:
         logging.info(f'Per record time: {perRecord}')
+    if estimatedTotal:
+        logging.info(f'Estimated total time: {estimatedTotal}')
 
 def now():
     return time()
@@ -25,10 +27,14 @@ def now():
 def startCalculation():
     return time()
 
-def endCalculation(start, recordsInBatch):
+def endCalculation(start, recordsInBatch, totalRecords=None):
     elapsed = time() - start
     perRecord = elapsed / recordsInBatch
-    log('Batch calculation complete', None, secondsToStr(perRecord, True))
+    if totalRecords:
+        estimatedTotal = perRecord * totalRecords
+        log('Batch calculation', None, secondsToStr(perRecord, True), secondsToStr(estimatedTotal, True))
+        return
+    log('Batch calculation', None, secondsToStr(perRecord, True))
 
 def endlog():
     end = time()

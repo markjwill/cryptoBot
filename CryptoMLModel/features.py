@@ -12,7 +12,6 @@ class Features:
 
     APROXIMATE_RECORDS = 13000000
 
-    #consider moving uppercase lists & dicts to a 'features' file or class
     TIME_PERIODS = {
         'tenSeconds'       : 10000,
         'thirtySeconds'    : 30000,
