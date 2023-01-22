@@ -66,20 +66,27 @@ LIMIT 1
 
     def __init__(self, workerCount, workerIndex):
         if workerCount > self.MAX_WORKERS:
-            raise AssertionError
+            raise AssertionError(
+                f'Worker count {workerCount} is greater than the max worker count {self.MAX_WORKERS}.'
+            )
         if workerIndex >= workerCount:
-            raise AssertionError
+            raise AssertionError(
+                f'Worker index {workerIndex} is 0 indexed and must be less than the worker count {workerCount}.'
+            )
         self.workerCount = workerCount
         self.workerIndex = workerIndex
         workerNumberOfRecords = int(self.APROXIMATE_RECORD_COUNT / self.workerCount)
         workerStartOffset = workerNumberOfRecords * self.workerIndex
-        WorkerEndOffset = workerNumberOfRecords * ( self.workerIndex + 1 )
-        self.WorkerStartId, *x = mydb.selectOne(
-            self.selectWorkerOffsetTrade % workerStartOffset, 1
+        workerEndOffset = workerNumberOfRecords * ( self.workerIndex + 1 )
+        logging.info(f'Selecting startTradeId ( this an ~4 min query )')
+        self.WorkerStartId, *x = mydb.selectOneStatic(
+            self.selectWorkerOffsetTrade % (workerStartOffset, 1)
         )
-        self.WorkerEndId, *x = mydb.selectOne(
-            self.selectWorkerOffsetTrade % workerEndOffset, 1
+        logging.info(f'Selecting endTradeId ( this an ~4 min query )')
+        self.WorkerEndId, *x = mydb.selectOneStatic(
+            self.selectWorkerOffsetTrade % (workerEndOffset, 1)
         )
+        logging.info(f'StartTradeId: {self.WorkerStartId} EndTradeId: {self.WorkerEndId}')
 
     def getFarthestCompleteTradeId(self):
         try:

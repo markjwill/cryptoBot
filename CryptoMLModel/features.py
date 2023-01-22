@@ -1,3 +1,4 @@
+import logging
 
 # trade[0] price
 # trade[1] amount
@@ -72,16 +73,7 @@ class Features:
     }
 
     DO_NOT_NORMALIZE = [
-        'type',
-        'secondsIntoDaySin',
-        'secondsIntoDayCos',
-        'dayIntoWeekSin',
-        'dayIntoWeekCos',
-        'dayIntoYearSin',
-        'dayIntoYearCos',
-    ]
-
-    DO_NOT_OUTLIERS = [
+        'index',
         'type',
         'secondsIntoDaySin',
         'secondsIntoDayCos',
@@ -97,24 +89,23 @@ class Features:
     def __init__(self):
         self.initPeriodFeatures()
         self.initColumns()
-        self.initDataFrame()
 
     def initPeriodFeatures(self):
         if self.PERIOD_FEATURES:
             return
 
-        for featureName, default in SINGLE_PERIOD_FEATURES.items():
+        for featureName, default in self.SINGLE_PERIOD_FEATURES.items():
             self.PERIOD_FEATURES[featureName] = default
 
-        for sourceName, index in FEATURE_INDEXES.items():
+        for sourceName, index in self.FEATURE_INDEXES.items():
             if index['price'] is not False:
-                for feature, default in PRICE_PERIOD_FEATURES.items():
+                for feature, default in self.PRICE_PERIOD_FEATURES.items():
                     self.PERIOD_FEATURES[f'{sourceName}_{feature}'] = default
             if    index['price'] is not False and \
                  index['volume'] is not False and \
                    index['type'] is not False and \
                index['quantity'] is not False:
-                for feature, default in RICH_PERIOD_FEATURES.items():
+                for feature, default in self.RICH_PERIOD_FEATURES.items():
                     self.PERIOD_FEATURES[f'{sourceName}_{feature}'] = default
 
         logging.debug('FEATURES:')
@@ -126,10 +117,10 @@ class Features:
         if not self.PERIOD_FEATURES:
             self.initPeriodFeatures()
 
-        for featureName, default in NON_PERIOD_FEATURES.items():
+        for featureName, default in self.NON_PERIOD_FEATURES.items():
             self.COLUMNS.append(featureName)
 
-        for timeName in TIME_PERIODS:
+        for timeName in self.TIME_PERIODS:
             for featureName in self.PERIOD_FEATURES:
                 self.COLUMNS.append(f'{timeName}_{featureName}')
             self.COLUMNS.append(f'{timeName}_futurePrice')
@@ -138,9 +129,9 @@ class Features:
         logging.debug(self.COLUMNS) 
 
     def getDictForTableName(self):
-        return 
-            self.TIME_PERIODS | 
-            self.PRICE_PERIOD_FEATURES | 
-            self.RICH_PERIOD_FEATURES | 
-            self.FEATURE_INDEXES | 
+        return \
+            self.TIME_PERIODS | \
+            self.PRICE_PERIOD_FEATURES | \
+            self.RICH_PERIOD_FEATURES | \
+            self.FEATURE_INDEXES | \
             self.NON_PERIOD_FEATURES

@@ -5,7 +5,7 @@ import argparse
 import logging
 import tradeDbManager as tdm
 import timing
-import features
+import features as f
 import pandas as pd
 
 def main(workerCount, workerIndex):
@@ -67,7 +67,7 @@ def main(workerCount, workerIndex):
             batchCalculationStart = timing.startCalculation()
 
 def setupTradeManager(features, workerCount, workerIndex):
-    tradeDbManager = tdm.TradeDbManager()
+    tradeDbManager = tdm.TradeDbManager(workerCount, workerIndex)
     calculatedTableName = tradeDbManager.getUniqueTableName(
         features.getDictForTableName()
     )
@@ -82,7 +82,7 @@ def setupTradePool(tradeList):
     return tradePool
 
 def setupFeatures():
-    features = Features()
+    features = f.Features()
     return features
 
 def tryFeatureCalculation(df, tradePool, tradeDbManager, features, index, pivotTrade):
@@ -120,20 +120,25 @@ def addMoreTrades(tradePool, tradeDbManager, batchMultiplier):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+
+    parser.add_argument( '-w',
+                         '--workerCount',
+                         default=1,
+                         const=1,
+                         nargs='?',
+                         help='Provide how many workers will be running. Example vaue: 3, default=1' )
+
+    parser.add_argument( '-i',
+                         '--workerIndex',
+                         default=0,
+                         const=0,
+                         nargs='?',
+                         help='Provide this workers index. Example value: 2, default=0' )
+
     parser.add_argument( '-log',
                          '--loglevel',
                          default='warning',
                          help='Provide logging level. Example --loglevel debug, default=warning' )
-
-    parser.add_argument( '-i',
-                         '--workerIndex',
-                         default='warning',
-                         help='Provide worker index. Example --index 2, default=warning' )
-
-    parser.add_argument( '-workerCount',
-                         '--workerCount',
-                         default='warning',
-                         help='Provide how many workers will be running. Example --workerCount 3, default=warning' )
 
     args = parser.parse_args()
 
@@ -141,7 +146,7 @@ if __name__ == '__main__':
     logging.info( 'Logging now setup.' )
     timing.startTiming()
     try:
-        main(args.workerCount, args.workerIndex)
+        main(int(args.workerCount), int(args.workerIndex))
     except StopIteration as error:
         logging.error(error)
     logging.info("script end reached")

@@ -51,11 +51,11 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
             priceSum[sourceName] = 0.0
             if float(features[f'{sourceName}_startPrice']) == 0.0:
                 raise AssertionError(
-                    f'Start price feature calculated as 0 at tradeId {firstTrade[4]}.\n'
+                    f'Start price feature calculated as 0 at tradeId {firstTrade[4]}.'
                 )
             if float(endPrice[sourceName]) == 0.0:
                 raise AssertionError(
-                    f'End price feature calculated as 0 at tradeId {lastTrade[4]}.\n'
+                    f'End price feature calculated as 0 at tradeId {lastTrade[4]}.'
                 )
         if    index['price'] is not False and \
              index['volume'] is not False and \

@@ -1,8 +1,14 @@
 from sklearn import preprocessing
 import joblib
 import os.path
+import features
 
 scalerFileName = 'dataScalerV20221216.gz'
+
+def removeOutliers(df, features):
+  normDf = df[i for i in df if i not in features.DO_NOT_NORMALIZE]
+  df[(np.abs(stats.zscore(normDf)) < 3).all(axis=1)]
+  return df
 
 def batchScalerBuild(trades, scaler, scalerFileName):
   scaler = scaler.partial_fit(trades)
@@ -27,9 +33,7 @@ if os.path.isfile(scalerFileName):
 else:
   scaler = initScaler(scalerFileName)
 
-#something like
-#normDf = df[i for i in df<cols> if i not in dataCalculate.DO_NOT_NORMALIZE]
-#df[(np.abs(stats.zscore(normDf)) < 3).all(axis=1)]
+
 
 
 

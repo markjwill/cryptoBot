@@ -3,6 +3,7 @@ import pymysql
 import credentials
 from sqlalchemy import create_engine
 import sys
+import logging
 
 def connect():
   try:
@@ -16,51 +17,47 @@ def connect():
   except pymysql.Error as e:
     print(f"Error connecting to MariaDB Platform: {e}")
     sys.exit(1)
-  return conn
-
-def selectAllStatic(query):
-  conn = connect()
   cur = conn.cursor(buffered=True)
-  cur.execute(query)
-  results = cur.fetchall()
+  return cur, conn
+
+def disconnect(cur, conn):
+  logging.debug(cur._last_executed)
   cur.close()
   conn.close()
+
+def selectAllStatic(query):
+  cur, conn = connect()
+  cur.execute(query)
+  results = cur.fetchall()
+  disconnect(cur, conn)
   return results
 
 def selectAll(query, params):
-  conn = connect()
-  cur = conn.cursor(buffered=True)
+  cur, conn = connect()
   cur.execute(query, params)
   results = cur.fetchall()
-  cur.close()
-  conn.close()
+  disconnect(cur, conn)
   return results
 
 def selectOneStatic(query):
-  conn = connect()
-  cur = conn.cursor(buffered=True)
+  cur, conn = connect()
   cur.execute(query)
   result = cur.fetchone()
-  cur.close()
-  conn.close()
+  disconnect(cur, conn)
   return result
 
 def selectOne(query, params):
-  conn = connect()
-  cur = conn.cursor(buffered=True)
+  cur, conn = connect()
   cur.execute(query, params)
   result = cur.fetchone()
-  cur.close()
-  conn.close()
+  disconnect(cur, conn)
   return result
 
 def insertMany(query, params):
-  conn = connect()
-  cur = conn.cursor(buffered=True)
+  cur, conn = connect()
   cur.executemany(query, params)
   conn.commit()
-  cur.close()
-  conn.close()
+  disconnect(cur, conn)
 
 def getEngine():
   return create_engine(f"mysql+pymysql://{credentials.dbUser}:{credentials.dbPassword}@{credentials.dbHost}:{credentials.dbPort}/{credentials.dbName}")
