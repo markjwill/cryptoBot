@@ -79,30 +79,40 @@ LIMIT 1
         workerStartOffset = workerNumberOfRecords * self.workerIndex
         workerEndOffset = workerNumberOfRecords * ( self.workerIndex + 1 )
         logging.info(f'Selecting startTradeId ( this an ~4 min query )')
-        self.WorkerStartId, *x = mydb.selectOneStatic(
+        result = mydb.selectOneStatic(
             self.selectWorkerOffsetTrade % (workerStartOffset, 1)
         )
+        self.WorkerStartId = result[0]
         logging.info(f'Selecting endTradeId ( this an ~4 min query )')
-        self.WorkerEndId, *x = mydb.selectOneStatic(
+        result = mydb.selectOneStatic(
             self.selectWorkerOffsetTrade % (workerEndOffset, 1)
         )
+        self.WorkerEndId = result[0]
         logging.info(f'StartTradeId: {self.WorkerStartId} EndTradeId: {self.WorkerEndId}')
 
     def getFarthestCompleteTradeId(self):
         try:
-            self.farthestCompleteTradeId, *x = mydb.selectOne(
+            result = mydb.selectOne(
                 self.selectFarthestCompleteTrade % self.calculatedTableName,
                 (self.WorkerStartId, self.WorkerEndId)
             )
+            if result is not None:
+                self.farthestCompleteTradeId = result[0]
+            else:
+                self.farthestCompleteTradeId = self.WorkerStartId
             logging.debug(f'FarthestCompleteTradeId: {self.farthestCompleteTradeId}')
-            farthestCompleteTradeMilliseconds, *x = mydb.selectOne(
+
+            result = mydb.selectOne(
                 self.selectDateMsById, (self.farthestCompleteTradeId, )
             )
+            farthestCompleteTradeMilliseconds = result[0]
             logging.debug(f'FarthestCompleteTradeMilliseconds: {farthestCompleteTradeMilliseconds} date: {self.logTime(farthestCompleteTradeMilliseconds)}')
+
             targetStartMilliseconds = farthestCompleteTradeMilliseconds - self.maxTimePeriod
-            self.offsetId, *x = mydb.selectOne(
+            result = mydb.selectOne(
                 self.selectMaxPeriodAgoId, (targetStartMilliseconds, )
             )
+            self.offsetId = result[0]
             logging.debug(f'targetMilliseconds: {targetStartMilliseconds} date: {self.logTime(targetStartMilliseconds)}')
 
         except mydb.mariadb.ProgrammingError as error:

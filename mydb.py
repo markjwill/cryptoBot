@@ -21,7 +21,7 @@ def connect():
   return cur, conn
 
 def disconnect(cur, conn):
-  logging.debug(cur._last_executed)
+  logging.debug(cur.statement)
   cur.close()
   conn.close()
 

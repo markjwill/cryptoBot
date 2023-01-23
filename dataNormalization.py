@@ -14,6 +14,10 @@ def batchScalerBuild(trades, scaler, scalerFileName):
   scaler = scaler.partial_fit(trades)
   joblib.dump(scaler, scalerFileName)
 
+# use dataFrame, something like:
+# mms = MinMaxScaler()
+# df[['x','z']] = mms.fit_transform(df[['x','z']])
+
 def normTrades(trades, scaler):
   return scaler.transform(trades)
 
