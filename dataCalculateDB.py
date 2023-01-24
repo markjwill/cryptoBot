@@ -51,12 +51,14 @@ def main(workerCount, workerIndex):
         logging.debug(f'Completed feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
         farthestCompleteTradeId = pivotTrade[4]
 
+        recordsPerWorker = tradeDbManager.APROXIMATE_RECORD_COUNT / workerCount
+
         recordsInBatch += 1
         if recordsInBatch % 100 == 0:
             logging.info(f'Completed feature calcuation through {tradeDatetime}')
-            timing.endCalculation(batchCalculationStart, recordsInBatch, tradeDbManager.APPROXIMATE_RECORD_COUNT)
+
+            timing.endCalculation(batchCalculationStart, recordsInBatch, recordsPerWorker)
         if recordsInBatch >= batchSize:
-            timing.endCalculation(batchCalculationStart, recordsInBatch, tradeDbManager.APPROXIMATE_RECORD_COUNT)
             timing.log(f'{recordsInBatch} calculations complete, Starting calcuated data save')
             logging.info(f'Completed feature calcuation through {tradeDatetime}')
             engine = mydb.getEngine()
@@ -64,6 +66,7 @@ def main(workerCount, workerIndex):
             engine.dispose()
             df = df[0:0]
             recordsInBatch = 0
+            timing.endCalculation(batchCalculationStart, recordsInBatch, recordsPerWorker)
             batchCalculationStart = timing.startCalculation()
 
 def setupTradeManager(features, workerCount, workerIndex):

@@ -1,1 +1,11 @@
 credentials.py
+.DS_Store
+__pycache__
+*.gz
+*.log
+*.json
+*.csv
+*.log.bk
+*.txt
+*.sh
+*.sql

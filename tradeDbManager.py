@@ -133,14 +133,11 @@ LIMIT 1
 
     def getTradeList(self, batchCount):
         limit = int(self.tradeBatchSize * batchCount)
-        logging.debug('More Trades Query:'
-            f' {self.selectTrades % (str(self.offset), str(limit))}'
-            f' with offset {self.offsetId}.')
         tradeList = mydb.selectAll(self.selectTrades % (str(self.offset), str(limit)), (self.offsetId,))
         self.offset = self.offset + limit
         firstTradeDatetime = datetime.datetime.fromtimestamp(tradeList[0][3]/1000.0).strftime('%Y-%m-%d %H:%M:%S')
         lastTradeDatetime = datetime.datetime.fromtimestamp(tradeList[-1][3]/1000.0).strftime('%Y-%m-%d %H:%M:%S')
-        logging.debug(f'Trade List from {firstTradeDatetime} to {lastTradeDatetime} with limit {limit} collected {len(tradeList)} trades.')
+        logging.info(f'Trade List from {firstTradeDatetime} to {lastTradeDatetime} with limit {limit} collected {len(tradeList)} trades.')
         return tradeList
 
     def logTime(self, milliseconds):

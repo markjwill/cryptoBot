@@ -4,9 +4,9 @@ import os.path
 import features
 
 scalerFileName = 'dataScalerV20221216.gz'
+featuresToNormalize = [i for i in df if i not in features.DO_NOT_NORMALIZE]
 
 def removeOutliers(df, features):
-  normDf = df[i for i in df if i not in features.DO_NOT_NORMALIZE]
   df[(np.abs(stats.zscore(normDf)) < 3).all(axis=1)]
   return df
 
