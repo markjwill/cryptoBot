@@ -3,6 +3,7 @@ import logging
 import datetime
 import numpy as np
 import pandas as pd
+import numpy as np
 
 # trade[0] price
 # trade[1] amount
@@ -34,6 +35,8 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
 
     calculatedFeatures = copy.copy(features.PERIOD_FEATURES)
 
+    tradeArray = np.array([trades])
+
     firstTrade = trades[0]
     lastTrade = trades[-1]
     tradeCount = len(trades)
@@ -41,6 +44,9 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
     volumeAtPrice = {}
     priceSum = {}
     endPrice = {}
+    difference = {}
+    positiveChange = {}
+    negativeChange = {}
 
     calculatedFeatures['tradeCount'] = len(trades)
 
@@ -49,7 +55,14 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
         if index['price'] is not False:
             calculatedFeatures[f'{sourceName}_startPrice'] = firstTrade[index['price']]
             endPrice[sourceName] = lastTrade[index['price']]
-            priceSum[sourceName] = 0.0
+            # priceSum[sourceName] = 0.0
+            priceSum[sourceName] = tradeArray[:, index['price']].sum()
+            calculatedFeatures[f'{sourceName}_highPrice'] = np.amax(tradeArray[:, index['price']], axis=0)
+            calculatedFeatures[f'{sourceName}_lowPrice'] = np.amin(tradeArray[:, index['price']], axis=0)
+            difference[sourceName] = np.diff(tradeArray[:, index['price']], axis=0)
+            positiveChange[sourceName] = np.sum(np.array(difference[sourceName]) >= 0, axis=0)
+            negativeChange[sourceName] = positiveChange[sourceName] - tradeCount
+            calculatedFeatures[f'{sourceName}_upVsDown'] = positiveChange[sourceName] + negativeChange[sourceName]
             if float(calculatedFeatures[f'{sourceName}_startPrice']) == 0.0:
                 raise AssertionError(
                     f'Start price feature calculated as 0 at tradeId {firstTrade[4]}.'
@@ -63,43 +76,47 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
                index['type'] is not False and \
            index['quantity'] is not False:
             volumeAtPrice[sourceName] = 0.0
-
+            calculatedFeatures[f'{sourceName}_volume'] = tradeArray[:, index['volume']].sum()
+            volumeAtPrice[sourceName] = np.sum(np.multiply(tradeArray[:, index['volume']], tradeArray[:, index['price']]))
+            calculatedFeatures[f'{sourceName}_buys'] = np.sum(tradeArray[:,index['type']] == 'buy', axis=0)
+            calculatedFeatures[f'{sourceName}_sells'] = abs(calculatedFeatures[f'{sourceName}_buys'] - tradeCount)
+            calculatedFeatures[f'{sourceName}_buyVsSell'] = calculatedFeatures[f'{sourceName}_buys'] - calculatedFeatures[f'{sourceName}_sells']
     previousTrade = firstTrade
 
     for trade in trades:
         for sourceName, index in features.FEATURE_INDEXES.items():
             if index['price'] is not False:
-                if trade[index['price']] > calculatedFeatures[f'{sourceName}_highPrice']:
-                    calculatedFeatures[f'{sourceName}_highPrice'] = trade[index['price']]
+                # if trade[index['price']] > calculatedFeatures[f'{sourceName}_highPrice']:
+                #     calculatedFeatures[f'{sourceName}_highPrice'] = trade[index['price']]
 
-                if trade[index['price']] < calculatedFeatures[f'{sourceName}_lowPrice'] \
-                        or calculatedFeatures[f'{sourceName}_lowPrice'] == 0.0:
-                    calculatedFeatures[f'{sourceName}_lowPrice'] = trade[index['price']]
+                # if trade[index['price']] < calculatedFeatures[f'{sourceName}_lowPrice'] \
+                #         or calculatedFeatures[f'{sourceName}_lowPrice'] == 0.0:
+                #     calculatedFeatures[f'{sourceName}_lowPrice'] = trade[index['price']]
 
-                if trade[index['price']] > previousTrade[index['price']]:
-                    calculatedFeatures[f'{sourceName}_upVsDown'] += 1
+                # if trade[index['price']] > previousTrade[index['price']]:
+                #     calculatedFeatures[f'{sourceName}_upVsDown'] += 1
 
-                if trade[index['price']] < previousTrade[index['price']]:
-                    calculatedFeatures[f'{sourceName}_upVsDown'] -= 1
+                # if trade[index['price']] < previousTrade[index['price']]:
+                #     calculatedFeatures[f'{sourceName}_upVsDown'] -= 1
 
-                priceSum[sourceName] += trade[index['price']]
+                # priceSum[sourceName] += trade[index['price']]
 
             if    index['price'] is not False and \
                  index['volume'] is not False and \
                    index['type'] is not False and \
                index['quantity'] is not False:
-                volumeAtPrice[sourceName] += trade[index['volume']] * trade[index['price']]
+                # volumeAtPrice[sourceName] += trade[index['volume']] * trade[index['price']]
 
-                calculatedFeatures[f'{sourceName}_volume'] += trade[index['volume']]
+                # calculatedFeatures[f'{sourceName}_volume'] += trade[index['volume']]
 
                 if trade[index['type']] == 'buy':
-                    calculatedFeatures[f'{sourceName}_buys'] += 1
-                    calculatedFeatures[f'{sourceName}_buyVsSell'] += 1
+                    # calculatedFeatures[f'{sourceName}_buys'] += 1
+                    # calculatedFeatures[f'{sourceName}_buyVsSell'] += 1
                     calculatedFeatures[f'{sourceName}_buyVsSellVolume'] += trade[index['volume']]
 
                 if trade[index['type']] == 'sell':
-                    calculatedFeatures[f'{sourceName}_sells'] += 1
-                    calculatedFeatures[f'{sourceName}_buyVsSell'] -= 1
+                    # calculatedFeatures[f'{sourceName}_sells'] += 1
+                    # calculatedFeatures[f'{sourceName}_buyVsSell'] -= 1
                     calculatedFeatures[f'{sourceName}_buyVsSellVolume'] -= trade[index['volume']]
 
         previousTrade = trade

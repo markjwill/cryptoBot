@@ -9,7 +9,7 @@ import features as f
 import pandas as pd
 
 def main(workerCount, workerIndex):
-    batchSize = 50000
+    batchSize = 5000
     features = setupFeatures()
     tradeDbManager, tradeList, farthestCompleteTradeId, calculatedTableName = setupTradeManager(
         features,
@@ -65,8 +65,8 @@ def main(workerCount, workerIndex):
             df.to_sql(calculatedTableName, con = engine, if_exists = 'append')
             engine.dispose()
             df = df[0:0]
-            recordsInBatch = 0
             timing.endCalculation(batchCalculationStart, recordsInBatch, recordsPerWorker)
+            recordsInBatch = 0
             batchCalculationStart = timing.startCalculation()
 
 def setupTradeManager(features, workerCount, workerIndex):

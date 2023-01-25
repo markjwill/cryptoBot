@@ -3,39 +3,51 @@ import joblib
 import os.path
 import features
 
-scalerFileName = 'dataScalerV20221216.gz'
-featuresToNormalize = [i for i in df if i not in features.DO_NOT_NORMALIZE]
+class DataNormalizer:
+  
+  scalerFileName = ''
+  scaler = None
+  featuresToNormalize = []
 
-def removeOutliers(df, features):
-  df[(np.abs(stats.zscore(normDf)) < 3).all(axis=1)]
-  return df
+  def __init__(self, features, scalerFileName):
+    if os.path.isfile(scalerFileName):
+      self.scaler = joblib.load(scalerFileName)
+    else:
+      self.scaler = initScaler(scalerFileName)
+    self.featuresToNormalize = [i for i in features.COLUMNS if i not in features.DO_NOT_NORMALIZE]
 
-def batchScalerBuild(trades, scaler, scalerFileName):
-  scaler = scaler.partial_fit(trades)
-  joblib.dump(scaler, scalerFileName)
+  def initScaler(self, scalerFileName):
+    scaler = preprocessing.MaxAbsScaler()
+    self.saveScaler()
+    return scaler
 
-# use dataFrame, something like:
-# mms = MinMaxScaler()
-# df[['x','z']] = mms.fit_transform(df[['x','z']])
+  def saveScaler(self):
+    joblib.dump(self.scaler, self.scalerFileName)
 
-def normTrades(trades, scaler):
-  return scaler.transform(trades)
+  def removeOutliers(self, df):
+    df[(np.abs(stats.zscore(self.featuresToNormalize)) < 3).all(axis=1)]
+    return df
 
-def normTrade(trade, scaler):
-  return scaler.transform([trade])
+  def batchScalerBuild(self, df):
+    self.scaler = self.scaler.partial_fit(df)
+    self.saveScaler()
 
-def deNormTrade(trade, scaler):
-  return scaler.inverse_transform(trade)
+  def fitAndNormalize(self, df):
+    df[self.featuresToNormalize] = self.scaler.fit_transform(df[self.featuresToNormalize])
+    self.saveScaler()
+    return df
 
-def initScaler(scalerFileName):
-  scaler = preprocessing.MaxAbsScaler()
-  joblib.dump(scaler, scalerFileName)
-  return scaler
+  def normalize(self, df):
+    df[self.featuresToNormalize] = self.scaler.transform(df[self.featuresToNormalize])
+    return df
 
-if os.path.isfile(scalerFileName):
-  scaler = joblib.load(scalerFileName)
-else:
-  scaler = initScaler(scalerFileName)
+  def deNormalize(self, trade):
+    df[self.featuresToNormalize] = self.scaler.inverse_transform(df[self.featuresToNormalize])
+    return df
+
+
+
+
 
 
 

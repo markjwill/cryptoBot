@@ -7,26 +7,25 @@ import json
 class TradeDbManager:
 
     selectTrades = """
-SELECT `price`, `amount`, `type`, `date_ms`, `trades`.`id`, `coinbasePrice`, `huobiPrice` ,`binancePrice`
-FROM `trades`
-JOIN `outsidePrices` on ( `trades`.`id` = `outsidePrices`.`tradeId` )
-WHERE `trades`.`id` > ?
-AND `coinbasePrice`!= 0
-AND `huobiPrice`!= 0
-AND `binancePrice`!= 0
+SELECT `price`, `amount`, `type`, `date_ms`, `id`, `coinbasePrice`, `huobiPrice` ,`binancePrice`
+FROM `tradeData`
+WHERE `id` > ?
 ORDER BY `date_ms` ASC
 LIMIT %s, %s
 """
 
     selectWorkerOffsetTrade = """
-SELECT `trades`.`id`
-FROM `trades`
-JOIN `outsidePrices` on ( `trades`.`id` = `outsidePrices`.`tradeId` )
-WHERE `coinbasePrice`!= 0
-AND `huobiPrice`!= 0
-AND `binancePrice`!= 0
-ORDER BY `trades`.`id` ASC
+SELECT `tradeData`.`id`
+FROM `tradeData`
+ORDER BY `tradeData`.`id` ASC
 LIMIT %s, %s
+"""
+
+    selectLastWorkerOffsetTrade = """
+SELECT `tradeData`.`id`
+FROM `tradeData`
+ORDER BY `tradeData`.`id` DESC
+LIMIT 1
 """
 
     selectFarthestCompleteTrade = """
@@ -40,13 +39,13 @@ LIMIT 1
 
     selectDateMsById = """
 SELECT `date_ms`
-FROM `trades`
+FROM `tradeData`
 WHERE `id` = ?
 """
 
     selectMaxPeriodAgoId = """
 SELECT `id`
-FROM `trades`
+FROM `tradeData`
 WHERE `date_ms` < ?
 ORDER BY `date_ms` DESC
 LIMIT 1
@@ -61,7 +60,7 @@ LIMIT 1
     WorkerEndId = 0
     workerCount = 1
     workerIndex = 0
-    APROXIMATE_RECORD_COUNT = 13000000
+    APROXIMATE_RECORD_COUNT = 13371000
     MAX_WORKERS = 3
 
     def __init__(self, workerCount, workerIndex):
@@ -84,10 +83,16 @@ LIMIT 1
         )
         self.WorkerStartId = result[0]
         logging.info(f'Selecting endTradeId ( this an ~4 min query )')
-        result = mydb.selectOneStatic(
-            self.selectWorkerOffsetTrade % (workerEndOffset, 1)
-        )
-        self.WorkerEndId = result[0]
+        if workerCount == workerIndex + 1:
+            result = mydb.selectOneStatic(
+                self.selectLastWorkerOffsetTrade
+            )
+            self.WorkerEndId = result[0]
+        else:
+            result = mydb.selectOneStatic(
+                self.selectWorkerOffsetTrade % (workerEndOffset, 1)
+            )
+            self.WorkerEndId = result[0]
         logging.info(f'StartTradeId: {self.WorkerStartId} EndTradeId: {self.WorkerEndId}')
 
     def getFarthestCompleteTradeId(self):
