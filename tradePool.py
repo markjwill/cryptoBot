@@ -11,7 +11,7 @@ import datetime
 
 class TradePool:
 
-    MILLISECONDS_GAP_TOLERATED = 60000
+    MILLISECONDS_GAP_TOLERATED = 90000
 
     tradeList = []
     maxIndex = 0

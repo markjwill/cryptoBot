@@ -20,10 +20,10 @@ class Features:
         'fiveMinutes'      : 300000,
         'fifteenMinutes'   : 900000,
         'fortyFiveMinutes' : 2700000,
-        'twoHours'         : 7200000
+        'twoHours'         : 7200001
     }
 
-    MAX_PERIOD = 7200000
+    MAX_PERIOD = 7200001
 
     PRICE_PERIOD_FEATURES = {
         'avgByTradesPrice' : 0.0, #avg Price by number of trades - pivot price
