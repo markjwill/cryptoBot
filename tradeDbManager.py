@@ -7,7 +7,7 @@ import json
 class TradeDbManager:
 
     selectTrades = """
-SELECT `price`, `amount`, `type`, `date_ms`, `id`, `coinbasePrice`, `huobiPrice` ,`binancePrice`
+SELECT `price`, `amount`, IF(`type` = 'buy', 1, -1) as 'type', `date_ms`, `id`, `coinbasePrice`, `huobiPrice` ,`binancePrice`
 FROM `tradeData`
 WHERE `id` > ?
 ORDER BY `date_ms` ASC

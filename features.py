@@ -29,7 +29,6 @@ class Features:
         'avgByTradesPrice' : 0.0, #avg Price by number of trades - pivot price
         'highPrice'        : 0.0, #high price - pivot price
         'lowPrice'         : 0.0, #low price - pivot price
-        'startPrice'       : 0.0, #start price - pivot price
         'changeReal'       : 0.0, #start to end change price
         'changePercent'    : 0.0, #start to end change price percent
         'travelReal'       : 0.0, #low to high change in price
