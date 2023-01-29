@@ -36,6 +36,10 @@ class Features:
         'upVsDown'         : 0,   #sum of price increases as +1 and price decreases as -1
     }
 
+    OFF_EXCHANGE_PERIOD_FEATURES = {
+        'diffExchange'     : 0.0  # difference in price from exchange
+    }
+
     RICH_PERIOD_FEATURES = {
         'avgByVolumePrice' : 0.0, #avg Price by volume - pivot price
         'volume'           : 0.0, #sum of trade amounts
@@ -105,6 +109,9 @@ class Features:
                    index['type'] is not False and \
                index['quantity'] is not False:
                 for feature, default in self.RICH_PERIOD_FEATURES.items():
+                    self.PERIOD_FEATURES[f'{sourceName}_{feature}'] = default
+            if sourceName != 'exchange':
+                for feature, default in self.OFF_EXCHANGE_PERIOD_FEATURES.items():
                     self.PERIOD_FEATURES[f'{sourceName}_{feature}'] = default
 
         logging.debug('FEATURES:')
