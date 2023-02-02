@@ -39,7 +39,6 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
     # ]
 
     tradeArray = np.array(trades)
-    logging.info(tradeArray)
 
     firstTrade = trades[0]
     lastTrade = trades[-1]
@@ -63,43 +62,54 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
         calculatedFeatures[f'{sourceName}_highPrice'] = np.amax(tradeArray[:, index['price']], axis=0)
         calculatedFeatures[f'{sourceName}_lowPrice'] = np.amin(tradeArray[:, index['price']], axis=0)
         difference = np.diff(tradeArray[:, index['price']], axis=0)
-        logging.info(difference)
         calculatedFeatures[f'{sourceName}_upVsDown'] = \
             np.sum(np.array(difference) > 0, axis=0) - np.sum(np.array(difference) < 0, axis=0)
-        calculatedFeatures[f'{sourceName}_changeReal'] = firstTrade[index['price']] - pivotPrice[sourceName]
+        calculatedFeatures[f'{sourceName}_changeReal'] = \
+            firstTrade[index['price']] - pivotPrice[sourceName]
         calculatedFeatures[f'{sourceName}_changePercent'] = \
             calculatedFeatures[f'{sourceName}_changeReal'] * 100 / firstTrade[index['price']]
         calculatedFeatures[f'{sourceName}_travelReal'] = \
             calculatedFeatures[f'{sourceName}_highPrice'] - calculatedFeatures[f'{sourceName}_lowPrice']
         calculatedFeatures[f'{sourceName}_travelPercent'] = \
-            calculatedFeatures[f'{sourceName}_travelReal'] * 100 / calculatedFeatures[f'{sourceName}_lowPrice']
+            calculatedFeatures[f'{sourceName}_travelReal'] * 100 / \
+            calculatedFeatures[f'{sourceName}_lowPrice']
 
         calculatedFeatures[f'{sourceName}_avgByTradesPrice'] = \
-            ( np.array(tradeArray[:, index['price']]).sum() / calculatedFeatures['tradeCount'] ) - pivotPrice[sourceName]
-        calculatedFeatures[f'{sourceName}_lowPrice'] = calculatedFeatures[f'{sourceName}_lowPrice'] - pivotPrice[sourceName]
-        calculatedFeatures[f'{sourceName}_highPrice'] = calculatedFeatures[f'{sourceName}_highPrice'] - pivotPrice[sourceName]
+            ( np.array(tradeArray[:, index['price']]).sum() / calculatedFeatures['tradeCount'] ) \
+            - pivotPrice[sourceName]
+        calculatedFeatures[f'{sourceName}_lowPrice'] -= pivotPrice[sourceName]
+        calculatedFeatures[f'{sourceName}_highPrice'] -= pivotPrice[sourceName]
 
         if    index['price'] is not False and \
              index['volume'] is not False and \
                index['type'] is not False and \
            index['quantity'] is not False:
-            calculatedFeatures[f'{sourceName}_volume'] = tradeArray[:, index['volume']].sum()
-            calculatedFeatures[f'{sourceName}_buys'] = np.sum(tradeArray[:,index['type']] == 1.0, axis=0)
-            calculatedFeatures[f'{sourceName}_sells'] = abs(calculatedFeatures[f'{sourceName}_buys'] - calculatedFeatures['tradeCount'])
+            calculatedFeatures[f'{sourceName}_volume'] = np.sum(tradeArray[:, index['volume']])
+            calculatedFeatures[f'{sourceName}_buys'] = \
+                np.sum(tradeArray[:,index['type']] == 1.0, axis=0)
+            calculatedFeatures[f'{sourceName}_sells'] = \
+                abs(calculatedFeatures[f'{sourceName}_buys'] - calculatedFeatures['tradeCount'])
             calculatedFeatures[f'{sourceName}_buyVsSell'] = \
                 calculatedFeatures[f'{sourceName}_buys'] - calculatedFeatures[f'{sourceName}_sells']
             calculatedFeatures[f'{sourceName}_buyVsSellVolume'] = \
                 np.sum(np.multiply(tradeArray[:, index['volume']], tradeArray[:, index['type']]))
-            calculatedFeatures[f'{sourceName}_volumePrMinute'] = calculatedFeatures[f'{sourceName}_volume'] / ( milliseconds / 60000 )
-            calculatedFeatures[f'{sourceName}_tradesPrMinute'] = calculatedFeatures['tradeCount'] / ( milliseconds / 60000 )
-            calculatedFeatures[f'{sourceName}_buysPrMinute'] = calculatedFeatures[f'{sourceName}_buys'] / ( milliseconds / 60000 )
-            calculatedFeatures[f'{sourceName}_sellsPrMinute'] = calculatedFeatures[f'{sourceName}_sells'] / ( milliseconds / 60000 )
+            calculatedFeatures[f'{sourceName}_volumePrMinute'] = \
+                calculatedFeatures[f'{sourceName}_volume'] / ( milliseconds / 60000 )
+            calculatedFeatures[f'{sourceName}_tradesPrMinute'] = \
+                calculatedFeatures['tradeCount'] / ( milliseconds / 60000 )
+            calculatedFeatures[f'{sourceName}_buysPrMinute'] = \
+                calculatedFeatures[f'{sourceName}_buys'] / ( milliseconds / 60000 )
+            calculatedFeatures[f'{sourceName}_sellsPrMinute'] = \
+                calculatedFeatures[f'{sourceName}_sells'] / ( milliseconds / 60000 )
             calculatedFeatures[f'{sourceName}_avgByVolumePrice'] = \
                 ( np.sum(np.multiply(tradeArray[:, index['volume']], tradeArray[:, index['price']])) \
                 / calculatedFeatures[f'{sourceName}_volume'] ) - pivotPrice[sourceName]
 
-            logging.info(calculatedFeatures)
-            exit()
+        if sourceName != 'exchange':
+            calculatedFeatures[f'{sourceName}_diffExchange'] = \
+                pivotPrice[sourceName] - pivotPrice['exchange']
+
+
     # previousTrade = firstTrade
 
     # for trade in trades:
@@ -181,7 +191,7 @@ def calculateNonPeriodFeatures(trade, features):
     calculatedFeatures['dayIntoYearSin'] = np.sin(dayIntoYear * (2 * np.pi / 365)) # day_in_year_sin
     calculatedFeatures['dayIntoYearCos'] = np.cos(dayIntoYear * (2 * np.pi / 365)) # day_in_year_cos
     calculatedFeatures['volume'] = trade[1] # amount_traded
-    calculatedFeatures['type'] = trade[4] # type
+    calculatedFeatures['type'] = trade[2] # type
 
     return calculatedFeatures
 
