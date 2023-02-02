@@ -139,6 +139,8 @@ LIMIT 1
     def getTradeList(self, batchCount):
         limit = int(self.tradeBatchSize * batchCount)
         tradeList = mydb.selectAll(self.selectTrades % (str(self.offset), str(limit)), (self.offsetId,))
+        if not tradeList:
+            raise StopIteration('0 trades returned from DB')
         self.offset = self.offset + limit
         firstTradeDatetime = datetime.datetime.fromtimestamp(tradeList[0][3]/1000.0).strftime('%Y-%m-%d %H:%M:%S')
         lastTradeDatetime = datetime.datetime.fromtimestamp(tradeList[-1][3]/1000.0).strftime('%Y-%m-%d %H:%M:%S')

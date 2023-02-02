@@ -1,7 +1,6 @@
 from sklearn import preprocessing
 import joblib
 import os.path
-import features
 
 class DataNormalizer:
   
@@ -10,13 +9,14 @@ class DataNormalizer:
   featuresToNormalize = []
 
   def __init__(self, features, scalerFileName):
-    if os.path.isfile(scalerFileName):
-      self.scaler = joblib.load(scalerFileName)
+    self.scalerFileName = scalerFileName
+    if os.path.isfile(self.scalerFileName):
+      self.scaler = joblib.load(self.scalerFileName)
     else:
-      self.scaler = initScaler(scalerFileName)
+      self.scaler = self.initScaler()
     self.featuresToNormalize = [i for i in features.COLUMNS if i not in features.DO_NOT_NORMALIZE]
 
-  def initScaler(self, scalerFileName):
+  def initScaler(self):
     scaler = preprocessing.MaxAbsScaler()
     self.saveScaler()
     return scaler
