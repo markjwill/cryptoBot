@@ -124,6 +124,7 @@ def addMoreTrades(tradePool, tradeDbManager, batchMultiplier):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
+    # remove workers feature in favor of dask multi-threading
     parser.add_argument( '-w',
                          '--workerCount',
                          default=1,

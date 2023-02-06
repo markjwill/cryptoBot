@@ -15,13 +15,16 @@ matplotlib.use('TkCairo')
 import matplotlib.pyplot as plt
 
 
-targetTable = 'tradesCalculated_old'
+targetTable = 'tradesCalculated_80ce611831f588a69bb698c37f5a8036'
 scalerFileName = '20130202scaler.gz'
 
 def main():
+  features = f.Features()
+  logging.info("Features to normalize")
+  logging.info(features.featuresToNormalize)
   engine = mydb.getEngine()
   # f'SELECT * FROM {targetTable} AS t1 JOIN (SELECT index FROM {targetTable} ORDER BY RAND() LIMIT 5000) as t2 ON t1.index=t2.index;'
-  df = pd.read_sql(f'SELECT*FROM {targetTable} AS t1 JOIN(SELECT {targetTable}.index FROM {targetTable} ORDER BY RAND()LIMIT 100000)AS t2 ON t1.index=t2.index;', con=engine)
+  df = pd.read_sql(f'SELECT*FROM {targetTable} AS t1 JOIN(SELECT {targetTable}.index FROM {targetTable} ORDER BY RAND()LIMIT 100)AS t2 ON t1.index=t2.index;', con=engine)
   # df = pd.read_sql(f'SELECT * FROM {targetTable} ORDER BY RAND() LIMIT 10000;', con=engine)
   # df = pd.read_sql(f'SELECT * FROM {targetTable} LIMIT 10000;', con=engine)
   engine.dispose()
@@ -35,12 +38,14 @@ def main():
     # df[column].plot(kind='kde')
     # plt.savefig(f'images/{column}_hist')
 
-  features = f.Features()
+  
   normalizer = dn.DataNormalizer(features, scalerFileName)
+  df = normalizer.removeOutliers(df, features.featuresToNormalize)
+  df = normalizer.fitAndNormalize(df, features.featuresToNormalize)
 
-  df = normalizer.fitAndNormalize(df)
 
-  for column in features.COLUMNS:
+
+  for column in features.featuresToNormalize:
     logging.info(f'Making images/{column}_hist_afterNorm')
     plt.gcf().set_size_inches(15, 15)
     df[column].plot(kind='hist', bins=100)

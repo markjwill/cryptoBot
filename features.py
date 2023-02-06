@@ -30,27 +30,27 @@ class Features:
         'highPrice'        : 0.0, #high price - pivot price
         'lowPrice'         : 0.0, #low price - pivot price
         'changeReal'       : 0.0, #start to end change price
-        'changePercent'    : 0.0, #start to end change price percent
+        # 'changePercent'    : 0.0, #start to end change price percent
         'travelReal'       : 0.0, #low to high change in price
-        'travelPercent'    : 0.0, #low to high change price percent
+        # 'travelPercent'    : 0.0, #low to high change price percent
         'upVsDown'         : 0,   #sum of price increases as +1 and price decreases as -1
     }
 
     OFF_EXCHANGE_PERIOD_FEATURES = {
-        'diffExchange'     : 0.0  # difference in price from exchange
+        # 'diffExchange'     : 0.0  # difference in price from exchange
     }
 
     RICH_PERIOD_FEATURES = {
         'avgByVolumePrice' : 0.0, #avg Price by volume - pivot price
         'volume'           : 0.0, #sum of trade amounts
-        'volumePrMinute'   : 0.0, #sum of trade amounts per minute
-        'sellsPrMinute'    : 0.0, #number of sells per minute
+        # 'volumePrMinute'   : 0.0, #sum of trade amounts per minute
+        # 'sellsPrMinute'    : 0.0, #number of sells per minute
         'sells'            : 0,   #number of sells
-        'buysPrMinute'     : 0.0, #number of buys per minute
+        # 'buysPrMinute'     : 0.0, #number of buys per minute
         'buys'             : 0,   #number of buys
         'buyVsSell'        : 0,   #sum of buys as +1 and sells as -1
         'buyVsSellVolume'  : 0.0, #sum of buys as +volume and sells as -volume
-        'tradesPrMinute'   : 0.0, #number of trades per minute
+        # 'tradesPrMinute'   : 0.0, #number of trades per minute
     }
 
     SINGLE_PERIOD_FEATURES = {
@@ -88,10 +88,17 @@ class Features:
 
     COLUMNS = []
     PERIOD_FEATURES = {}
+    featuresToNormalize = []
 
     def __init__(self):
         self.initPeriodFeatures()
         self.initColumns()
+        self.initFeaturesToNormalize()
+
+    def initFeaturesToNormalize(self):
+        self.featuresToNormalize = [i for i in self.COLUMNS if i not in self.DO_NOT_NORMALIZE]
+        logging.debug('featuresToNormalize:')
+        logging.debug(self.featuresToNormalize)
 
     def initPeriodFeatures(self):
         if self.PERIOD_FEATURES:
