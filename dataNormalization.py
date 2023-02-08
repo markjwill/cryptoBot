@@ -3,9 +3,12 @@ import joblib
 import os.path
 import dask.array as da
 from scipy import stats
+import logging
+import pandas as pd
 
 class DataNormalizer:
-  
+
+  outlierStandardDeviations = 3
   scalerFileName = ''
   scaler = None
 
@@ -27,10 +30,9 @@ class DataNormalizer:
   def removeOutliers(self, df, featuresToNormalize):
     means = df[featuresToNormalize].mean(axis=0)
     standardDeviations = df[featuresToNormalize].std(axis=0)
-    uppers = means + ( standardDeviations * 3 )
-    lowers = means - ( standardDeviations * 3 )
-    df[featuresToNormalize] = df.clip(lower=lowers, upper=uppers, axis=0)
-    # df[(da.abs(stats.zscore(df[featuresToNormalize])) < 3).all(axis=1)]
+    uppers = means + ( standardDeviations * self.outlierStandardDeviations )
+    lowers = means - ( standardDeviations * self.outlierStandardDeviations )
+    df[featuresToNormalize] = df[featuresToNormalize].clip(lower=lowers, upper=uppers, axis=1)
     return df
 
   def batchScalerBuild(self, df):
