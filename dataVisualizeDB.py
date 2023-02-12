@@ -17,7 +17,7 @@ scalerFileName = '20130202scaler.gz'
 def main():
   features = f.Features()
   engine = mydb.getEngine()
-  df = pd.read_sql(f'SELECT * FROM {targetTable} LIMIT 100000;', con=engine)
+  df = pd.read_sql(f'SELECT * FROM {targetTable};', con=engine)
   engine.dispose()
   features = f.Features()
 
@@ -29,7 +29,7 @@ def main():
     plt.close()
 
   normalizer = dn.DataNormalizer(features, scalerFileName)
-  df = normalizer.removeOutliers(df, features.featuresToNormalize)
+  df = normalizer.clipOutliers(df, features.featuresToNormalize)
 
   for column in features.featuresToNormalize:
     logging.info(f'Making images/{column}_hist_afterOutlier')

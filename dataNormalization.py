@@ -1,7 +1,7 @@
 from sklearn import preprocessing
 import joblib
 import os.path
-import dask.array as da
+import dask.dataframe as dd
 from scipy import stats
 import logging
 import pandas as pd
@@ -17,17 +17,27 @@ class DataNormalizer:
     if os.path.isfile(self.scalerFileName):
       self.scaler = joblib.load(self.scalerFileName)
     else:
-      self.scaler = self.initScaler()
+      self.initScaler()
 
   def initScaler(self):
-    scaler = preprocessing.MaxAbsScaler()
+    self.scaler = preprocessing.MaxAbsScaler()
     self.saveScaler()
-    return scaler
 
   def saveScaler(self):
     joblib.dump(self.scaler, self.scalerFileName)
 
-  def removeOutliers(self, df, featuresToNormalize):
+  def clipOutliersAllFeatures(self, df):
+    means = df.mean(axis=0)
+    standardDeviations = df.std(axis=0)
+    uppers = means + ( standardDeviations * self.outlierStandardDeviations )
+    lowers = means - ( standardDeviations * self.outlierStandardDeviations )
+    if isinstance(df, dd.core.DataFrame):
+      df = df.compute()
+    logging.debug(type(df))
+    df = df.clip(lower=lowers, upper=uppers, axis=1)
+    return df
+
+  def clipOutliers(self, df, featuresToNormalize):
     means = df[featuresToNormalize].mean(axis=0)
     standardDeviations = df[featuresToNormalize].std(axis=0)
     uppers = means + ( standardDeviations * self.outlierStandardDeviations )
@@ -38,6 +48,11 @@ class DataNormalizer:
   def batchScalerBuild(self, df):
     self.scaler = self.scaler.partial_fit(df)
     self.saveScaler()
+
+  def fitAndNormalizeAll(self, df):
+    df = self.scaler.fit_transform(df)
+    self.saveScaler()
+    return pd.DataFrame(df)
 
   def fitAndNormalize(self, df, featuresToNormalize):
     df[featuresToNormalize] = self.scaler.fit_transform(df[featuresToNormalize])

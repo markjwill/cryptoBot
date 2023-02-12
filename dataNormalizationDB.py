@@ -20,7 +20,7 @@ def main():
   features = f.Features()
 
   normalizer = dn.DataNormalizer(features, scalerFileName)
-  df = normalizer.removeOutliers(df, features.featuresToNormalize)
+  df = normalizer.clipOutliers(df, features.featuresToNormalize)
   df = normalizer.fitAndNormalize(df, features.featuresToNormalize)
 
   engine = mydb.getEngine()

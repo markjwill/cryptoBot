@@ -65,14 +65,16 @@ class Features:
     }
 
     NON_PERIOD_FEATURES = {
-        'secondsIntoDaySin' : 0, # seconds in day sin
-        'secondsIntoDayCos' : 0, # seconds in day cos
-        'dayIntoWeekSin'    : 0, # day in week sin
-        'dayIntoWeekCos'    : 0, # day in week cos
-        'dayIntoYearSin'    : 0, # day in year sin
-        'dayIntoYearCos'    : 0, # day in year cos
-        'volume'            : 0, # amount traded
-        'type'              : 0  # 1 = buy, -1 = sell
+        'secondsIntoDaySin'  : 0,
+        'secondsIntoDayCos'  : 0,
+        # 'minutesIntoWeekSin' : 0,
+        # 'minutesIntoWeekCos' : 0,
+        # 'hourIntoMonthSin'   : 0,
+        # 'hourIntoMonthCos'   : 0,
+        # 'hourIntoYearSin'    : 0,
+        # 'hourIntoYearCos'    : 0,
+        'volume'             : 0, # amount traded
+        'type'               : 0  # 1 = buy, -1 = sell
     }
 
     DO_NOT_NORMALIZE = [
@@ -80,15 +82,18 @@ class Features:
         'type',
         'secondsIntoDaySin',
         'secondsIntoDayCos',
-        'dayIntoWeekSin',
-        'dayIntoWeekCos',
-        'dayIntoYearSin',
-        'dayIntoYearCos',
+        'minutesIntoWeekSin',
+        'minutesIntoWeekCos',
+        'hourIntoMonthSin',
+        'hourIntoMonthCos',
+        'hourIntoYearSin',
+        'hourIntoYearCos',
     ]
 
     COLUMNS = []
     PERIOD_FEATURES = {}
     featuresToNormalize = []
+    Ycols = {}
 
     def __init__(self):
         self.initPeriodFeatures()
@@ -137,6 +142,7 @@ class Features:
             for featureName in self.PERIOD_FEATURES:
                 self.COLUMNS.append(f'{timeName}_{featureName}')
             self.COLUMNS.append(f'{timeName}_futurePrice')
+            self.Ycols[timeName] = f'{timeName}_futurePrice'
 
         logging.debug('COLUMNS:')
         logging.debug(self.COLUMNS) 

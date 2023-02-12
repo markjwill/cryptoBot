@@ -183,13 +183,17 @@ def calculateNonPeriodFeatures(trade, features):
     dt = datetime.datetime.fromtimestamp(trade[3]/1000)
     t = dt.time()
     secondsIntoDay = (t.hour * 60 + t.minute) * 60 + t.second
-    dayIntoYear = dt.timetuple().tm_yday
-    calculatedFeatures['secondsIntoDaySin'] = np.sin(secondsIntoDay * (2 * np.pi / 86400)) # seconds_in_day_sin
-    calculatedFeatures['secondsIntoDayCos'] = np.cos(secondsIntoDay * (2 * np.pi / 86400)) # seconds_in_day_cos
-    calculatedFeatures['dayIntoWeekSin'] = np.sin(dt.weekday() * (2 * np.pi / 7)) # day_in_week_sin
-    calculatedFeatures['dayIntoWeekCos'] = np.cos(dt.weekday() * (2 * np.pi / 7)) # day_in_week_cos
-    calculatedFeatures['dayIntoYearSin'] = np.sin(dayIntoYear * (2 * np.pi / 365)) # day_in_year_sin
-    calculatedFeatures['dayIntoYearCos'] = np.cos(dayIntoYear * (2 * np.pi / 365)) # day_in_year_cos
+    minutesIntoWeek = ( dt.weekday() * 1440 ) + ( secondsIntoDay / 60 )
+    hourIntoMonth = ( dt.strftime("%d") * 24 ) + ( secondsIntoDay / 60 / 60 )
+    hourIntoYear = ( dt.timetuple().tm_yday * 24 ) + ( secondsIntoDay / 60 / 60 )
+    calculatedFeatures['secondsIntoDaySin'] = np.sin(secondsIntoDay * (2 * np.pi / 86400))
+    calculatedFeatures['secondsIntoDayCos'] = np.cos(secondsIntoDay * (2 * np.pi / 86400))
+    calculatedFeatures['minuteIntoWeekSin'] = np.sin(minutesIntoWeek * (2 * np.pi / 10080))
+    calculatedFeatures['minuteIntoWeekCos'] = np.cos(minutesIntoWeek * (2 * np.pi / 10080))
+    calculatedFeatures['hourIntoMonthSin'] = np.sin(hourIntoMonth * (2 * np.pi / 730.001))
+    calculatedFeatures['hourIntoMonthCos'] = np.cos(hourIntoMonth * (2 * np.pi / 730.001))
+    calculatedFeatures['hourIntoYearSin'] = np.sin(hourIntoYear * (2 * np.pi / 8760))
+    calculatedFeatures['hourIntoYearCos'] = np.cos(hourIntoYear * (2 * np.pi / 8760))
     calculatedFeatures['volume'] = trade[1] # amount_traded
     calculatedFeatures['type'] = trade[2] # type
 
