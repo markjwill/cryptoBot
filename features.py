@@ -37,7 +37,7 @@ class Features:
     }
 
     OFF_EXCHANGE_PERIOD_FEATURES = {
-        # 'diffExchange'     : 0.0  # difference in price from exchange
+        'diffExchange'     : 0.0  # difference in price from exchange
     }
 
     RICH_PERIOD_FEATURES = {
@@ -69,10 +69,10 @@ class Features:
         'secondsIntoDayCos'  : 0,
         'minutesIntoWeekSin' : 0,
         'minutesIntoWeekCos' : 0,
-        'hourIntoMonthSin'   : 0,
-        'hourIntoMonthCos'   : 0,
-        'hourIntoYearSin'    : 0,
-        'hourIntoYearCos'    : 0,
+        'hoursIntoMonthSin'   : 0,
+        'hoursIntoMonthCos'   : 0,
+        'hoursIntoYearSin'    : 0,
+        'hoursIntoYearCos'    : 0,
         'volume'             : 0, # amount traded
         'type'               : 0  # 1 = buy, -1 = sell
     }
@@ -86,31 +86,43 @@ class Features:
         'minutesIntoWeekCos',
         'hourIntoMonthSin',
         'hourIntoMonthCos',
-        'hourIntoYearSin',
-        'hourIntoYearCos',
+        # 'hourIntoYearSin',
+        # 'hourIntoYearCos',
     ]
-
-    csvFiles = {
-      'tenSeconds'       : '/mysqlFiles/tenSeconds.csv',
-      'thirtySeconds'    : '/mysqlFiles/thirtySeconds.csv',
-      'ninetySeconds'    : '/mysqlFiles/ninetySeconds.csv',
-      'fiveMinutes'      : '/mysqlFiles/fiveMinutes.csv',
-      'fifteenMinutes'   : '/mysqlFiles/fifteenMinutes.csv',
-      'fortyFiveMinutes' : '/mysqlFiles/fortyFiveMinutes.csv',
-      'twoHours'         : '/mysqlFiles/twoHours.csv',
-      'csvNoNorm'        : '/mysqlFiles/csvNoNorm.csv',
-      'csvNorm'          : '/mysqlFiles/csvNorm.csv'
-    }
 
     COLUMNS = []
     PERIOD_FEATURES = {}
     featuresToNormalize = []
     Ycols = {}
+    csvFiles = {}
 
     def __init__(self):
         self.initPeriodFeatures()
         self.initColumns()
         self.initFeaturesToNormalize()
+        self.initCsvFiles()
+
+    def initCsvFiles(self):
+        if self.csvFiles:
+            return
+        if not self.PERIOD_FEATURES:
+            self.initPeriodFeatures()
+
+        self.csvFiles['noNormalize'] = []
+        self.csvFiles['normalize'] = []
+
+        self.csvFiles['noNormalize'] = [key for key \
+            in self.NON_PERIOD_FEATURES.keys() \
+            if key in self.DO_NOT_NORMALIZE]
+        self.csvFiles['normalize'] = [key for key in \
+            self.NON_PERIOD_FEATURES.keys() \
+            if key not in self.DO_NOT_NORMALIZE]
+
+        for timeName in self.TIME_PERIODS:
+            for featureName in self.PERIOD_FEATURES:
+                self.csvFiles['normalize'].append(f'{timeName}_{featureName}')
+            self.csvFiles[timeName] = [f'{timeName}_futurePrice']
+        logging.debug(self.csvFiles)
 
     def initFeaturesToNormalize(self):
         self.featuresToNormalize = [i for i in self.COLUMNS if i not in self.DO_NOT_NORMALIZE]

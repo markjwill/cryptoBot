@@ -7,17 +7,23 @@ import tradeDbManager as tdm
 import timing
 import features as f
 import pandas as pd
+from threading import Thread
+import csv
+import atexit
+
+csvFiles = {}
+csvWriters = {}
 
 def main(workerCount, workerIndex):
     batchSize = 5000
     features = setupFeatures()
+    openCsvFilesForWriting(features)
     tradeDbManager, tradeList, farthestCompleteTradeId, calculatedTableName = setupTradeManager(
         features,
         workerCount,
         workerIndex
     )
     tradePool = setupTradePool(tradeList)
-    df = pd.DataFrame()
     timing.log('Inital setup complete')
 
     index = 0
@@ -47,7 +53,7 @@ def main(workerCount, workerIndex):
             firstCalculation = False
 
         logging.debug(f'Attempting feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
-        df, index = tryFeatureCalculation(df, tradePool, tradeDbManager, features, index, pivotTrade)
+        index = tryFeatureCalculation(tradePool, tradeDbManager, features, index, pivotTrade)
         logging.debug(f'Completed feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
         farthestCompleteTradeId = pivotTrade[4]
 
@@ -56,18 +62,38 @@ def main(workerCount, workerIndex):
         recordsInBatch += 1
         if recordsInBatch % 100 == 0:
             logging.info(f'Completed feature calcuation through {tradeDatetime}')
-
             timing.endCalculation(batchCalculationStart, recordsInBatch, recordsPerWorker)
+
         if recordsInBatch >= batchSize:
             timing.log(f'{recordsInBatch} calculations complete, Starting calcuated data save')
             logging.info(f'Completed feature calcuation through {tradeDatetime}')
-            engine = mydb.getEngine()
-            df.to_sql(calculatedTableName, con = engine, if_exists = 'append')
-            engine.dispose()
-            df = df[0:0]
             timing.endCalculation(batchCalculationStart, recordsInBatch, recordsPerWorker)
             recordsInBatch = 0
             batchCalculationStart = timing.startCalculation()
+
+def processDataSave(fileDestinations):
+    for fileName, data in fileDestinations.items():
+        Thread(target=appendToCsvFiles, args=(fileName, data, )).start()
+
+def appendToCsvFiles(fileName, data):
+    csvWriters[fileName].writerow(data)
+
+def openCsvFilesForWriting(features):
+    outputFolder = '/csvFiles'
+
+    for fileName, fieldnames in features.csvFiles.items():
+        truncateAndCreateFile = open(f'{outputFolder}/{fileName}.csv', 'w+')
+        truncateAndCreateFile.close()
+        csvFiles[fileName] = open(f'{outputFolder}/{fileName}.csv', 'a')
+        csvWriters[fileName] = csv.DictWriter(csvFiles[fileName], \
+            fieldnames=fieldnames)
+        csvWriters[fileName].writeheader()
+
+    atexit.register(closeCsvFiles)
+
+def closeCsvFiles():
+    for file in csvFiles.values():
+        file.close()
 
 def setupTradeManager(features, workerCount, workerIndex):
     tradeDbManager = tdm.TradeDbManager(workerCount, workerIndex)
@@ -88,11 +114,12 @@ def setupFeatures():
     features = f.Features()
     return features
 
-def tryFeatureCalculation(df, tradePool, tradeDbManager, features, index, pivotTrade):
+def tryFeatureCalculation(tradePool, tradeDbManager, features, index, pivotTrade):
     try:
-        df = dataCalculate.calculateAllFeatureGroups(df, tradePool, features, pivotTrade)
+        fileDestinations = dataCalculate.calculateAllFeatureGroups(tradePool, features, pivotTrade)
+        processDataSave(fileDestinations)
         index += 1
-        return df, index
+        return index
     except AssertionError as error:
         logging.error(error)
         raise
@@ -100,7 +127,7 @@ def tryFeatureCalculation(df, tradePool, tradeDbManager, features, index, pivotT
         logging.error(error)
         if error.args[1]:
             if addedTradeCount := addMoreTrades(tradePool, tradeDbManager, 1):
-                return df, max(0,index - addedTradeCount)
+                return max(0,index - addedTradeCount)
             raise StopIteration('No additional trades available to continue.')
         raise
 

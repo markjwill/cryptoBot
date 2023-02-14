@@ -67,8 +67,8 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
         calculatedFeatures[f'{sourceName}_changeReal'] = \
             firstTrade[index['price']] - pivotPrice[sourceName]
         calculatedFeatures[f'{sourceName}_travelReal'] = \
-            calculatedFeatures[f'{sourceName}_highPrice'] - calculatedFeatures[f'{sourceName}_lowPrice']
-            calculatedFeatures[f'{sourceName}_lowPrice']
+            calculatedFeatures[f'{sourceName}_highPrice'] \
+            - calculatedFeatures[f'{sourceName}_lowPrice']
 
         calculatedFeatures[f'{sourceName}_avgByTradesPrice'] = \
             ( np.array(tradeArray[:, index['price']]).sum() / calculatedFeatures['tradeCount'] ) \
@@ -105,27 +105,31 @@ def calculateNonPeriodFeatures(trade, features):
     t = dt.time()
     secondsIntoDay = (t.hour * 60 + t.minute) * 60 + t.second
     minutesIntoWeek = ( dt.weekday() * 1440 ) + ( secondsIntoDay / 60 )
-    hourIntoMonth = ( dt.strftime("%d") * 24 ) + ( secondsIntoDay / 60 / 60 )
-    hourIntoYear = ( dt.timetuple().tm_yday * 24 ) + ( secondsIntoDay / 60 / 60 )
+    hourIntoMonth = float( dt.strftime("%d") * 24 ) + ( secondsIntoDay / 60 / 60 )
+    # hourIntoYear = ( dt.timetuple().tm_yday * 24 ) + ( secondsIntoDay / 60 / 60 )
     calculatedFeatures['secondsIntoDaySin'] = np.sin(secondsIntoDay * (2 * np.pi / 86400))
     calculatedFeatures['secondsIntoDayCos'] = np.cos(secondsIntoDay * (2 * np.pi / 86400))
-    calculatedFeatures['minuteIntoWeekSin'] = np.sin(minutesIntoWeek * (2 * np.pi / 10080))
-    calculatedFeatures['minuteIntoWeekCos'] = np.cos(minutesIntoWeek * (2 * np.pi / 10080))
-    calculatedFeatures['hourIntoMonthSin'] = np.sin(hourIntoMonth * (2 * np.pi / 730.001))
-    calculatedFeatures['hourIntoMonthCos'] = np.cos(hourIntoMonth * (2 * np.pi / 730.001))
-    calculatedFeatures['hourIntoYearSin'] = np.sin(hourIntoYear * (2 * np.pi / 8760))
-    calculatedFeatures['hourIntoYearCos'] = np.cos(hourIntoYear * (2 * np.pi / 8760))
+    calculatedFeatures['minutesIntoWeekSin'] = np.sin(minutesIntoWeek * (2 * np.pi / 10080))
+    calculatedFeatures['minutesIntoWeekCos'] = np.cos(minutesIntoWeek * (2 * np.pi / 10080))
+    calculatedFeatures['hoursIntoMonthSin'] = np.sin(hourIntoMonth * (2 * np.pi / 730.001))
+    calculatedFeatures['hoursIntoMonthCos'] = np.cos(hourIntoMonth * (2 * np.pi / 730.001))
+    # calculatedFeatures['hoursIntoYearSin'] = np.sin(hourIntoYear * (2 * np.pi / 8760))
+    # calculatedFeatures['hoursIntoYearCos'] = np.cos(hourIntoYear * (2 * np.pi / 8760))
     calculatedFeatures['volume'] = trade[1] # amount_traded
     calculatedFeatures['type'] = trade[2] # type
 
     return calculatedFeatures
 
-def calculateAllFeatureGroups(df, tradePool, features, pivotTrade):
+def calculateAllFeatureGroups(tradePool, features, pivotTrade):
     tradeTimeMilliseconds = pivotTrade[3]
     pivotTradeId = pivotTrade[4]
-    allFeatures = {}
+    fileDestinations = {}
+    fileDestinations['noNormalize'] = {}
+    fileDestinations['normalize'] = {}
 
-    allFeatures = allFeatures | calculateNonPeriodFeatures(pivotTrade, features)
+    nonPeriodFeatures = calculateNonPeriodFeatures(pivotTrade, features)
+    fileDestinations = splitFeatures(fileDestinations, nonPeriodFeatures, features)
+    del nonPeriodFeatures
 
     for timeName, periodMilliseconds in features.TIME_PERIODS.items():
         timeGroup = 'past'
@@ -138,20 +142,29 @@ def calculateAllFeatureGroups(df, tradePool, features, pivotTrade):
                 pivotTradeId, 
                 endTimeMilliseconds, 
                 features )
-        allFeatures = allFeatures | pastFeatures
+
+        fileDestinations['normalize'] = fileDestinations['normalize'] \
+            | pastFeatures
+        del pastFeatures
 
         timeGroup = 'future'
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
-        futureFeatures = calculateFutureFeatureGroup(timeName, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, pivotPrice)
-        allFeatures = allFeatures | futureFeatures
+        fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, pivotPrice)
 
-    # move dataFrame concat to a seperate function
-    data = { pivotTradeId: list(allFeatures.values()) }
-    concatDf = pd.DataFrame.from_dict(data, orient='index', columns=features.COLUMNS)
-    df = pd.concat([df, concatDf])
     logging.debug('All feature groups calculated')
-    return normFeatures, noNormFeatures, 
+    return fileDestinations
+
+def splitFeatures(fileDestinations, featureGroup, features):
+    fileDestinations['noNormalize'] = fileDestinations['noNormalize'] \
+        | dict([(key, value) for key, value \
+        in featureGroup.items() \
+        if key in features.DO_NOT_NORMALIZE])
+    fileDestinations['normalize'] = fileDestinations['normalize'] \
+        | dict([(key, value) for key, value in \
+        featureGroup.items() \
+        if key not in features.DO_NOT_NORMALIZE])
+    return fileDestinations
 
 def calculatePastFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features):
     logging.debug(f'Collecting trades and calculating Group past_{name}')

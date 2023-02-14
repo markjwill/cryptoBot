@@ -97,9 +97,9 @@ def main():
     logging.info(f"mean_sqrd_error is== {mean_squared_error(y_test,y_pred)}")
     logging.info(f"root_mean_squared error of is== {np.sqrt(mean_squared_error(y_test,y_pred))}")
 
-    plt.set_title(f"{timeName} Y {timeName} r2score is {score} \n \
-     mean_sqrd_error is== {mean_squared_error(y_test,y_pred)} \n \
-     root_mean_squared error of is== {np.sqrt(mean_squared_error(y_test,y_pred))} \n \
+    plt.title(f"{timeName} Y {timeName} r2score is {score} \
+     mean_sqrd_error is {mean_squared_error(y_test,y_pred)} \
+     root_mean_squared error of is {np.sqrt(mean_squared_error(y_test,y_pred))} \
      -no-clip ", pad=30)
     plt.plot([-1.5, 1.5], [-1.5, 1.5], 'bo', linestyle="--")
     plt.scatter(y_test,y_pred)
