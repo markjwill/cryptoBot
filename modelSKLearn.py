@@ -20,22 +20,23 @@ import dask.dataframe as dd
 import logging
 import argparse
 import timing
+import memory_profiler
 
 targetTable = 'tradesCalculated_80ce611831f588a69bb698c37f5a8036'
 scalerFileName = '20230212scaler.gz'
 
 csvTimes = {
-  'tenSeconds'       : '/mysqlFiles/tradesCalc_8036_medium_10s.csv',
-  'thirtySeconds'    : '/mysqlFiles/tradesCalc_8036_medium_30s.csv',
-  'ninetySeconds'    : '/mysqlFiles/tradesCalc_8036_medium_90s.csv',
-  'fiveMinutes'      : '/mysqlFiles/tradesCalc_8036_medium_5m.csv',
-  'fifteenMinutes'   : '/mysqlFiles/tradesCalc_8036_medium_15m.csv',
-  'fortyFiveMinutes' : '/mysqlFiles/tradesCalc_8036_medium_45m.csv',
-  'twoHours'         : '/mysqlFiles/tradesCalc_8036_medium_2h.csv',
+  'tenSeconds'       : '/mysqlFiles/tradesCalc_8036_10s.csv',
+  'thirtySeconds'    : '/mysqlFiles/tradesCalc_8036_30s.csv',
+  'ninetySeconds'    : '/mysqlFiles/tradesCalc_8036_90s.csv',
+  'fiveMinutes'      : '/mysqlFiles/tradesCalc_8036_5m.csv',
+  'fifteenMinutes'   : '/mysqlFiles/tradesCalc_8036_15m.csv',
+  'fortyFiveMinutes' : '/mysqlFiles/tradesCalc_8036_45m.csv',
+  'twoHours'         : '/mysqlFiles/tradesCalc_8036_2h.csv',
 }
 
-csvNoNorm = '/mysqlFiles/tradesCalc_8036_medium_nonorm.csv'
-csvNorm = '/mysqlFiles/tradesCalc_8036_medium_norm.csv'
+csvNoNorm = '/mysqlFiles/tradesCalc_8036_nonorm.csv'
+csvNorm = '/mysqlFiles/tradesCalc_8036_norm.csv'
 
 selectQuery = f"""
 SET @sql = CONCAT('SELECT ', (SELECT REPLACE(GROUP_CONCAT(COLUMN_NAME), 'index', '') FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{targetTable}' AND TABLE_SCHEMA = 'botscape'), ' FROM {targetTable}');
@@ -43,6 +44,7 @@ PREPARE stmt1 FROM @sql;
 EXECUTE stmt1;
 """
 
+# @profile
 def main():
   features = f.Features()
   Ycols = features.Ycols
@@ -52,16 +54,18 @@ def main():
   # df = pd.read_sql(selectQuery, con=engine)
   # engine.dispose()
   logging.info("begin loadin csv")
-  dfNorm = dd.read_csv( csvNorm, assume_missing=True)
+  # dfNorm = dd.read_csv( csvNorm, assume_missing=True)
+  dfNorm = pd.read_csv( csvNorm ).astype('float32')
   logging.info("norm csv loaded")
   logging.info("normalizer init")
-  dfNorm = normalizer.clipOutliersAllFeatures(dfNorm)
+  # dfNorm = normalizer.clipOutliersAllFeatures(dfNorm)
   logging.info("outliers clipped")
   dfNorm = normalizer.fitAndNormalizeAll(dfNorm)
   logging.info("normalization complete")
 
-  dfNoNorm = dd.read_csv( csvNoNorm, assume_missing=True)
-  dfNoNorm = dfNoNorm.compute()
+  # dfNoNorm = dd.read_csv( csvNoNorm, assume_missing=True)
+  dfNoNorm = pd.read_csv( csvNoNorm ).astype('float32')
+  # dfNoNorm = dfNoNorm.compute()
   logging.info("no norm csv loaded")
   logging.info(f"noNorm {type(dfNoNorm)} shape {dfNoNorm.shape}")
   logging.info(f"norm {type(dfNorm)} shape {dfNorm.shape}")
@@ -75,7 +79,7 @@ def main():
   for timeName, targetColumn in Ycols.items():
     logging.info(f"Split test traing {targetColumn}")
     Ydf = pd.read_csv( csvTimes[timeName] )
-    Ydf = normalizer.clipOutliersAllFeatures(Ydf)
+    # Ydf = normalizer.clipOutliersAllFeatures(Ydf)
     logging.info("outliers clipped")
     Ydf = normalizer.fitAndNormalizeAll(Ydf)
       # , assume_missing=True)
@@ -93,12 +97,16 @@ def main():
     logging.info(f"mean_sqrd_error is== {mean_squared_error(y_test,y_pred)}")
     logging.info(f"root_mean_squared error of is== {np.sqrt(mean_squared_error(y_test,y_pred))}")
 
-    plt.plot([-3, 3], [-3, 3], 'bo', linestyle="--")
+    plt.set_title(f"{timeName} Y {timeName} r2score is {score} \n \
+     mean_sqrd_error is== {mean_squared_error(y_test,y_pred)} \n \
+     root_mean_squared error of is== {np.sqrt(mean_squared_error(y_test,y_pred))} \n \
+     -no-clip ", pad=30)
+    plt.plot([-1.5, 1.5], [-1.5, 1.5], 'bo', linestyle="--")
     plt.scatter(y_test,y_pred)
     plt.grid(True)
     plt.xlabel('Actual')
     plt.ylabel('Predicted')
-    plt.savefig(f'images/{timeName}_predictedVsActual', dpi=200)
+    plt.savefig(f'images/{timeName}_predictedVsActual-noclip', dpi=200)
     logging.info(f"Saved image for {targetColumn}")
     plt.close()
 

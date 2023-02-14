@@ -67,12 +67,12 @@ class Features:
     NON_PERIOD_FEATURES = {
         'secondsIntoDaySin'  : 0,
         'secondsIntoDayCos'  : 0,
-        # 'minutesIntoWeekSin' : 0,
-        # 'minutesIntoWeekCos' : 0,
-        # 'hourIntoMonthSin'   : 0,
-        # 'hourIntoMonthCos'   : 0,
-        # 'hourIntoYearSin'    : 0,
-        # 'hourIntoYearCos'    : 0,
+        'minutesIntoWeekSin' : 0,
+        'minutesIntoWeekCos' : 0,
+        'hourIntoMonthSin'   : 0,
+        'hourIntoMonthCos'   : 0,
+        'hourIntoYearSin'    : 0,
+        'hourIntoYearCos'    : 0,
         'volume'             : 0, # amount traded
         'type'               : 0  # 1 = buy, -1 = sell
     }
@@ -89,6 +89,18 @@ class Features:
         'hourIntoYearSin',
         'hourIntoYearCos',
     ]
+
+    csvFiles = {
+      'tenSeconds'       : '/mysqlFiles/tenSeconds.csv',
+      'thirtySeconds'    : '/mysqlFiles/thirtySeconds.csv',
+      'ninetySeconds'    : '/mysqlFiles/ninetySeconds.csv',
+      'fiveMinutes'      : '/mysqlFiles/fiveMinutes.csv',
+      'fifteenMinutes'   : '/mysqlFiles/fifteenMinutes.csv',
+      'fortyFiveMinutes' : '/mysqlFiles/fortyFiveMinutes.csv',
+      'twoHours'         : '/mysqlFiles/twoHours.csv',
+      'csvNoNorm'        : '/mysqlFiles/csvNoNorm.csv',
+      'csvNorm'          : '/mysqlFiles/csvNorm.csv'
+    }
 
     COLUMNS = []
     PERIOD_FEATURES = {}
