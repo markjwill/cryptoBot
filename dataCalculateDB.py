@@ -14,15 +14,11 @@ import atexit
 csvFiles = {}
 csvWriters = {}
 
-def main(workerCount, workerIndex):
+def main():
     batchSize = 5000
     features = setupFeatures()
     openCsvFilesForWriting(features)
-    tradeDbManager, tradeList, farthestCompleteTradeId, calculatedTableName = setupTradeManager(
-        features,
-        workerCount,
-        workerIndex
-    )
+    tradeDbManager, tradeList = initTradeManager()
     tradePool = setupTradePool(tradeList)
     timing.log('Inital setup complete')
 
@@ -41,10 +37,10 @@ def main(workerCount, workerIndex):
             )
             continue
 
-        if pivotTrade[4] <= farthestCompleteTradeId:
-            index += 1
-            logging.debug(f'Skipping trade recorded at {tradeDatetime} for being already calculated.')
-            continue
+        # if pivotTrade[4] <= farthestCompleteTradeId:
+        #     index += 1
+        #     logging.debug(f'Skipping trade recorded at {tradeDatetime} for being already calculated.')
+        #     continue
 
         if firstCalculation == True:
             logging.info(f'Starting feature calcuation at {tradeDatetime}')
@@ -55,21 +51,12 @@ def main(workerCount, workerIndex):
         logging.debug(f'Attempting feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
         index = tryFeatureCalculation(tradePool, tradeDbManager, features, index, pivotTrade)
         logging.debug(f'Completed feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
-        farthestCompleteTradeId = pivotTrade[4]
-
-        recordsPerWorker = tradeDbManager.APROXIMATE_RECORD_COUNT / workerCount
+        # farthestCompleteTradeId = pivotTrade[4]
 
         recordsInBatch += 1
         if recordsInBatch % 100 == 0:
             logging.info(f'Completed feature calcuation through {tradeDatetime}')
-            timing.endCalculation(batchCalculationStart, recordsInBatch, recordsPerWorker)
-
-        if recordsInBatch >= batchSize:
-            timing.log(f'{recordsInBatch} calculations complete, Starting calcuated data save')
-            logging.info(f'Completed feature calcuation through {tradeDatetime}')
-            timing.endCalculation(batchCalculationStart, recordsInBatch, recordsPerWorker)
-            recordsInBatch = 0
-            batchCalculationStart = timing.startCalculation()
+            timing.endCalculation(batchCalculationStart, recordsInBatch, tradeDbManager.APROXIMATE_RECORD_COUNT)
 
 def processDataSave(fileDestinations):
     for fileName, data in fileDestinations.items():
@@ -95,15 +82,10 @@ def closeCsvFiles():
     for file in csvFiles.values():
         file.close()
 
-def setupTradeManager(features, workerCount, workerIndex):
-    tradeDbManager = tdm.TradeDbManager(workerCount, workerIndex)
-    calculatedTableName = tradeDbManager.getUniqueTableName(
-        features.getDictForTableName()
-    )
-    tradeDbManager.setMaxTimePeriod(features.MAX_PERIOD)
-    farthestCompleteTradeId = tradeDbManager.getFarthestCompleteTradeId()
+def initTradeManager():
+    tradeDbManager = tdm.TradeDbManager()
     tradeList = tradeDbManager.getStarterTradeList()
-    return tradeDbManager, tradeList, farthestCompleteTradeId, calculatedTableName
+    return tradeDbManager, tradeList
 
 def setupTradePool(tradeList):
     tradePool = tp.TradePool()
@@ -151,21 +133,6 @@ def addMoreTrades(tradePool, tradeDbManager, batchMultiplier):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    # remove workers feature in favor of dask multi-threading
-    parser.add_argument( '-w',
-                         '--workerCount',
-                         default=1,
-                         const=1,
-                         nargs='?',
-                         help='Provide how many workers will be running. Example vaue: 3, default=1' )
-
-    parser.add_argument( '-i',
-                         '--workerIndex',
-                         default=0,
-                         const=0,
-                         nargs='?',
-                         help='Provide this workers index. Example value: 2, default=0' )
-
     parser.add_argument( '-log',
                          '--loglevel',
                          default='warning',
@@ -177,7 +144,7 @@ if __name__ == '__main__':
     logging.info( 'Logging now setup.' )
     timing.startTiming()
     try:
-        main(int(args.workerCount), int(args.workerIndex))
+        main()
     except StopIteration as error:
         logging.error(error)
     logging.info("script end reached")

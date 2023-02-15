@@ -26,6 +26,14 @@ class Features:
     MAX_PERIOD = 7200001
 
     PRICE_PERIOD_FEATURES = {
+
+    }
+
+    OFF_EXCHANGE_PERIOD_FEATURES = {
+        'diffExchange'     : 0.0  # difference in price from exchange
+    }
+
+    RICH_PERIOD_FEATURES = {
         'avgByTradesPrice' : 0.0, #avg Price by number of trades - pivot price
         'highPrice'        : 0.0, #high price - pivot price
         'lowPrice'         : 0.0, #low price - pivot price
@@ -34,13 +42,6 @@ class Features:
         'travelReal'       : 0.0, #low to high change in price
         # 'travelPercent'    : 0.0, #low to high change price percent
         'upVsDown'         : 0,   #sum of price increases as +1 and price decreases as -1
-    }
-
-    OFF_EXCHANGE_PERIOD_FEATURES = {
-        'diffExchange'     : 0.0  # difference in price from exchange
-    }
-
-    RICH_PERIOD_FEATURES = {
         'avgByVolumePrice' : 0.0, #avg Price by volume - pivot price
         'volume'           : 0.0, #sum of trade amounts
         # 'volumePrMinute'   : 0.0, #sum of trade amounts per minute
@@ -93,7 +94,6 @@ class Features:
     COLUMNS = []
     PERIOD_FEATURES = {}
     featuresToNormalize = []
-    Ycols = {}
     csvFiles = {}
 
     def __init__(self):
@@ -125,7 +125,9 @@ class Features:
         logging.debug(self.csvFiles)
 
     def initFeaturesToNormalize(self):
-        self.featuresToNormalize = [i for i in self.COLUMNS if i not in self.DO_NOT_NORMALIZE]
+        futurePriceFeatures = [f'{timeName}_futurePrice' for timeName in self.TIME_PERIODS.keys()]
+        doNotNormalize = self.DO_NOT_NORMALIZE + futurePriceFeatures
+        self.featuresToNormalize = [i for i in self.COLUMNS if i not in doNotNormalize]
         logging.debug('featuresToNormalize:')
         logging.debug(self.featuresToNormalize)
 
@@ -166,7 +168,6 @@ class Features:
             for featureName in self.PERIOD_FEATURES:
                 self.COLUMNS.append(f'{timeName}_{featureName}')
             self.COLUMNS.append(f'{timeName}_futurePrice')
-            self.Ycols[timeName] = f'{timeName}_futurePrice'
 
         logging.debug('COLUMNS:')
         logging.debug(self.COLUMNS) 

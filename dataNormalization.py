@@ -8,7 +8,7 @@ import pandas as pd
 
 class DataNormalizer:
 
-  outlierStandardDeviations = 3
+  outlierStandardDeviations = 2
   scalerFileName = ''
   scaler = None
 

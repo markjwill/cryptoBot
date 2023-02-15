@@ -59,27 +59,28 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
                 f'End price feature calculated as 0 at tradeId {lastTrade[4]}.'
             )
 
-        calculatedFeatures[f'{sourceName}_highPrice'] = np.amax(tradeArray[:, index['price']], axis=0)
-        calculatedFeatures[f'{sourceName}_lowPrice'] = np.amin(tradeArray[:, index['price']], axis=0)
-        difference = np.diff(tradeArray[:, index['price']], axis=0)
-        calculatedFeatures[f'{sourceName}_upVsDown'] = \
-            np.sum(np.array(difference) > 0, axis=0) - np.sum(np.array(difference) < 0, axis=0)
-        calculatedFeatures[f'{sourceName}_changeReal'] = \
-            firstTrade[index['price']] - pivotPrice[sourceName]
-        calculatedFeatures[f'{sourceName}_travelReal'] = \
-            calculatedFeatures[f'{sourceName}_highPrice'] \
-            - calculatedFeatures[f'{sourceName}_lowPrice']
-
-        calculatedFeatures[f'{sourceName}_avgByTradesPrice'] = \
-            ( np.array(tradeArray[:, index['price']]).sum() / calculatedFeatures['tradeCount'] ) \
-            - pivotPrice[sourceName]
-        calculatedFeatures[f'{sourceName}_lowPrice'] -= pivotPrice[sourceName]
-        calculatedFeatures[f'{sourceName}_highPrice'] -= pivotPrice[sourceName]
-
         if    index['price'] is not False and \
              index['volume'] is not False and \
                index['type'] is not False and \
            index['quantity'] is not False:
+
+            calculatedFeatures[f'{sourceName}_highPrice'] = np.amax(tradeArray[:, index['price']], axis=0)
+            calculatedFeatures[f'{sourceName}_lowPrice'] = np.amin(tradeArray[:, index['price']], axis=0)
+            difference = np.diff(tradeArray[:, index['price']], axis=0)
+            calculatedFeatures[f'{sourceName}_upVsDown'] = \
+                np.sum(np.array(difference) > 0, axis=0) - np.sum(np.array(difference) < 0, axis=0)
+            calculatedFeatures[f'{sourceName}_changeReal'] = \
+                firstTrade[index['price']] - pivotPrice[sourceName]
+            calculatedFeatures[f'{sourceName}_travelReal'] = \
+                calculatedFeatures[f'{sourceName}_highPrice'] \
+                - calculatedFeatures[f'{sourceName}_lowPrice']
+
+            calculatedFeatures[f'{sourceName}_avgByTradesPrice'] = \
+                ( np.array(tradeArray[:, index['price']]).sum() / calculatedFeatures['tradeCount'] ) \
+                - pivotPrice[sourceName]
+            calculatedFeatures[f'{sourceName}_lowPrice'] -= pivotPrice[sourceName]
+            calculatedFeatures[f'{sourceName}_highPrice'] -= pivotPrice[sourceName]
+
             calculatedFeatures[f'{sourceName}_volume'] = np.sum(tradeArray[:, index['volume']])
             calculatedFeatures[f'{sourceName}_buys'] = \
                 np.sum(tradeArray[:,index['type']] == 1.0, axis=0)

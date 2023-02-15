@@ -23,6 +23,8 @@ At this point visualizing data was necessary to start seeing the model at work. 
 
 Further efforts were made to remove loops in feature computation using numpy, adding 4x to the critical speed of the first few steps in the data preparation. 
 
+10 days with loops -> 3 days with loops removed -> 1 day with 3 workers -> 1 day with 1 worker and threaded csv output instead of mysql.
+
 Current work is on visualizing every feature and visualizing data outlier cleanup and checking for any smells in the calculated data.
 
 #### SEPTEMBER 2021 - Refactor "production":  v1_code

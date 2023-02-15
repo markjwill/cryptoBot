@@ -1,25 +1,23 @@
 # import dask.dataframe as dd
 import pandas as pd
-import mydb
 import dataNormalization as dn
 import features as f
 import argparse
 import timing
 import logging
 import matplotlib
-matplotlib.use('TkCairo')
+matplotlib.use('Agg')
+# matplotlib.use('TkCairo')
 import matplotlib.pyplot as plt
+from datetime import date
 
 
-targetTable = 'tradesCalculated_80ce611831f588a69bb698c37f5a8036'
-scalerFileName = '20130202scaler.gz'
+csvNormalize = '/csvFiles/normalize.csv'
+scalerFileName = '20130214scaler.gz'
 
 def main():
   features = f.Features()
-  engine = mydb.getEngine()
-  df = pd.read_sql(f'SELECT * FROM {targetTable};', con=engine)
-  engine.dispose()
-  features = f.Features()
+  df = pd.read_csv( csvNormalize ).astype('float32')
 
   for column in features.featuresToNormalize:
     logging.info(f'Making images/{column}_hist')
@@ -44,9 +42,8 @@ def main():
     logging.info(f'Making images/{column}_hist_afterNorm')
     plt.gcf().set_size_inches(15, 15)
     df[column].plot(kind='hist', bins=100)
-    plt.savefig(f'images/{column}_hist_afterNorm', dpi=200)
+    plt.savefig(f'images/{date.today()}-{column}_hist_afterNorm', dpi=200)
     plt.close()
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
