@@ -7,27 +7,28 @@ import tradeDbManager as tdm
 import timing
 import features as f
 import pandas as pd
-from threading import Thread
+import threading
 import csv
 import atexit
+import time
 
 csvFiles = {}
 csvWriters = {}
 
 def main():
-    batchSize = 5000
+    threadCount = 3
     features = setupFeatures()
-    openCsvFilesForWriting(features)
+    openCsvFilesForWriting(features, threadCount)
     tradeDbManager, tradeList = initTradeManager()
     tradePool = setupTradePool(tradeList)
     timing.log('Inital setup complete')
 
     index = 0
-    recordsInBatch = 0
-    firstCalculation = True
+    count = 0
+    poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
+    batchCalculationStart = timing.startCalculation()
     while index < tradePool.maxIndex:
         pivotTrade = tradePool.getTradeAt(index)
-        poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
         tradeDatetime = tradePool.logTime(pivotTrade[3])
         if poolStartMilliseconds + 1000 >= pivotTrade[3] - features.MAX_PERIOD:
             index += 1
@@ -37,44 +38,53 @@ def main():
             )
             continue
 
+        miniPool = tp.TradePool()
+        miniPool.setInitalTrades(tradePool.getMiniPool(index, features))
+        if miniPool.dataGaps():
+            index += 1
+            logging.debug(
+                f'Skipping trade recorded at {tradeDatetime} for gaving '
+                f'gaps greather than {(tradePool.MILLISECONDS_GAP_TOLERATED / 1000)} seconds'
+            )
+            continue
+
         # if pivotTrade[4] <= farthestCompleteTradeId:
         #     index += 1
         #     logging.debug(f'Skipping trade recorded at {tradeDatetime} for being already calculated.')
         #     continue
 
-        if firstCalculation == True:
-            logging.info(f'Starting feature calcuation at {tradeDatetime}')
-            timing.log('Starting first calcuation')
-            batchCalculationStart = timing.startCalculation()
-            firstCalculation = False
-
         logging.debug(f'Attempting feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
-        index = tryFeatureCalculation(tradePool, tradeDbManager, features, index, pivotTrade)
+        tryFeatureCalculation(miniPool, features, threadCount)
+        index += 1
         logging.debug(f'Completed feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
         # farthestCompleteTradeId = pivotTrade[4]
 
-        recordsInBatch += 1
-        if recordsInBatch % 100 == 0:
+        count += 1
+        if count % 100 == 0:
             logging.info(f'Completed feature calcuation through {tradeDatetime}')
+            logging.info(f'{(index - count)} trades skipped so far.')
             timing.endCalculation(batchCalculationStart, recordsInBatch, tradeDbManager.APROXIMATE_RECORD_COUNT)
 
-def processDataSave(fileDestinations):
-    for fileName, data in fileDestinations.items():
-        Thread(target=appendToCsvFiles, args=(fileName, data, )).start()
+def processDataSave(fileDestinations, thread):
+    for filePart, data in fileDestinations.items():
+        fileName = str(thread) + filePart
+        threading.Thread(target=appendToCsvFiles, args=(fileName, data, )).start()
 
 def appendToCsvFiles(fileName, data):
     csvWriters[fileName].writerow(data)
 
-def openCsvFilesForWriting(features):
+def openCsvFilesForWriting(features, threadCount):
     outputFolder = '/csvFiles'
 
-    for fileName, fieldnames in features.csvFiles.items():
-        truncateAndCreateFile = open(f'{outputFolder}/{fileName}.csv', 'w+')
-        truncateAndCreateFile.close()
-        csvFiles[fileName] = open(f'{outputFolder}/{fileName}.csv', 'a')
-        csvWriters[fileName] = csv.DictWriter(csvFiles[fileName], \
-            fieldnames=fieldnames)
-        csvWriters[fileName].writeheader()
+    for filePart, fieldnames in features.csvFiles.items():
+        for thread in range(threadCount):
+            fileName = str(thread) + filePart
+            truncateAndCreateFile = open(f'{outputFolder}/{fileName}.csv', 'w+')
+            truncateAndCreateFile.close()
+            csvFiles[fileName] = open(f'{outputFolder}/{fileName}.csv', 'a')
+            csvWriters[fileName] = csv.DictWriter(csvFiles[fileName], \
+                fieldnames=fieldnames)
+        csvWriters["0"+filePart].writeheader()
 
     atexit.register(closeCsvFiles)
 
@@ -96,39 +106,28 @@ def setupFeatures():
     features = f.Features()
     return features
 
-def tryFeatureCalculation(tradePool, tradeDbManager, features, index, pivotTrade):
+def tryFeatureCalculation(tradePool, features, index, threadCount):
     try:
-        fileDestinations = dataCalculate.calculateAllFeatureGroups(tradePool, features, pivotTrade)
-        processDataSave(fileDestinations)
-        index += 1
-        return index
+        logging.info(f"Active threads: {threading.active_count()}")
+        while threading.active_count() > len(csvWriters):
+            time.sleep(0.0001)
+        thread = index % threadCount
+        threading.Thread(target=featureCalculationThread, args=(thread, tradePool, features, )).start()
+        exit()
     except AssertionError as error:
         logging.error(error)
         raise
     except IndexError as error:
         logging.error(error)
         if error.args[1]:
-            if addedTradeCount := addMoreTrades(tradePool, tradeDbManager, 1):
-                return max(0,index - addedTradeCount)
+            # if addedTradeCount := addMoreTrades(tradePool, tradeDbManager, 1):
+            #     return max(0,index - addedTradeCount)
             raise StopIteration('No additional trades available to continue.')
         raise
 
-def addMoreTrades(tradePool, tradeDbManager, batchMultiplier):
-    tradePool.logPoolDetails()
-    logging.info('Starting adding more trades.')
-    cumulativeCount = 0
-    tradeList = tradeDbManager.getAdditionalTradeList(batchMultiplier)
-    cumulativeCount += len(tradeList)
-    tradePool.rotateTradesIntoTheFuture(tradeList)
-    while tradePool.dataGaps():
-        logging.info('Adding more trades to get past data gaps.')
-        #consider a more fine grained approach here
-        tradeList = tradeDbManager.getAdditionalTradeList(0.25)
-        cumulativeCount += len(tradeList)
-        tradePool.rotateTradesIntoTheFuture(tradeList)
-    logging.info(f'Finished adding {cumulativeCount} more trades.')
-    tradePool.logPoolDetails()
-    return cumulativeCount
+def featureCalculationThread(thread, tradePool, features):
+    fileDestinations = dataCalculate.calculateAllFeatureGroups(tradePool, features)
+    processDataSave(fileDestinations, thread)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -121,7 +121,8 @@ def calculateNonPeriodFeatures(trade, features):
 
     return calculatedFeatures
 
-def calculateAllFeatureGroups(tradePool, features, pivotTrade):
+def calculateAllFeatureGroups(tradePool, features):
+    pivotTrade = tradePool.getPivotTrade()
     tradeTimeMilliseconds = pivotTrade[3]
     pivotTradeId = pivotTrade[4]
     fileDestinations = {}

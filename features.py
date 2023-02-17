@@ -72,8 +72,8 @@ class Features:
         'minutesIntoWeekCos' : 0,
         'hoursIntoMonthSin'   : 0,
         'hoursIntoMonthCos'   : 0,
-        'hoursIntoYearSin'    : 0,
-        'hoursIntoYearCos'    : 0,
+        # 'hoursIntoYearSin'    : 0,
+        # 'hoursIntoYearCos'    : 0,
         'volume'             : 0, # amount traded
         'type'               : 0  # 1 = buy, -1 = sell
     }
@@ -85,8 +85,8 @@ class Features:
         'secondsIntoDayCos',
         'minutesIntoWeekSin',
         'minutesIntoWeekCos',
-        'hourIntoMonthSin',
-        'hourIntoMonthCos',
+        'hoursIntoMonthSin',
+        'hoursIntoMonthCos',
         # 'hourIntoYearSin',
         # 'hourIntoYearCos',
     ]

@@ -6,13 +6,14 @@ import json
 
 class TradeDbManager:
 
-# Remove limit, if MySQL doesn't like it, export to CSV
+# ORDER BY removed and LIMIT in place for debug only
     selectTrades = """
 SELECT `price`, `amount`, IF(`type` = 'buy', 1, -1) as 'type', `date_ms`, `id`, `coinbasePrice`, `huobiPrice` ,`binancePrice`
 FROM `tradeData`
-ORDER BY `date_ms` ASC
-LIMIT %s, %s
+-- ORDER BY `date_ms` ASC
+LIMIT 500000
 """
+
     offset = 0
     tradeBatchSize = 30000
     offsetId = 0
@@ -28,7 +29,7 @@ LIMIT %s, %s
 
     def getTradeList(self, batchCount):
         limit = int(self.tradeBatchSize * batchCount)
-        tradeList = mydb.selectAllStatic(self.selectTrades % (str(self.offset), str(limit)))
+        tradeList = mydb.selectAllStatic(self.selectTrades)
         if not tradeList:
             raise StopIteration('0 trades returned from DB')
         self.offset = self.offset + limit

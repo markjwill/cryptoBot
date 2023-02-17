@@ -62,7 +62,7 @@ def main():
     logging.info(f"Split test traing {timeName} future price")
     Ydf = pd.read_csv( f'{featureDataFolder}/{timeName}.csv' )
     with parallel_backend('threading', n_jobs=3):
-      Ydf = normalizer.clipOutliersAllFeatures(Ydf)
+      # Ydf = normalizer.clipOutliersAllFeatures(Ydf)
       logging.info("outliers clipped")
       Ydf = normalizer.fitAndNormalizeAll(Ydf)
       # , assume_missing=True)
