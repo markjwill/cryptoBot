@@ -95,12 +95,20 @@ class Features:
     PERIOD_FEATURES = {}
     featuresToNormalize = []
     csvFiles = {}
+    starterPercents = {}
 
     def __init__(self):
         self.initPeriodFeatures()
         self.initColumns()
         self.initFeaturesToNormalize()
         self.initCsvFiles()
+        self.setStarterPercents()
+
+    def setStarterPercents(self):
+        for timeName, milliseconds in self.TIME_PERIODS.items():
+            self.starterPercents[timeName] = milliseconds / self.MAX_PERIOD
+        logging.debug('Starter Percents:')
+        logging.debug(self.starterPercents)
 
     def initCsvFiles(self):
         if self.csvFiles:

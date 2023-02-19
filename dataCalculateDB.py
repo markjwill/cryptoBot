@@ -16,7 +16,7 @@ csvFiles = {}
 csvWriters = {}
 
 def main():
-    threadCount = 3
+    threadCount = 10
     features = setupFeatures()
     openCsvFilesForWriting(features, threadCount)
     tradeDbManager, tradeList = initTradeManager()
@@ -34,7 +34,7 @@ def main():
         if poolStartMilliseconds + 1000 >= pivotTrade[3] - features.MAX_PERIOD:
             index += 1
             logging.debug(
-                f'Skipping trade recorded at {tradeDatetime} for being '
+                f'Skipping trade recorded at {tradeDatetime} for being\n'
                 'less than MAX_PERIOD + 1 second into the tradesPool'
             )
             continue
@@ -42,13 +42,14 @@ def main():
         miniPool = tp.TradePool()
         miniTradeList, miniPivotIndex, futureTrades = tradePool.getMiniPool(pivotTrade, features)
         miniPool.setInitalTrades(miniTradeList, miniPivotIndex, futureTrades)
-        if miniPool.miniPoolDataGaps(len(features.TIME_PERIODS)):
+        if miniPool.miniPoolDataGaps():
             index += 1
             logging.debug(
-                f'Skipping trade recorded at {tradeDatetime} for having '
+                f'Skipping trade recorded at {tradeDatetime} for having\n'
                 f'gaps greather than {(tradePool.MILLISECONDS_GAP_TOLERATED / 1000)} seconds'
             )
             continue
+        miniPool.setStarterIndexes(features.starterPercents)
 
         # if pivotTrade[4] <= farthestCompleteTradeId:
         #     index += 1
@@ -110,7 +111,7 @@ def setupFeatures():
 
 def tryFeatureCalculation(tradePool, features, count, threadCount):
     try:
-        logging.info(f"Active threads: {threading.active_count()}")
+        logging.debug(f"Active threads: {threading.active_count()}")
         while threading.active_count() > len(csvWriters):
             time.sleep(0.0001)
         thread = count % threadCount
