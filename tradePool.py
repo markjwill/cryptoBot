@@ -122,6 +122,40 @@ class TradePool:
         logging.debug('Finished data gap check')
         return False
 
+    def mapGaps(self, features):
+        logging.debug('Starting gap mapping')
+        previousTimeMilliseconds = 0
+        gapStartMillieseconds = self.getTradeMilliseconds(self.getFirstInPool())
+        inGap = True
+        gapStartIndex = 0
+        gapIndexMap = { gapStartIndex:0 }
+        for index in range(len(self.tradeList)):
+            trade = self.getTradeAt(index)
+            tradeMilliseconds = self.getTradeMilliseconds(trade)
+
+            if inGap:
+                if tradeMilliseconds < gapStartMillieseconds + features.MAX_PERIOD:
+                    gapIndexMap[gapStartIndex] = index
+                    continue
+                else:
+                    inGap = False
+
+            if ( tradeMilliseconds - self.MILLISECONDS_GAP_TOLERATED ) > previousTimeMilliseconds:
+                previousIndex = index - 1
+                while (tradeMillieseconds - features.MAX_PERIOD > \
+                        self.getTradeMilliseconds(self.getTradeAt(previousIndex)):
+                    previousIndex -= 1
+                    gapStartIndex = previousIndex
+                gapStartMillieseconds = self.getTradeMilliseconds(self.getTradeAt(previousIndex))
+                gapIndexMap[gapIndex] = 0
+                inGap = True
+                
+
+            previousTimeMilliseconds = tradeMilliseconds
+
+        logging.debug('Finished gap mapping')
+        return gapIndexMap
+
     def dataGaps(self):
         logging.debug('Starting data gap check')
         previousTimeMilliseconds = self.getTradeMilliseconds(self.getFirstInPool())

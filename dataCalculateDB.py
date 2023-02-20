@@ -111,8 +111,9 @@ def setupFeatures():
 
 def tryFeatureCalculation(tradePool, features, count, threadCount):
     try:
-        logging.debug(f"Active threads: {threading.active_count()}")
-        while threading.active_count() > len(csvWriters):
+        threadsAvailable = len(csvWriters)
+        logging.info(f"Active threads: {threading.active_count()} v {threadsAvailable}")
+        while threading.active_count() > threadsAvailable:
             time.sleep(0.0001)
         thread = count % threadCount
         threading.Thread(target=featureCalculationThread, args=(thread, tradePool, features, )).start()
