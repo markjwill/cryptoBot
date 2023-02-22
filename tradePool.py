@@ -14,7 +14,7 @@ import math
 
 class TradePool:
 
-    MILLISECONDS_GAP_TOLERATED = 90000
+    MILLISECONDS_GAP_TOLERATED = 120000
 
     def __init__(self):
         self.tradeList = []
@@ -135,25 +135,47 @@ class TradePool:
 
             if inGap:
                 if tradeMilliseconds < gapStartMillieseconds + features.MAX_PERIOD:
+                    # logging.debug(f'{tradeMilliseconds} < {gapStartMillieseconds} + {features.MAX_PERIOD}')
                     gapIndexMap[gapStartIndex] = index
+                    previousTimeMilliseconds = tradeMilliseconds
+                    # logging.debug(f'previousTimeMilliseconds set 1 {previousTimeMilliseconds}')
+                    # logging.debug('Continueing 1')
                     continue
                 else:
+                    logging.debug(f'Gap ended {index}')
                     inGap = False
 
             if ( tradeMilliseconds - self.MILLISECONDS_GAP_TOLERATED ) > previousTimeMilliseconds:
+                logging.debug(f'Gap found {gapStartIndex} {index}')
+                logging.debug(gapIndexMap)
+                logging.debug(f'( {tradeMilliseconds} - {self.MILLISECONDS_GAP_TOLERATED} ) > {previousTimeMilliseconds}')
                 previousIndex = index - 1
-                while (tradeMillieseconds - features.MAX_PERIOD > \
-                        self.getTradeMilliseconds(self.getTradeAt(previousIndex)):
+                while (tradeMilliseconds - features.MAX_PERIOD > \
+                        self.getTradeMilliseconds(self.getTradeAt(previousIndex))):
                     previousIndex -= 1
-                    gapStartIndex = previousIndex
+                    if previousIndex <= gapStartIndex:
+                        gapIndexMap[gapStartIndex] = index
+                        inGap = True
+                        logging.debug(f'Gap intersects with previous gap {gapStartIndex} {index}')
+                        logging.debug('Continueing 3')
+                        previousTimeMilliseconds = tradeMilliseconds
+                        logging.debug(f'previousTimeMilliseconds set 2 {previousTimeMilliseconds}')
+                        continue
+
+                gapStartIndex = previousIndex
                 gapStartMillieseconds = self.getTradeMilliseconds(self.getTradeAt(previousIndex))
-                gapIndexMap[gapIndex] = 0
+                gapIndexMap[previousIndex] = previousIndex + 1
                 inGap = True
-                
 
             previousTimeMilliseconds = tradeMilliseconds
+            # logging.debug(f'previousTimeMilliseconds set 3 {previousTimeMilliseconds}')
 
         logging.debug('Finished gap mapping')
+        logging.debug(gapIndexMap)
+        for startIndex, endIndex in gapIndexMap.items():
+            logging.debug(f'Gap from {self.logTime(self.getTradeMilliseconds(self.getTradeAt(startIndex)))}')
+            logging.debug(f'To {self.logTime(self.getTradeMilliseconds(self.getTradeAt(endIndex)))}')
+
         return gapIndexMap
 
     def dataGaps(self):

@@ -21,23 +21,29 @@ def main():
     openCsvFilesForWriting(features, threadCount)
     tradeDbManager, tradeList = initTradeManager()
     tradePool = setupTradePool(tradeList)
+    gapIndexMap = tradePool.mapGaps(features)
+    gapMapIterator = iter(gapIndexMap)
     timing.log('Inital setup complete')
 
+
+    nextGapStart = next(gapMapIterator)
+    nextGapEnd = gapIndexMap[nextGapStart]
     index = 0
     count = 0
     logAfter = 500
     poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
     batchCalculationStart = timing.startCalculation()
     while index < tradePool.maxIndex:
+        if index >= nextGapStart:
+            index += 1
+            logging.debug(f'Skipping trade in gap with index {index}')
+            if index > nextGapEnd:
+                nextGapStart = next(gapMapIterator)
+                nextGapEnd = gapIndexMap[nextGapStart]
+            continue
+
         pivotTrade = tradePool.getTradeAt(index)
         tradeDatetime = tradePool.logTime(pivotTrade[3])
-        if poolStartMilliseconds + 1000 >= pivotTrade[3] - features.MAX_PERIOD:
-            index += 1
-            logging.debug(
-                f'Skipping trade recorded at {tradeDatetime} for being\n'
-                'less than MAX_PERIOD + 1 second into the tradesPool'
-            )
-            continue
 
         miniPool = tp.TradePool()
         miniTradeList, miniPivotIndex, futureTrades = tradePool.getMiniPool(pivotTrade, features)

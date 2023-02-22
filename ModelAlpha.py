@@ -65,7 +65,7 @@ def main():
     # print(np.mean(trainX, axis=0))
     # print(np.min(trainX, axis=0))
     # print(np.max(trainX, axis=0))
-    print(np.abs(stats.zscore(trainX)))
+    print(np.abs(zscore(trainX)))
     exit()
 
     testX = array[50:,1:155]
