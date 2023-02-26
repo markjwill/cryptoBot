@@ -266,11 +266,15 @@ class TradePool:
         name = 'miniPool'
         if name not in self.subPools:
             self.addPool(name)
+        miniPool = TradePool()
         pivotTimeMilliseconds = self.getTradeMilliseconds(pivotTrade)
         startTimeMilliseconds = pivotTimeMilliseconds - features.MAX_PERIOD
         endTimeMilliseconds = pivotTimeMilliseconds
 
-        tradeList = self.selectMultipleTrades(name, startTimeMilliseconds, self.getTradeId(pivotTrade), endTimeMilliseconds)
+        self.selectMultipleTrades(name, startTimeMilliseconds, self.getTradeId(pivotTrade), endTimeMilliseconds)
+        tradeList = self.getTrades(name)
+        for timeName, periodMilliseconds in features.TIME_PERIODS.items():
+        self.transferTradeIndexes(miniPool, name)
         listPivotIndex = len(tradeList) - 1
 
         futureTrades = {}
@@ -284,6 +288,12 @@ class TradePool:
 
         return tradeList, listPivotIndex, futureTrades
 
+    def transferTradeIndexes(self, taretPool, sourceSubPoolName):
+        targetPoolStart = self.subPools[sourceSubPoolName]["startIndex"]
+        for timeName, periodMilliseconds in features.TIME_PERIODS.items():
+            if timeName not in targetPool.subPools:
+                targetPool.addPool(timeName)
+
     def getTrades(self, name, timeGroup, pivotTradeId, startTimeMilliseconds, endTimeMilliseconds):
         if name not in self.subPools:
             self.addPool(name)
@@ -291,7 +301,8 @@ class TradePool:
         logging.debug(f'Moving Indexs for subPool: {name}')
         if timeGroup == 'future':
             return self.selectFutureTrade(name, endTimeMilliseconds)
-        pastTrades = self.selectMultipleTrades(name, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
+        self.selectMultipleTrades(name, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
+        pastTrades = self.getTrades(name)
         logging.debug(f'Getting {len(pastTrades)} trades for {name} {timeGroup} at tradeId {pivotTradeId}')
         return pastTrades
 
