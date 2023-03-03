@@ -33,6 +33,7 @@ def main():
     logAfter = 500
     poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
     batchCalculationStart = timing.startCalculation()
+    processStepStart = timing.startCalculation()
     while index < tradePool.maxIndex:
         if index >= nextGapStart:
             index += 1
@@ -42,26 +43,16 @@ def main():
                 nextGapEnd = gapIndexMap[nextGapStart]
             continue
 
+        logging.info('getMiniPoolStart')
+        timing.progressCalculation(processStepStart)
+        processStepStart = timing.startCalculation()
+        miniPool = tradePool.getMiniPool(index, features)
+
         pivotTrade = tradePool.getTradeAt(index)
         tradeDatetime = tradePool.logTime(pivotTrade[3])
-
-        miniPool = tp.TradePool()
-        miniTradeList, miniPivotIndex, futureTrades = tradePool.getMiniPool(pivotTrade, features)
-        miniPool.setInitalTrades(miniTradeList, miniPivotIndex, futureTrades)
-        if miniPool.miniPoolDataGaps():
-            index += 1
-            logging.debug(
-                f'Skipping trade recorded at {tradeDatetime} for having\n'
-                f'gaps greather than {(tradePool.MILLISECONDS_GAP_TOLERATED / 1000)} seconds'
-            )
-            continue
-        miniPool.setStarterIndexes(features.starterPercents)
-
-        # if pivotTrade[4] <= farthestCompleteTradeId:
-        #     index += 1
-        #     logging.debug(f'Skipping trade recorded at {tradeDatetime} for being already calculated.')
-        #     continue
-
+        logging.info('tryFeatureCalculationStart')
+        timing.progressCalculation(processStepStart)
+        processStepStart = timing.startCalculation()
         logging.debug(f'Attempting feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
         tryFeatureCalculation(miniPool, features, count, threadCount)
         index += 1
@@ -73,11 +64,15 @@ def main():
             logging.info(f'Completed feature calcuation through {tradeDatetime}')
             logging.info(f'{(index - count)} trades skipped so far.')
             timing.endCalculation(batchCalculationStart, logAfter, tradeDbManager.APROXIMATE_RECORD_COUNT)
+        if count == 100:
+            break
 
 def processDataSave(fileDestinations, thread):
     for filePart, data in fileDestinations.items():
         fileName = str(thread) + filePart
-        threading.Thread(target=appendToCsvFiles, args=(fileName, data, )).start()
+        thisThread = threading.Thread(target=appendToCsvFiles, args=(fileName, data, ))
+        thisThread.setName(f'save {fileName}')
+        thisThread.start()
 
 def appendToCsvFiles(fileName, data):
     csvWriters[fileName].writerow(data)
@@ -117,12 +112,15 @@ def setupFeatures():
 
 def tryFeatureCalculation(tradePool, features, count, threadCount):
     try:
-        threadsAvailable = len(csvWriters)
-        logging.info(f"Active threads: {threading.active_count()} v {threadsAvailable}")
-        while threading.active_count() > threadsAvailable:
-            time.sleep(0.0001)
-        thread = count % threadCount
-        threading.Thread(target=featureCalculationThread, args=(thread, tradePool, features, )).start()
+        # threadsAvailable = len(csvWriters)
+        # # logging.info(threading.enumerate())
+        # while threading.active_count() > threadsAvailable:
+        #     logging.info(f"Active threads: {threading.active_count()} v {threadsAvailable}")
+        #     time.sleep(0.0001)
+        threadNumber = count % threadCount
+        thisThread = threading.Thread(target=featureCalculationThread, args=(threadNumber, tradePool, features, ))
+        thisThread.setName(f'calculating {tradePool.getTradeMilliseconds(tradePool.getLastInPool())}')
+        thisThread.start()
     except AssertionError as error:
         logging.error(error)
         raise

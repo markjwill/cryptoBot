@@ -24,6 +24,7 @@ class Features:
     }
 
     MAX_PERIOD = 7200001
+    MAX_PERIOD_NAME = 'twoHours'
 
     PRICE_PERIOD_FEATURES = {
 

@@ -8,17 +8,6 @@ import numpy as np
 
 # update all trade[n] syntax to use named tradePool functions instead
 
-def calculateFuturePeriodFeatures(trades, pivotPrice):
-    if not trades:
-        raise AssertionError(
-            f'Empty trade list sent to future feature calculation.\n'
-        )
-
-    calculatedFeatures = {
-        'futurePrice' : trades[-1][0] - pivotPrice #end price
-    }
-    return calculatedFeatures
-
 def calculatePastPeriodFeatures(trades, milliseconds, features):
     if not trades:
         raise AssertionError(
@@ -122,7 +111,7 @@ def calculateNonPeriodFeatures(trade, features):
     return calculatedFeatures
 
 def calculateAllFeatureGroups(tradePool, features):
-    pivotTrade = tradePool.getPivotTrade()
+    pivotTrade = tradePool.getLastInPool()
     tradeTimeMilliseconds = pivotTrade[3]
     pivotTradeId = pivotTrade[4]
     fileDestinations = {}
@@ -152,10 +141,37 @@ def calculateAllFeatureGroups(tradePool, features):
         timeGroup = 'future'
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
-        fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, pivotPrice)
+        fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, tradePool, pivotPrice)
 
     logging.debug('All feature groups calculated')
     return fileDestinations
+
+def calculatePastFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features):
+    logging.debug(f'Collecting trades and calculating Group past_{name}')
+    periodTrades = tradePool.getTradeList(f'past_{name}')
+    pastFeatures, pivotPrice = calculatePastPeriodFeatures(periodTrades, endTimeMilliseconds - startTimeMilliseconds, features)
+    pastFeatures = {f'{name}_{k}': v for k, v in pastFeatures.items()}
+
+    return pastFeatures, pivotPrice
+
+def calculateFuturePeriodFeatures(trades, pivotPrice):
+    if not trades:
+        raise AssertionError(
+            f'Empty trade list sent to future feature calculation.\n'
+        )
+
+    calculatedFeatures = {
+        'futurePrice' : trades[-1][0] - pivotPrice #end price
+    }
+    return calculatedFeatures
+
+def calculateFutureFeatureGroup(name, tradePool, pivotPrice):
+    logging.debug(f'Collecting trades and calculating Group future_{name}')
+    periodTrades = tradePool.getFutureTrade(f'future_{name}')
+    futureFeature = calculateFuturePeriodFeatures(periodTrades, pivotPrice)
+    futureFeature = {f'{name}_{k}': v for k, v in futureFeature.items()}
+
+    return futureFeature
 
 def splitFeatures(fileDestinations, featureGroup, features):
     fileDestinations['noNormalize'] = fileDestinations['noNormalize'] \
@@ -168,21 +184,6 @@ def splitFeatures(fileDestinations, featureGroup, features):
         if key not in features.DO_NOT_NORMALIZE])
     return fileDestinations
 
-def calculatePastFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features):
-    logging.debug(f'Collecting trades and calculating Group past_{name}')
-    periodTrades = tradePool.getTrades(f'past_{name}', 'past', pivotTradeId, startTimeMilliseconds, endTimeMilliseconds)
-    pastFeatures, pivotPrice = calculatePastPeriodFeatures(periodTrades, endTimeMilliseconds - startTimeMilliseconds, features)
-    pastFeatures = {f'{name}_{k}': v for k, v in pastFeatures.items()}
-
-    return pastFeatures, pivotPrice
-
-def calculateFutureFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, pivotPrice):
-    logging.debug(f'Collecting trades and calculating Group future_{name}')
-    periodTrades = tradePool.getTrades(f'future_{name}', 'future', pivotTradeId, startTimeMilliseconds, endTimeMilliseconds)
-    futureFeature = calculateFuturePeriodFeatures(periodTrades, pivotPrice)
-    futureFeature = {f'{name}_{k}': v for k, v in futureFeature.items()}
-
-    return futureFeature
 
 
 

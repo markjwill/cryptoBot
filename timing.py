@@ -27,6 +27,10 @@ def now():
 def startCalculation():
     return time()
 
+def progressCalculation(start):
+    elapsed = time() - start
+    log('Progress', elapsed)
+
 def endCalculation(start, recordsInBatch, totalRecords=None):
     elapsed = time() - start
     perRecord = elapsed / recordsInBatch
