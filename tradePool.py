@@ -14,10 +14,11 @@ import memory_profiler
 # trades[6] huobiPrice
 # trades[7] binancePrice
 
-class TradePool(    ):
+class TradePool():
 
     MILLISECONDS_GAP_TOLERATED = 120000
     tradeList = []
+    features = False
 
     def __init__(self):
         self.maxIndex = 0
@@ -121,7 +122,54 @@ class TradePool(    ):
     #     logging.debug('Finished data gap check')
     #     return False
 
-    def mapGaps(self, features):
+    def mapGapIterable(self):
+        logging.debug('Starting gap mapping')
+        previousTimeMilliseconds = 0
+        gapStartMillieseconds = self.getTradeMilliseconds(self.getFirstInPool())
+        poolEndMillieseconds = \
+            self.getTradeMilliseconds(self.getLastInPool()) - TradePool.features.MAX_PERIOD
+        inGap = True
+        # gapStartIndex = 0
+        nonGapIndexes = []
+        for index in range(len(TradePool.tradeList)):
+            trade = self.getTradeAt(index)
+            tradeMilliseconds = self.getTradeMilliseconds(trade)
+
+            if inGap:
+                if tradeMilliseconds < gapStartMillieseconds + TradePool.features.MAX_PERIOD:
+                    previousTimeMilliseconds = tradeMilliseconds
+                    continue
+                else:
+                    logging.debug(f'Gap ended {index}')
+                    inGap = False
+
+            if ( tradeMilliseconds - self.MILLISECONDS_GAP_TOLERATED ) > previousTimeMilliseconds:
+                logging.debug(f'Gap started {index}')
+                logging.debug(f'( {tradeMilliseconds} - {self.MILLISECONDS_GAP_TOLERATED} ) > {previousTimeMilliseconds}')
+
+                gapStartMillieseconds = self.getTradeMilliseconds(self.getTradeAt(index - 1))
+                nonGapIndexes.pop()
+                inGap = True
+
+            if tradeMilliseconds > poolEndMillieseconds:
+                nonGapIndexes.pop()
+                break
+
+            if not inGap:
+                nonGapIndexes.append(index)
+
+            previousTimeMilliseconds = tradeMilliseconds
+            # logging.debug(f'previousTimeMilliseconds set 3 {previousTimeMilliseconds}')
+
+        logging.debug('Finished gap mapping')
+        # logging.debug(nonGapIndexes)
+        # for startIndex, endIndex in gapIndexMap.items():
+        #     logging.debug(f'Gap from {self.logTime(self.getTradeMilliseconds(self.getTradeAt(startIndex)))}')
+        #     logging.debug(f'To {self.logTime(self.getTradeMilliseconds(self.getTradeAt(endIndex)))}')
+
+        return tuple(nonGapIndexes)
+
+    def mapGaps(self):
         logging.debug('Starting gap mapping')
         previousTimeMilliseconds = 0
         gapStartMillieseconds = self.getTradeMilliseconds(self.getFirstInPool())
@@ -133,8 +181,8 @@ class TradePool(    ):
             tradeMilliseconds = self.getTradeMilliseconds(trade)
 
             if inGap:
-                if tradeMilliseconds < gapStartMillieseconds + features.MAX_PERIOD:
-                    # logging.debug(f'{tradeMilliseconds} < {gapStartMillieseconds} + {features.MAX_PERIOD}')
+                if tradeMilliseconds < gapStartMillieseconds + TradePool.features.MAX_PERIOD:
+                    # logging.debug(f'{tradeMilliseconds} < {gapStartMillieseconds} + {TradePool.features.MAX_PERIOD}')
                     gapIndexMap[gapStartIndex] = index
                     previousTimeMilliseconds = tradeMilliseconds
                     # logging.debug(f'previousTimeMilliseconds set 1 {previousTimeMilliseconds}')
@@ -149,7 +197,7 @@ class TradePool(    ):
                 logging.debug(gapIndexMap)
                 logging.debug(f'( {tradeMilliseconds} - {self.MILLISECONDS_GAP_TOLERATED} ) > {previousTimeMilliseconds}')
                 previousIndex = index - 1
-                while (tradeMilliseconds - features.MAX_PERIOD > \
+                while (tradeMilliseconds - TradePool.features.MAX_PERIOD > \
                         self.getTradeMilliseconds(self.getTradeAt(previousIndex))):
                     previousIndex -= 1
                     if previousIndex <= gapStartIndex:
@@ -262,7 +310,7 @@ class TradePool(    ):
             os._exit(0)
 
     # @profile
-    def getMiniPool(self, pivotIndex, features):
+    def getMiniPool(self, pivotIndex):
         # processStepStart = timing.startCalculation()
         # logging.info('getMiniPoolStart')
         # timing.progressCalculation(processStepStart)
@@ -273,20 +321,20 @@ class TradePool(    ):
         pivotTimeMilliseconds = self.getTradeMilliseconds(pivotTrade)
         endTimeMilliseconds = pivotTimeMilliseconds
 
-        for timeName, periodMilliseconds in features.TIME_PERIODS.items():
+        for timeName, periodMilliseconds in TradePool.features.TIME_PERIODS.items():
             startTimeMilliseconds = pivotTimeMilliseconds - periodMilliseconds
             self.selectMultipleTrades(f'past_{timeName}', startTimeMilliseconds, pivotIndex)
 
-        toStartIndex = self.subPools[f'past_{features.MAX_PERIOD_NAME}']['startIndex']
+        toStartIndex = self.subPools[f'past_{TradePool.features.MAX_PERIOD_NAME}']['startIndex']
         for name, indexes in self.subPools.items():
             if name.startswith('past_'):
                 miniPool.subPools[name] = {}
                 miniPool.subPools[name]['startIndex'] = self.subPools[name]['startIndex']
                 miniPool.subPools[name]['endIndex'] = pivotIndex
 
-        # miniPool.setInitalTrades(self.getTradeList(f'past_{features.MAX_PERIOD_NAME}').copy())
+        # miniPool.setInitalTrades(self.getTradeList(f'past_{TradePool.features.MAX_PERIOD_NAME}').copy())
 
-        for timeName, periodMilliseconds in features.TIME_PERIODS.items():
+        for timeName, periodMilliseconds in TradePool.features.TIME_PERIODS.items():
             name = f'future_{timeName}'
             targetMilliseconds = pivotTimeMilliseconds + periodMilliseconds
             tradeItem = self.selectFutureTrade(name, targetMilliseconds)
@@ -298,7 +346,7 @@ class TradePool(    ):
 
     # def transferTradeIndexes(self, taretPool, sourceSubPoolName):
     #     targetPoolStart = self.subPools[sourceSubPoolName]['startIndex']
-    #     for timeName, periodMilliseconds in features.TIME_PERIODS.items():
+    #     for timeName, periodMilliseconds in TradePool.features.TIME_PERIODS.items():
     #         if timeName not in targetPool.subPools:
     #             targetPool.addPool(timeName)
     #         targetPool.selectMultipleTrades(name, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds)
