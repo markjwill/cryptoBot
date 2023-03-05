@@ -1,8 +1,36 @@
 # ReadMe
 ## Summary:
-The goal of this project is to get hands on experience collecting data from a real world source and to build and train several models to have predictive power in the space of said data. 
+The goal of this project is to get hands on experience with a time series forecasting machine learning model.  Major steps includes:
+ 1. Collecting a unique data set from a meaningful real world source
+ 2. Cleaning data and computing additional features
+ 3. Building and training several models to have predictive power at multiple time intervals
+ 4. Visualizing model degrees of success and data optimization to measure performance
+ 5. Putting the model into a production environment where the predictions are used in real time
+ 6. Managing data storage
+ 7. Managing calculating environment resources CPU/RAM
+ 8. Keeping python code clean, fast and flexible so that model experimentation and iteration can see results quickly
 
 ## Project History (In reverse order / order of importance):
+
+#### FEBRUARY 2023
+
+#### JAUNARAY 2023
+I recognized that one error being introduced by my feature computing was because I was keeping track of trades by millisecond and there are over a million trades in my source data that share a millisecond with another trade.
+
+I started moving code into classes to better manage processing data.  Added exceptions to control flow and catch problems.  Started tracking in more detail timing with this new method and noted a 10x performance gain over my initial method of calculating.  Added a trade manager class to keep track of what records were already processed and which are up next.  Created dynamic naming of data storage based on a hash of the computed features such that any code change of features would make it impossibly to accidentally mix computed data with other computed data that does not share the same features.
+
+I was initially writing code with 4 data prep steps, saving the data back to a database between each step:
+1. Compute features
+2. "Remove price" by subtracting the pivot trade price from every price related feature, thus making all price features based on "change to now" instead of baking in the "price at that time"
+3. Remove outliers
+4. Normalize data
+I realized I was able to combine steps 1 & 2 in the same process.  I couldn't perform outlier checks until all possible records were computed, so there was a hard need to stop, save or at least have a fully non-parallel step. I realized further there was no benefit to saving and reloading data between outlier removal and normalization so I also combined those 2 steps.
+
+#### DEVEMBER 2022
+Started refactoring data preparation.  In looking for better tools I found Pandas Dataframe and found to be far superior for storing and organizing data vs my previous hand made solutions.
+
+My initial strategy was to compute a number of features like average price, volume traded, high price, low price etc at various time boxes ending with the trade in question, which I have labeled the "pivot trade".  When the model get's to production, the "pivot trade" will be the one most recently received via API from the exchange.  I upgraded the selecting of trades to be computed in these time boxes by only computing which trades are in each box once and adjusting each box minimally and incrementally taking advantage of having looked up the box start and ends of the previous pivot trade, indeed some boxes are exactly the same.
+
 
 #### NOVEMBER 2022 - Turn off data collection and focus on model building:
 Implemented handwritten gradient decent model using numpy.  Code was originally from work in Andrew Ng's Machine learning class on Coursera.  After the biggest milestone of the project, training a model, rewriting the data preparation was a must in order to be able to quickly iterate computed features, data cleaning and data normalizing techniques and be able to get to rebuilding and measuring improvements in the model performance.
