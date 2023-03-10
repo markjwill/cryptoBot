@@ -7,169 +7,252 @@ import tradeDbManager as tdm
 import timing
 import features as f
 import pandas as pd
+import numpy as np
 import threading
+from datetime import date
 import csv
 import atexit
 import time
 import os
+import multiprocessing
+from multiprocessing import Pool
+from multiprocessing import JoinableQueue
+from multiprocessing import Queue
+from multiprocessing import Process
+from collections import ChainMap
 
-csvFiles = {}
-csvWriters = {}
+# csvFiles = {}
+# csvFile = None
+# csvWriters = {}
+# csvWriter = None
+tradePool = False
+
+
 
 def main():
-    threadCount = 10
+    global tradePool
     features = setupFeatures()
-    openCsvFilesForWriting(features, threadCount)
+    # openCsvFileForWriting(features)
     tradeDbManager, tradeList = initTradeManager()
-    tradePool = setupTradePool(tradeList)
-    gapIndexMap = tradePool.mapGaps(features)
-    gapMapIterator = iter(gapIndexMap)
-    timing.log('Inital setup complete')
-
-
-    nextGapStart = next(gapMapIterator)
-    nextGapEnd = gapIndexMap[nextGapStart]
+    setupTradePool(tradeList, features)
+    viableIndexes = tradePool.mapGapIterable()
+    logAfter = 1000
+    viableIndexes = viableIndexes[0:logAfter]
     index = 0
-    count = 0
-    logAfter = 25
-    poolStartMilliseconds = tradePool.getTradeMilliseconds(tradePool.getFirstInPool())
     batchCalculationStart = timing.startCalculation()
-    processStepStart = timing.startCalculation()
-    pivotTrade = tradePool.getTradeAt(index)
-    tradeDatetime = tradePool.logTime(pivotTrade[3])
-    logging.info('Final setup complete, beginning iteration')
-    while index < tradePool.maxIndex:
-        if index >= nextGapStart:
-            index += 1
-            logging.debug(f'Skipping trade in gap with index {index}')
-            if index > nextGapEnd:
-                nextGapStart = next(gapMapIterator)
-                nextGapEnd = gapIndexMap[nextGapStart]
-            continue
+    logging.info('Setup complete, beginning iteration')
 
+    makeMiniPoolQueue = JoinableQueue()
+    featureCalculationQueue = JoinableQueue()
+    fileSaveQueue = JoinableQueue()
 
-        timing.progressCalculation(processStepStart)
-        processStepStart = timing.startCalculation()
-        logging.info('getMiniPoolStart')
-        miniPool = tradePool.getMiniPool(index, features)
+    cpuTenPercent = multiprocessing.cpu_count() / 10
+    makeMiniPoolProcessCount = max(round(3 * cpuTenPercent),1)
+    featureCalculationProcessCount = max(round(5 * cpuTenPercent),1)
+    fileSaveProcessCount = max(round(2 * cpuTenPercent),1)
 
-        timing.progressCalculation(processStepStart)
-        processStepStart = timing.startCalculation()
-        logging.info('tryFeatureCalculationStart')
-        if logging.DEBUG == logging.root.level:
-            logging.info('logging level is debug')
-            pivotTrade = tradePool.getTradeAt(index)
-            tradeDatetime = tradePool.logTime(pivotTrade[3])
-        logging.debug(f'Attempting feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
-        tryFeatureCalculation(miniPool, features, count, threadCount)
-        index += 1
-        logging.debug(f'Completed feature calcuation for tradeId {pivotTrade[4]} recorded at {tradeDatetime}')
-        # farthestCompleteTradeId = pivotTrade[4]
+    logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
+    logging.info(f'featureCalculation cpus: {featureCalculationProcessCount}')
+    logging.info(f'   fileSaveProcess cpus: {fileSaveProcessCount}')
 
-        count += 1
-        if count % logAfter == 0:
-            pivotTrade = tradePool.getTradeAt(index)
-            tradeDatetime = tradePool.logTime(pivotTrade[3])
-            logging.info(f'Completed feature calcuation through {tradeDatetime}')
-            logging.info(f'{(index - count)} trades skipped so far.')
-            timing.endCalculation(batchCalculationStart, logAfter, tradeDbManager.APROXIMATE_RECORD_COUNT)
-        if count == 25:
-            logging.info(f'reached {count}, breaking')
+    fileSaveProcessors = []
+    for i in range(featureCalculationProcessCount):
+        fileSaveProcessor = Process(target=fileSaveWorker, args=(fileSaveQueue, features, ))
+        fileSaveProcessors.append(fileSaveProcessor)
+
+    for fileSaveProcessor in fileSaveProcessors:
+        fileSaveProcessor.start()
+
+    # atexit.register(closeCsvFiles)
+
+    featureCalculationProcessors = []
+    for i in range(featureCalculationProcessCount):
+        featureCalculationProcessor = Process(target=featureCalculationWorker, args=(featureCalculationQueue,fileSaveQueue,))
+        featureCalculationProcessors.append(featureCalculationProcessor)
+
+    for featureCalculationProcessor in featureCalculationProcessors:
+        featureCalculationProcessor.start()
+
+    makeMiniPoolProcessors = []
+    for i in range(makeMiniPoolProcessCount):
+        makeMiniPoolProcessor = Process(target=makeMiniPoolWorker, args=(makeMiniPoolQueue,featureCalculationQueue,))
+        makeMiniPoolProcessors.append(makeMiniPoolProcessor)
+
+    for makeMiniPoolProcessor in makeMiniPoolProcessors:
+        makeMiniPoolProcessor.start()
+
+    workerIndexGroups = np.array((np.array_split(viableIndexes, makeMiniPoolProcessCount))).tolist()
+    for i in range(makeMiniPoolProcessCount):
+        x = [makeMiniPoolQueue.put(index) for index in workerIndexGroups[i]]
+
+    logging.info('Mini pool queue full')
+    closeAndWaitForProcessors(makeMiniPoolProcessors, makeMiniPoolQueue)
+
+    logging.info('Mini pool queue emptied, Feature calculation queue full')
+    closeAndWaitForProcessors(featureCalculationProcessors, featureCalculationQueue)
+
+    timing.endCalculation(batchCalculationStart, logAfter, tradeDbManager.APROXIMATE_RECORD_COUNT)
+
+    logging.info('Feature calculation queue emptied, File save queue full')
+    closeAndWaitForProcessors(fileSaveProcessors, fileSaveQueue)
+
+    logging.info('File save queue emptied')
+
+def closeAndWaitForProcessors(processorList, queue):
+    for processor in processorList:
+        queue.put(None)
+
+    for processor in processorList:
+        processor.join()
+
+    queue.join()
+
+def makeMiniPoolWorker(makeMiniPoolQueue, featureCalculationQueue):
+    global tradePool
+    pid = multiprocessing.current_process().pid
+    logging.info(f'Make mini pool worker started {pid}')
+    while True:
+        index = makeMiniPoolQueue.get()
+        if index is None:
+            logging.info('None arrived in makeMiniPoolWorker')
             break
+        logging.info(f'Making miniPool for index {index}')
+        miniPool = tradePool.getMiniPool(index, tp.TradePool('mini'), pid)
+        featureCalculationQueue.put(miniPool)
+        makeMiniPoolQueue.task_done()
+    makeMiniPoolQueue.task_done()
 
-def processDataSave(fileDestinations, thread):
-    for filePart, data in fileDestinations.items():
-        fileName = str(thread) + filePart
-        thisThread = threading.Thread(target=appendToCsvFiles, args=(fileName, data, ))
-        thisThread.setName(f'save {fileName}')
-        thisThread.start()
+def featureCalculationWorker(featureCalculationQueue, fileSaveQueue):
+    global tradePool
+    pid = multiprocessing.current_process().pid
+    logging.info(f'Feature calculation worker started {pid}')
+    while True:
+        logging.info(f'Waiting for miniPool in queue {pid}')
+        miniPool = featureCalculationQueue.get()
+        if miniPool is None:
+            logging.info('None arrived in featureCalculationWorker')
+            break
+        fileDestinations = dataCalculate.calculateAllFeatureGroups(miniPool)
+        fileSaveQueue.put(fileDestinations)
+        featureCalculationQueue.task_done()
+    featureCalculationQueue.task_done()
 
-def appendToCsvFiles(fileName, data):
-    csvWriters[fileName].writerow(data)
+def fileSaveWorker(fileSaveQueue, features):
+    pid = multiprocessing.current_process().pid
+    logging.info(f'File save worker started {pid}')
+    csvFile, csvWriter = openCsvFileForWriting(features, pid)
+    while True:
+        logging.info(f'Waiting for save data in queue {pid}')
+        fileDestinations = fileSaveQueue.get()
+        if fileDestinations is None:
+            logging.info('None arrived in fileSaveWorker')
+            break
+        # logging.info(f'Save data arrived in queue, type: {type(fileDestinations)}')
+        # logging.info(fileDestinations.values())
+        row = dict(ChainMap(*fileDestinations.values()))
+        # logging.info(row)
+        csvWriter.writerow(row)
+        fileSaveQueue.task_done()
+    logging.info(f'Closing CSV file for process {pid}')
+    csvFile.close()
+    logging.info(f'Worker finished for process {pid}')
+    fileSaveQueue.task_done()
 
-def openCsvFilesForWriting(features, threadCount):
-    outputFolder = '/csvFiles'
+def openCsvFileForWriting(features, pid):
+    outputFolder = '/home/debby/bot/csvFiles'
+    fileName = f'{date.today()}-all-columns-{pid}'
+    truncateAndCreateFile = open(f'{outputFolder}/{fileName}.csv', 'w+')
+    truncateAndCreateFile.close()
+    csvFile = open(f'{outputFolder}/{fileName}.csv', 'a')
+    fieldnames = [outputGroup for groupContents in features.csvFiles.values() for outputGroup in groupContents]
+    # logging.info(f'CSVfieldnames {fieldnames}')
+    csvWriter = csv.DictWriter(csvFile, fieldnames=fieldnames)
+    csvWriter.writeheader()
+    return csvFile, csvWriter
 
-    for filePart, fieldnames in features.csvFiles.items():
-        for thread in range(threadCount):
-            fileName = str(thread) + filePart
-            truncateAndCreateFile = open(f'{outputFolder}/{fileName}.csv', 'w+')
-            truncateAndCreateFile.close()
-            csvFiles[fileName] = open(f'{outputFolder}/{fileName}.csv', 'a')
-            csvWriters[fileName] = csv.DictWriter(csvFiles[fileName], \
-                fieldnames=fieldnames)
-        csvWriters["0"+filePart].writeheader()
 
-    atexit.register(closeCsvFiles)
 
-def closeCsvFiles():
-    for file in csvFiles.values():
-        file.close()
+# def closeCsvFile():
+#     global csvFile
+#     logging.info('Closing CSV file')
+#     csvFile.close()
+
+# import csv
+
+# with open('file.csv', 'r') as infile, open('reordered.csv', 'a') as outfile:
+#     # output dict needs a list for new column ordering
+#     fieldnames = ['A', 'C', 'D', 'E', 'B']
+#     writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+#     # reorder the header first
+#     writer.writeheader()
+#     for row in csv.DictReader(infile):
+#         # writes the reordered rows to the new file
+#         writer.writerow(row)
+
+# def fileSaveWorker():
+#     logging.info('Process data save started')
+#     while True:
+#         logging.info('Waiting for save data in queue')
+#         fileDestinations = fileSaveQueue.get()
+#         if fileDestinations is None:
+#             logging.info('None arrived in process data save queue')
+#             break
+#         logging.info(f'Save data arrived in queue, type: {type(fileDestinations)}')
+#         threads = []
+#         for fileName, data in fileDestinations.items():
+#             newThread = threading.Thread(target=appendToCsvFiles, args=(fileName, data, ))
+#             newThread.setName(f'save {fileName}')
+#             threads.append(newThread)
+
+#         for thread in threads:
+#             thread.start()
+
+#         for thread in threads:
+#             thread.join()
+#         fileSaveQueue.task_done()
+#     logging.info('Data saves complete')
+#     fileSaveQueue.task_done()
+
+
+
+
+# def openCsvFilesForWriting(features):
+#     outputFolder = '/home/debby/bot/csvFiles'
+
+#     for fileName, fieldnames in features.csvFiles.items():
+#         truncateAndCreateFile = open(f'{outputFolder}/{fileName}.csv', 'w+')
+#         truncateAndCreateFile.close()
+#         csvFiles[fileName] = open(f'{outputFolder}/{fileName}.csv', 'a')
+#         csvWriters[fileName] = csv.DictWriter(csvFiles[fileName], \
+#             fieldnames=fieldnames)
+#         csvWriters[fileName].writeheader()
+
+#     atexit.register(closeCsvFiles)
+
+# def appendToCsvFiles(fileName, data):
+#     # logging.info(data)
+#     csvWriters[fileName].writerow(data)
+
+# def closeCsvFiles():
+#     for file in csvFiles.values():
+#         file.close()
+
 
 def initTradeManager():
     tradeDbManager = tdm.TradeDbManager()
     tradeList = tradeDbManager.getStarterTradeList()
     return tradeDbManager, tradeList
 
-def setupTradePool(tradeList):
+def setupTradePool(tradeList, features):
     tp.TradePool.tradeList = tradeList
-    tradePool = tp.TradePool()
-    # tradePool.setInitalTrades(tradeList)
-    return tradePool
+    tp.TradePool.features = features
+    global tradePool
+    tradePool = tp.TradePool('parent')
+
 
 def setupFeatures():
     features = f.Features()
     return features
-
-def tryFeatureCalculation(tradePool, features, count, threadCount):
-    try:
-        # threadsAvailable = len(csvWriters)
-        # # logging.info(threading.enumerate())
-        # while threading.active_count() > threadsAvailable:
-        #     logging.info(f"Active threads: {threading.active_count()} v {threadsAvailable}")
-        #     time.sleep(0.0001)
-        featureCalculationStepStart = timing.startCalculation()
-        logging.info('step number 1')
-
-        threadNumber = count % threadCount
-
-        timing.progressCalculation(featureCalculationStepStart)
-        featureCalculationStepStart = timing.startCalculation()
-        logging.info('step number 2')
-
-        thisThread = threading.Thread(target=featureCalculationThread, args=(threadNumber, tradePool, features, ))
-
-        timing.progressCalculation(featureCalculationStepStart)
-        featureCalculationStepStart = timing.startCalculation()
-        logging.info('step number 3')
-
-        thisThread.setName(f'calculating {tradePool.getTradeMilliseconds(tradePool.getLastInPool())}')
-
-        timing.progressCalculation(featureCalculationStepStart)
-        featureCalculationStepStart = timing.startCalculation()
-        logging.info('step number 4')
-
-        thisThread.start()
-
-        timing.progressCalculation(featureCalculationStepStart)
-        featureCalculationStepStart = timing.startCalculation()
-        logging.info('step number 5')
-
-    except AssertionError as error:
-        logging.error(error)
-        raise
-    except IndexError as error:
-        logging.error(error)
-        os._rr(0)
-        if error.args[1]:
-            # if addedTradeCount := addMoreTrades(tradePool, tradeDbManager, 1):
-            #     return max(0,index - addedTradeCount)
-            raise StopIteration('No additional trades available to continue.')
-        raise
-
-def featureCalculationThread(thread, tradePool, features):
-    fileDestinations = dataCalculate.calculateAllFeatureGroups(tradePool, features)
-    processDataSave(fileDestinations, thread)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -184,6 +267,7 @@ if __name__ == '__main__':
     logging.basicConfig( level=args.loglevel.upper() )
     logging.info( 'Logging now setup.' )
     timing.startTiming()
+
     try:
         main()
     except StopIteration as error:

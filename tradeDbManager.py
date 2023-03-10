@@ -21,13 +21,13 @@ LIMIT 500000
 
     def getStarterTradeList(self):
         logging.info('Starter Trade List requested')
-        return self.getTradeList(3)
+        return self.getTradeTuple(3)
 
     def getAdditionalTradeList(self, batchMultiplier):
         logging.info('Additional Trade List requested')
-        return self.getTradeList(batchMultiplier)
+        return self.getTradeTuple(batchMultiplier)
 
-    def getTradeList(self, batchCount):
+    def getTradeTuple(self, batchCount):
         limit = int(self.tradeBatchSize * batchCount)
         tradeList = mydb.selectAllStatic(self.selectTrades)
         if not tradeList:
