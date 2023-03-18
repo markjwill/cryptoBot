@@ -48,8 +48,8 @@ def main():
     fileSaveQueue = JoinableQueue()
 
     cpuPercent = multiprocessing.cpu_count() / 100
-    makeMiniPoolProcessCount = max(floor(3 * cpuPercent),1)
-    featureCalculationProcessCount = max(ceil(91 * cpuPercent),1)
+    makeMiniPoolProcessCount = max(round(3 * cpuPercent),1)
+    featureCalculationProcessCount = max(round(91 * cpuPercent),1)
     fileSaveProcessCount = max(round(6 * cpuPercent),2)
 
     logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
