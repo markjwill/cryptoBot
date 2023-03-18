@@ -1,4 +1,6 @@
 credentials.py
+images/*
+csvFiles/*
 .DS_Store
 __pycache__
 *.gz

@@ -29,6 +29,18 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
 
     tradeArray = np.array(trades)
 
+    indexes = features.FEATURE_INDEXES['exchange']
+
+    # for i in range(2, features.LAST_TRADE_COUNT):
+    #     tradeIndex = 0 - i
+    #     calculatedFeatures[f'recent_{i}_price'] = \
+    #         trades[tradeIndex][indexes['price']] - trades[-1][indexes['price']]
+    #     calculatedFeatures[f'recent_{i}_volume'] = \
+    #         trades[tradeIndex][indexes['volume']]
+    #     calculatedFeatures[f'recent_{i}_time'] = \
+    #         trades[tradeIndex][3] - trades[-1][3]
+
+
     firstTrade = trades[0]
     lastTrade = trades[-1]
     pivotPrice = {}
@@ -89,6 +101,7 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
 
     return calculatedFeatures, pivotPrice['exchange']
 
+
 def calculateNonPeriodFeatures(trade, features):
     calculatedFeatures = copy.copy(features.NON_PERIOD_FEATURES)
     dt = datetime.datetime.fromtimestamp(trade[3]/1000)
@@ -110,7 +123,8 @@ def calculateNonPeriodFeatures(trade, features):
 
     return calculatedFeatures
 
-def calculateAllFeatureGroups(tradePool):
+def calculateAllFeatureGroups(tradePool, features):
+    logging.debug(f'trade pool list len {len(tradePool.tradeList)}')
     pivotTrade = tradePool.getPivotTrade()
     tradeTimeMilliseconds = pivotTrade[3]
     pivotTradeId = pivotTrade[4]
@@ -118,11 +132,11 @@ def calculateAllFeatureGroups(tradePool):
     fileDestinations['noNormalize'] = {}
     fileDestinations['normalize'] = {}
 
-    nonPeriodFeatures = calculateNonPeriodFeatures(pivotTrade, tradePool.features)
-    fileDestinations = splitFeatures(fileDestinations, nonPeriodFeatures, tradePool.features)
+    nonPeriodFeatures = calculateNonPeriodFeatures(pivotTrade, features)
+    fileDestinations = splitFeatures(fileDestinations, nonPeriodFeatures, features)
     del nonPeriodFeatures
 
-    for timeName, periodMilliseconds in tradePool.features.TIME_PERIODS.items():
+    for timeName, periodMilliseconds in features.TIME_PERIODS.items():
         timeGroup = 'past'
         startTimeMilliseconds = tradeTimeMilliseconds - periodMilliseconds
         endTimeMilliseconds = tradeTimeMilliseconds
@@ -131,7 +145,8 @@ def calculateAllFeatureGroups(tradePool):
                 tradePool, 
                 startTimeMilliseconds, 
                 pivotTradeId, 
-                endTimeMilliseconds )
+                endTimeMilliseconds, 
+                features )
 
         fileDestinations['normalize'] = fileDestinations['normalize'] \
             | pastFeatures
@@ -145,10 +160,10 @@ def calculateAllFeatureGroups(tradePool):
     logging.debug('All feature groups calculated')
     return fileDestinations
 
-def calculatePastFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds):
+def calculatePastFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features):
     logging.debug(f'Collecting trades and calculating Group past_{name}')
     periodTrades = tradePool.getTradeList(f'past_{name}')
-    pastFeatures, pivotPrice = calculatePastPeriodFeatures(periodTrades, endTimeMilliseconds - startTimeMilliseconds, tradePool.features)
+    pastFeatures, pivotPrice = calculatePastPeriodFeatures(periodTrades, endTimeMilliseconds - startTimeMilliseconds, features)
     pastFeatures = {f'{name}_{k}': v for k, v in pastFeatures.items()}
 
     return pastFeatures, pivotPrice

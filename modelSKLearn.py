@@ -23,11 +23,11 @@ import memory_profiler
 from joblib import parallel_backend
 
 
-scalerFileName = '20230215scaler.gz'
-
-featureDataFolder = '/csvFiles'
-csvNoNormalize = f'{featureDataFolder}/noNormalize.csv'
-csvNormalize = f'{featureDataFolder}/normalize.csv'
+scalerFileName = '20230315scaler.gz'
+dataDate = '2023-03-15'
+featureDataFolder = '/home/debby/bot/csvFiles'
+csvNoNormalize = f'{featureDataFolder}/{dataDate}-noNormalize.csv'
+csvNormalize = f'{featureDataFolder}/{dataDate}-normalize.csv'
 
 # @profile
 def main():
@@ -35,20 +35,17 @@ def main():
   normalizer = dn.DataNormalizer(features, scalerFileName)
 
   logging.info("begin loadin csv to normalize")
-  # dfNorm = dd.read_csv( csvNorm, assume_missing=True)
   dfNorm = pd.read_csv( csvNormalize ).astype('float32')
   logging.info("norm csv loaded")
   logging.info("normalizer init")
-  # dfNorm = normalizer.clipOutliersAllFeatures(dfNorm)
+  dfNorm = normalizer.clipOutliersAllFeatures(dfNorm)
   logging.info("outliers clipped")
   with parallel_backend('threading', n_jobs=3):
     dfNorm = normalizer.fitAndNormalizeAll(dfNorm)
   logging.info("normalization complete")
 
   logging.info("begin loadin csv not needing to normalize")
-  # dfNoNorm = dd.read_csv( csvNoNorm, assume_missing=True)
   dfNoNorm = pd.read_csv( csvNoNormalize ).astype('float32')
-  # dfNoNorm = dfNoNorm.compute()
   logging.info("no normalize csv loaded")
   logging.debug(f"noNorm {type(dfNoNorm)} shape {dfNoNorm.shape}")
   logging.debug(f"norm {type(dfNorm)} shape {dfNorm.shape}")
@@ -60,12 +57,11 @@ def main():
 
   for timeName, seconds in features.TIME_PERIODS.items():
     logging.info(f"Split test traing {timeName} future price")
-    Ydf = pd.read_csv( f'{featureDataFolder}/{timeName}.csv' )
+    Ydf = pd.read_csv( f'{featureDataFolder}/{dataDate}-{timeName}.csv' )
     with parallel_backend('threading', n_jobs=3):
       # Ydf = normalizer.clipOutliersAllFeatures(Ydf)
       logging.info("outliers clipped")
       Ydf = normalizer.fitAndNormalizeAll(Ydf)
-      # , assume_missing=True)
     x_train, x_test, y_train, y_test = train_test_split(Xdf,Ydf, test_size = 0.05, random_state = 42)
     del Ydf
     logging.info(f"Starting Fit {timeName} future price")

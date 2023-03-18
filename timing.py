@@ -10,7 +10,7 @@ def secondsToStr(elapsed=None, timeDelta=None):
         return f'{str(timedelta(seconds=elapsed)).split(".")[0]}'
     return f'{str(timedelta(seconds=elapsed))}'
 
-def log(s, elapsed=None, perRecord=None, estimatedTotal=None):
+def log(s, elapsed=None, perRecord=None, estimatedTotal=None, estimatedRemain=None):
     line = "="*40
     logging.info(line)
     logging.info(f'{secondsToStr()} - {s}')
@@ -20,6 +20,8 @@ def log(s, elapsed=None, perRecord=None, estimatedTotal=None):
         logging.info(f'Per record time: {perRecord}')
     if estimatedTotal:
         logging.info(f'Estimated total time: {estimatedTotal}')
+    if estimatedRemain:
+        logging.info(f'Estimated remaining time: {estimatedRemain}')
 
 def now():
     return time()
@@ -36,7 +38,11 @@ def endCalculation(start, recordsInBatch, totalRecords=None):
     perRecord = elapsed / recordsInBatch
     if totalRecords:
         estimatedTotal = perRecord * totalRecords
-        log('Batch calculation', None, secondsToStr(perRecord, True), secondsToStr(estimatedTotal, True))
+        estimatedRemain = perRecord * ( totalRecords - recordsInBatch )
+        log('Batch calculation', None,  \
+            secondsToStr(perRecord, True), \
+            secondsToStr(estimatedTotal, True), \
+            secondsToStr(estimatedRemain, True) )
         return
     log('Batch calculation', None, secondsToStr(perRecord, True))
 
