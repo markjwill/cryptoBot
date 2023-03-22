@@ -2,7 +2,7 @@
 ## Summary:
 The goal of this project is to get hands on experience with a time series forecasting machine learning model.  Major steps includes:
  1. Collecting a unique data set from a meaningful real world source
- 2. Cleaning data and computing additional features
+ 2. Cleaning data and computing additional features, and doing feature experimentation
  3. Building and training several models to have predictive power at multiple time intervals
  4. Visualizing model degrees of success and data optimization to measure performance
  5. Putting the model into a production environment where the predictions are used in real time
@@ -12,8 +12,18 @@ The goal of this project is to get hands on experience with a time series foreca
 
 ## Project History (In reverse order / order of importance):
 
+#### MARCH 2023
+I added additional efficiencies leveraging python multiprocessing queues and workers.  I refactored the work of the script into 3 
 #### FEBRUARY 2023
-
+I made updates to my data visualization efforts.  I refactored my code to leverage Pandas to pull data for visualizing with matlab.  I made bar graphs of looking at the distribution of my calculated features and looking at the results of cropping outliers at several different standard deviation values.  
+##### Visualizing goals:
+ - Look for anomalies in the data that indicated there may be a mistake in data cleaning, import, or prep. 
+ - Look for anomalies in the data that indicated there may be a mistake in feature calculation.  
+- Find and remove any computed features that may effectively be duplicating the same data.
+##### Resulting changes: 
+- Time related features where truncating a ton of data. I made their increments much smaller.  
+- Largest time increment, day of the year, was removed.  I did this because I only have data from parts of 2 years and I figured I would simply be baking in the overall trends of prices during that time, rather than adding any annual cyclical influence on price.
+I also started taking a more fine grained look at memory usage in computing features.  My test machine is fairly limited at 16 Gb RAM and 6 vCPUs.  I did some memory profiling with python and was able to make some refactors to make the scripts more efficient with memory.  I also modified my calculated feature output to csv instead of mysql.  I realized it uses less resources to simply store data in a file and I have no need to query the data at this point.  I removed the "worker" feature I had written leveraging running the script multiple times with command line arguments and started leveraging python multithreading, and eventually multiprocessing.  I was able to do a lot of refactoring removing efforts that were being duplicated in one way or another.  With some efficiencies realized I was able to simplify my whole process removing the need to sip on data and perform a cycle of processing and querying for more.  This allowed me to remove a lot of code.  It requires more CPU and RAM usage, but my guess is that the amounts required for computing my 13million record data set all at once are easily rented for a few dollars on a cloud computing platform.  Made huge efficiency gains finding the gaps in data, only looking once and saving that data in the most efficient way.
 #### JAUNARAY 2023
 I recognized that one error being introduced by my feature computing was because I was keeping track of trades by millisecond and there are over a million trades in my source data that share a millisecond with another trade.
 
@@ -47,7 +57,7 @@ Throughout this process the code was all written with future production in mind.
 
 At this point visualizing data was necessary to start seeing the model at work.  The first graph was the actual results against the predicted results shown below. Noting the blue dotted line as "perfect prediction" it can be seem by the shape of the scatter plot that the model has some predictive ability in that the blob slopes up a little on the right and and slopes down a little on the left.  One apparent problem in the result was that there were essentially no price predictions above 0.5 nor below -0.5.  In the next iteration of data cleaning and normalizing leveraging pandas outliers needed to be removed or capped prior to normalization.  Measuring these results one could postulate that if all the dots were simply in the correct quadrants, upper right and lower left then the model would at least be confidently predicting the right direction of the future price even if the magnitude of the movement might be wrong.   Any dots in the upper left quadrant and the lower right quadrant would be extremely detrimental to my projects overall goal.
 
-￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼![](images/1671713553.032646.png)
+￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼￼![](images/1671713553.032646.png)
 
 Further efforts were made to remove loops in feature computation using numpy, adding 4x to the critical speed of the first few steps in the data preparation. 
 
@@ -77,12 +87,12 @@ This code was very much proof of concept and in hindsight, way too much time was
 ```mermaid
 graph LR
 subgraph Predict future price
-	Q[Make predictions at several times<br> in the future based on realtime<br>computed features of recent price<br> history and time]
+    Q[Make predictions at several times<br> in the future based on realtime<br>computed features of recent price<br> history and time]
 N(Linear Regression Model -- In Developement)
 O(Handwritten Algorithm -- depreciated)
 end
 subgraph Make decisions
-	QQ[Decide to create, replace, <br>or cancel, buy or sell orders<br> and at what price]
+    QQ[Decide to create, replace, <br>or cancel, buy or sell orders<br> and at what price]
 B(Machine Learning Model -- future plan)
 P(Handwritten Algorithm)
 end
