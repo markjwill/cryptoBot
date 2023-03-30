@@ -31,7 +31,7 @@ def main():
     global tradePool, features
     features = setupFeatures()
     # tradeList = initTradeManager()
-    tradeList = getDataFromBucket('tradeData-test.csv', s3bucket)
+    tradeList = getDataFromBucket('tradeData.csv', s3bucket)
     setupTradePool(tradeList, features)
     
     del tradeList
@@ -69,7 +69,7 @@ def main():
     isLogger = True
     featureCalculationProcessors = []
     for i in range(featureCalculationProcessCount):
-        featureCalculationProcessor = Process(target=featureCalculationWorker, args=(featureCalculationQueue, fileSaveQueue, featureCalculationProcessCount, isLogger, makeMiniPoolQueue, recordsTotal, ))
+        featureCalculationProcessor = Process(target=featureCalculationWorker, args=(featureCalculationQueue, fileSaveQueue, featureCalculationProcessCount, isLogger, makeMiniPoolQueue, recordsTotal, fileSaveProcessCount, ))
         isLogger = False
         featureCalculationProcessors.append(featureCalculationProcessor)
 
@@ -148,13 +148,14 @@ def makeMiniPoolWorker(makeMiniPoolQueue, featureCalculationQueue, featureCalcul
         makeMiniPoolQueue.task_done()
     makeMiniPoolQueue.task_done()
 
-def featureCalculationWorker(featureCalculationQueue, fileSaveQueue, featureCalculationProcessCount, isLogger, makeMiniPoolQueue, recordsTotal):
+def featureCalculationWorker(featureCalculationQueue, fileSaveQueue, featureCalculationProcessCount, isLogger, makeMiniPoolQueue, recordsTotal, fileSaveProcessCount):
     global tradePool, features
     pid = multiprocessing.current_process().pid
     logging.info(f'Feature calculation worker started {pid}')
     processStart = timing.startCalculation()
     logAfter = 250
     processed = 0
+    maxFileSaveQueueSize = fileSaveProcessCount * 1000
     while True:
         miniPool = featureCalculationQueue.get()
         if miniPool is None:
@@ -163,6 +164,8 @@ def featureCalculationWorker(featureCalculationQueue, fileSaveQueue, featureCalc
         logging.debug(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} sQ {str(fileSaveQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
         fileDestinations = dataCalculate.calculateAllFeatureGroups(miniPool, features)
         del miniPool
+        while fileSaveQueue.qsize() > maxFileSaveQueueSize:
+            time.sleep(1)
         fileSaveQueue.put(fileDestinations)
         processed += 1
         if processed % logAfter == 0 and isLogger:
@@ -241,8 +244,8 @@ def mergeAndSplitCsvs(fileSavePids, features, bucket):
     for fileName, columns in features.csvFiles.items():
         destination = f'{outputFolder}/{date.today()}-{fileName}.csv'
         df.to_csv(destination, columns=columns, index=False)
-        bc.uploadFile(destination, bucket)
-        os.remove(destination)
+        # bc.uploadFile(destination, bucket)
+        # os.remove(destination)
 
 def getDataFromBucket(fileName, bucket):
     df = bc.downloadFile(fileName, bucket)
