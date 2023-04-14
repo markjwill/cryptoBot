@@ -42,55 +42,46 @@ def main():
   logging.info("begin loadin csv to normalize")
   # dfNorm = pd.read_csv( csvNormalize ).astype('float32')
   dfNorm = bc.downloadFile(csvNormalize, s3bucket)
+  normCols = list(dfNorm.columns)
+  dfNoNorm = bc.downloadFile(csvNoNormalize, s3bucket)
+  Xcols = list(dfNorm.columns, dfNoNorm.columns)
   logging.info("norm csv loaded")
-  logging.info("normalizer init")
-  dfNorm = normalizer.clipOutliersAllFeatures(dfNorm)
-  logging.info("outliers clipped")
+  logging.info("merge everything")
+  allData = pd.concat([dfNorm, dfNoNorm], axis=1)
+
+  for timeName, seconds in features.TIME_PERIODS.items():
+    csvY = f'{featureDataFolder}/{dataDate}-{timeName}.csv'
+    Ydf = bc.downloadFile(csvY, s3bucket)
+    allData = pd.concat([allData, Ydf], axis=1)
+    normCols.append(Ydf.columns)
+
+  logging.info("drop outliers")
+  allData = normalizer.dropOutliers(allData, normCols)
+  logging.info("outliers dropped")
+  logging.info("normalization")
   with parallel_backend('threading', n_jobs=jobCount):
-    dfNorm = normalizer.fitAndNormalizeAll(dfNorm)
+    allData = normalizer.fitAndNormalizeAll(allData)
   logging.info("normalization complete")
 
-  logging.info("begin loadin csv not needing to normalize")
-  # dfNoNorm = pd.read_csv( csvNoNormalize ).astype('float32')
-  dfNoNorm = bc.downloadFile(csvNoNormalize, s3bucket)
-  logging.info("no normalize csv loaded")
-  logging.debug(f"noNorm {type(dfNoNorm)} shape {dfNoNorm.shape}")
-  logging.debug(f"norm {type(dfNorm)} shape {dfNorm.shape}")
-  Xdf = pd.concat([dfNorm, dfNoNorm], axis=1)
-  del dfNorm
-  del dfNoNorm
+  Xdf = allData[Xcols]
+
   Xdf.columns = range(Xdf.shape[1])
-  logging.info("data combined and ready")
+  logging.info("data dropped and normed")
 
   for timeName, seconds in features.TIME_PERIODS.items():
 
     logging.info(f"Split test traing {timeName} future price")
-    csvY = f'{featureDataFolder}/{dataDate}-{timeName}.csv'
-    # Ydf = pd.read_csv(csvY)
-    Ydf = bc.downloadFile(csvY, s3bucket)
 
     column = f'{timeName}_futurePrice'
-    logging.info(f'Making images/{date.today()}-{column}_hist')
+    Ydf = allData[column]
+    filePath = f'{workingFolder}/{date.today()}-{column}_hist_drop_norm'
+    logging.info(f'Making {filePath}')
     plt.gcf().set_size_inches(15, 15)
     Ydf[column].plot(kind='hist', bins=100)
-    filePath = f'{workingFolder}/{date.today()}-{column}_hist'
     plt.savefig(filePath, dpi=200)
     plt.close()
     bc.uploadFile(f'{filePath}.png', s3bucket)
 
-    with parallel_backend('threading', n_jobs=jobCount):
-      Ydf = normalizer.clipOutliersAllFeatures(Ydf)
-      logging.info("outliers clipped")
-
-      logging.info(f'Making images/{date.today()}-{column}_hist')
-      plt.gcf().set_size_inches(15, 15)
-      Ydf[column].plot(kind='hist', bins=100)
-      filePath = f'{workingFolder}/{date.today()}-{column}_hist'
-      plt.savefig(filePath, dpi=200)
-      plt.close()
-      bc.uploadFile(f'{filePath}.png', s3bucket)
-
-      Ydf = normalizer.fitAndNormalizeAll(Ydf)
     x_train, x_test, y_train, y_test = train_test_split(Xdf,Ydf, test_size = 0.05, random_state = 42)
     del Ydf
     logging.info(f"Starting Fit {timeName} future price")
@@ -118,7 +109,7 @@ def main():
     plt.title(f'Y {timeName} r2score is {score:.5f}\n'
       f'mean_sqrd_error is {meanSquaredError:.5f}\n'
       f'root_mean_squared error of is {rootMeanSquared:.5f}\n'
-      f'-Y-clip -std-dev-2')
+      f'-dropped-outliers -std-dev-3')
     filePath = f'{imageFolder}/{date.today()}-{timeName}_predictedVsActual'
     plt.savefig(filePath, dpi=200)
     logging.info(f"Saved image for {timeName} future price")

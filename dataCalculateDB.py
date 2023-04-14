@@ -26,12 +26,11 @@ import tradePool as tp
 tradePool = False
 features = False
 
-def main():
-    s3bucket = 'crypto-bot-bucket'
+def main(s3bucket, sourceBuckFileName, outputFolder):
     global tradePool, features
     features = setupFeatures()
     # tradeList = initTradeManager()
-    tradeList = getDataFromBucket('tradeData.csv', s3bucket)
+    tradeList = getDataFromBucket(sourceBuckFileName, s3bucket)
     setupTradePool(tradeList, features)
     
     del tradeList
@@ -58,7 +57,7 @@ def main():
 
     fileSaveProcessors = []
     for i in range(fileSaveProcessCount):
-        fileSaveProcessor = Process(target=fileSaveWorker, args=(fileSaveQueue, features, ))
+        fileSaveProcessor = Process(target=fileSaveWorker, args=(fileSaveQueue, features, outputFolder, ))
         fileSaveProcessors.append(fileSaveProcessor)
 
     fileSavePids = []
@@ -98,7 +97,7 @@ def main():
         # logging.info(f'globals: {globals().keys()} \nlocals: {locals().keys()}')
         logging.info(debugResourceUsage())
         logging.info(debugChildProcess())
-        logging.info(active_children())
+        # logging.info(active_children())
         logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
         logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
         logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
@@ -114,7 +113,7 @@ def main():
     logging.info('Feature calculation queue emptied, File save queue full')
     closeAndWaitForProcessors(fileSaveProcessors, fileSaveQueue)
 
-    mergeAndSplitCsvs(fileSavePids, features, s3bucket)
+    mergeAndSplitCsvs(fileSavePids, features, s3bucket, outputFolder)
 
     logging.info('File save queue emptied')
     logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
@@ -177,10 +176,10 @@ def featureCalculationWorker(featureCalculationQueue, fileSaveQueue, featureCalc
         featureCalculationQueue.task_done()
     featureCalculationQueue.task_done()
 
-def fileSaveWorker(fileSaveQueue, features):
+def fileSaveWorker(fileSaveQueue, features, outputFolder):
     pid = multiprocessing.current_process().pid
     logging.info(f'File save worker started {pid}')
-    csvFile, csvWriter = openCsvFileForWriting(features, pid)
+    csvFile, csvWriter = openCsvFileForWriting(features, pid, outputFolder)
     while True:
         fileDestinations = fileSaveQueue.get()
         if fileDestinations is None:
@@ -222,8 +221,7 @@ def debugResourceUsage():
         f'The usage statistics of {os.getcwd()} is: \n' \
         f'{psutil.disk_usage(os.getcwd())}'
 
-def openCsvFileForWriting(features, pid):
-    outputFolder = '/home/debby/bot/csvFiles'
+def openCsvFileForWriting(features, pid, outputFolder):
     fileName = f'{date.today()}-all-columns-{pid}'
     truncateAndCreateFile = open(f'{outputFolder}/{fileName}.csv', 'w+')
     truncateAndCreateFile.close()
@@ -233,8 +231,7 @@ def openCsvFileForWriting(features, pid):
     csvWriter.writeheader()
     return csvFile, csvWriter
 
-def mergeAndSplitCsvs(fileSavePids, features, bucket):
-    outputFolder = '/home/debby/bot/csvFiles'
+def mergeAndSplitCsvs(fileSavePids, features, bucket, outputFolder):
     dfs = []
     for pid in fileSavePids:
         fileName = f'{outputFolder}/{date.today()}-all-columns-{pid}.csv'
@@ -275,6 +272,21 @@ if __name__ == '__main__':
                          default='warning',
                          help='Provide logging level. Example --loglevel debug, default=warning' )
 
+    parser.add_argument( '-bucket',
+                         '--bucket',
+                         default='crypto-bot-bucket',
+                         help='Provide the name of the s3 bucket. Example -bucket crypto-bot-bucket, default=crypto-bot-bucket' )
+
+    parser.add_argument( '-source',
+                         '--source',
+                         default='tradeData-test.csv',
+                         help='Provide source data file name in s3. Example --source tradeData-test.csv, default=tradeData-test.csv' )
+
+    parser.add_argument( '-folder',
+                         '--folder',
+                         help='Provide temp local folder. Example --source /home/admin/cryptoBot/csvFiles, required, there is no default' )
+
+
     args = parser.parse_args()
 
     logging.basicConfig( level=args.loglevel.upper() )
@@ -283,7 +295,7 @@ if __name__ == '__main__':
 
     try:
         # cProfile.runctx('main()',globals(),locals())
-        main()
+        main(args.bucket, args.source, args.folder)
     except StopIteration as error:
         logging.error(error)
     logging.info("script end reached")

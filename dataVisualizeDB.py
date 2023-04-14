@@ -10,31 +10,38 @@ matplotlib.use('Agg')
 # matplotlib.use('TkCairo')
 import matplotlib.pyplot as plt
 from datetime import date
+import bucketConnector as bc
 
 
-csvNormalize = '/csvFiles/normalize.csv'
-scalerFileName = '20130214scaler.gz'
+csvNormalize = '/home/admin/cryptoBot/csvFiles/2023-04-04-normalize.csv'
+scalerFileName = '20130406scaler.gz'
+workingFolder = '/home/admin/cryptoBot/images'
+s3bucket = 'crypto-bot-bucket'
 
 def main():
   features = f.Features()
   df = pd.read_csv( csvNormalize ).astype('float32')
 
-  for column in features.featuresToNormalize:
-    logging.info(f'Making images/{column}_hist')
-    plt.gcf().set_size_inches(15, 15)
-    df[column].plot(kind='hist', bins=100)
-    plt.savefig(f'images/{column}_hist', dpi=200)
-    plt.close()
+  # for column in features.featuresToNormalize:
+  #   logging.info(f'Making images/{column}_hist')
+  #   plt.gcf().set_size_inches(15, 15)
+  #   df[column].plot(kind='hist', bins=100)
+  #   filePath = f'{workingFolder}/{date.today()}-{column}_hist'
+  #   plt.savefig(filePath, dpi=200)
+  #   plt.close()
+  #   bc.uploadFile(f'{filePath}.png', s3bucket)
 
   normalizer = dn.DataNormalizer(features, scalerFileName)
   df = normalizer.clipOutliers(df, features.featuresToNormalize)
 
   for column in features.featuresToNormalize:
-    logging.info(f'Making images/{column}_hist_afterOutlier')
+    logging.info(f'Making images/{date.today()}-{column}_hist_afterOutlier')
     plt.gcf().set_size_inches(15, 15)
     df[column].plot(kind='hist', bins=100)
-    plt.savefig(f'images/{column}_hist_afterOutlier', dpi=200)
+    filePath = f'{workingFolder}/{column}_hist_afterOutlier'
+    plt.savefig(filePath, dpi=200)
     plt.close()
+    bc.uploadFile(f'{filePath}.png', s3bucket)
 
   df = normalizer.fitAndNormalize(df, features.featuresToNormalize)
 
@@ -42,8 +49,10 @@ def main():
     logging.info(f'Making images/{column}_hist_afterNorm')
     plt.gcf().set_size_inches(15, 15)
     df[column].plot(kind='hist', bins=100)
-    plt.savefig(f'images/{date.today()}-{column}_hist_afterNorm', dpi=200)
+    filePath = f'{workingFolder}/{date.today()}-{column}_hist_afterNorm'
+    plt.savefig(filePath, dpi=200)
     plt.close()
+    bc.uploadFile(f'{filePath}.png', s3bucket)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

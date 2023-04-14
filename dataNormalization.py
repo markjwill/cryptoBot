@@ -8,7 +8,7 @@ import pandas as pd
 
 class DataNormalizer:
 
-  outlierStandardDeviations = 2.5
+  outlierStandardDeviations = 3
   scalerFileName = ''
   scaler = None
 
@@ -44,6 +44,12 @@ class DataNormalizer:
     lowers = means - ( standardDeviations * self.outlierStandardDeviations )
     df[featuresToNormalize] = df[featuresToNormalize].clip(lower=lowers, upper=uppers, axis=1)
     return df
+
+  def dropOutliers(self, df, featuresToCheck):
+    dfNorm = df.loc[:, featuresToCheck]
+    outliers = np.abs((dfNorm - dfNorm.mean()) / dfNorm.std(ddof=0)) < self.outlierStandardDeviations
+    df.loc[:, featuresToCheck] = dfNorm.where(outliers, np.nan)
+    return df.dropna(inplace=True)
 
   def batchScalerBuild(self, df):
     self.scaler = self.scaler.partial_fit(df)
