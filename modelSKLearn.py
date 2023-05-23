@@ -91,7 +91,7 @@ def main():
       bc.uploadFile(f'{filePath}.png', s3bucket)
 
       Ydf = normalizer.fitAndNormalizeAll(Ydf)
-    x_train, x_test, y_train, y_test = train_test_split(Xdf,Ydf, test_size = 0.05, random_state = 42)
+    x_train, x_test, y_train, y_test = train_test_split(Xdf,Ydf, test_size = 0.25)
     del Ydf
     logging.info(f"Starting Fit {timeName} future price")
     with parallel_backend('threading', n_jobs=jobCount):

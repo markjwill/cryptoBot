@@ -16,7 +16,7 @@ import memory_profiler
 
 class TradePool():
 
-    MILLISECONDS_GAP_TOLERATED = 120000
+    MILLISECONDS_GAP_TOLERATED = 240000
     tradeList = []
     features = False
 
@@ -247,6 +247,49 @@ class TradePool():
         miniPool.logPoolDetails()
 
         return miniPool
+
+    def getInbetweenMiniPools(self, pivotIndex, miniPool, workerId):
+        miniPoolList = []
+
+        miniPool.workerId = workerId
+        miniPool.isMiniPool = True
+        # miniPool.features = self.features
+        pivotTrade = self.getTradeAt(pivotIndex)
+        nextPivotTrade = self.getTradeAt(pivotIndex + 1)
+        pivotTimeMilliseconds = self.getTradeMilliseconds(pivotTrade)
+        nextPivotTimeMilliseconds = self.getTradeMilliseconds(nextPivotTrade)
+        i = 1
+        while nextPivotTimeMilliseconds > pivotTimeMilliseconds + ( 1000 * i ):
+            pivotTimeMilliseconds = nextPivotTimeMilliseconds
+            endTimeMilliseconds = pivotTimeMilliseconds
+
+            logging.debug(f'index: {pivotIndex} id: {pivotTrade[4]} second+: {i}')
+
+            for timeName, periodMilliseconds in TradePool.features.TIME_PERIODS.items():
+                startTimeMilliseconds = pivotTimeMilliseconds - periodMilliseconds
+                self.selectMultipleTrades(f'{miniPool.workerId}_past_{timeName}', startTimeMilliseconds, pivotIndex)
+
+            logging.debug(self.subPools.items())
+
+            for name, indexes in self.subPools.items():
+                if name.startswith(f'{miniPool.workerId}_past_'):
+                    miniPoolName = name.replace(f'{miniPool.workerId}_','')
+                    miniPool.subPools[miniPoolName] = {}
+                    miniPool.subPools[miniPoolName]['startIndex'] = self.subPools[name]['startIndex']
+                    miniPool.subPools[miniPoolName]['endIndex'] = pivotIndex
+
+            for timeName, periodMilliseconds in TradePool.features.TIME_PERIODS.items():
+                name = f'future_{timeName}'
+                targetMilliseconds = pivotTimeMilliseconds + periodMilliseconds
+                tradeItem = self.selectFutureTrade(name, targetMilliseconds)
+                miniPool.futureTrades[name] = tradeItem
+
+            miniPool.logPoolDetails()
+
+            miniPoolList.append(miniPool)
+            i = i + 1
+
+        return miniPoolList
 
     def getFutureTrade(self, name):
         return self.futureTrades[name]

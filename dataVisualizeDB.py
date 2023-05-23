@@ -38,7 +38,7 @@ def main():
     logging.info(f'Making images/{date.today()}-{column}_hist_afterOutlier')
     plt.gcf().set_size_inches(15, 15)
     df[column].plot(kind='hist', bins=100)
-    filePath = f'{workingFolder}/{column}_hist_afterOutlier'
+    filePath = f'{workingFolder}/{date.today()}-{column}_hist_afterOutlier'
     plt.savefig(filePath, dpi=200)
     plt.close()
     bc.uploadFile(f'{filePath}.png', s3bucket)

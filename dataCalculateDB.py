@@ -19,18 +19,21 @@ import psutil
 import dataCalculate
 import features as f
 import timing
-import tradeDbManager as tdm
+# import tradeDbManager as tdm
 import bucketConnector as bc
 import tradePool as tp
 
 tradePool = False
 features = False
 
-def main(s3bucket, sourceBuckFileName, outputFolder):
+def main(s3bucket, sourceBucketFileName, outputFolder):
+    isTest=""
+    if "test" in sourceBucketFileName:
+        isTest="-test"
     global tradePool, features
     features = setupFeatures()
     # tradeList = initTradeManager()
-    tradeList = getDataFromBucket(sourceBuckFileName, s3bucket)
+    tradeList = getDataFromBucket(sourceBucketFileName, s3bucket)
     setupTradePool(tradeList, features)
     
     del tradeList
@@ -113,7 +116,7 @@ def main(s3bucket, sourceBuckFileName, outputFolder):
     logging.info('Feature calculation queue emptied, File save queue full')
     closeAndWaitForProcessors(fileSaveProcessors, fileSaveQueue)
 
-    mergeAndSplitCsvs(fileSavePids, features, s3bucket, outputFolder)
+    mergeAndSplitCsvs(fileSavePids, features, s3bucket, outputFolder, isTest)
 
     logging.info('File save queue emptied')
     logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
@@ -144,6 +147,11 @@ def makeMiniPoolWorker(makeMiniPoolQueue, featureCalculationQueue, featureCalcul
         while featureCalculationQueue.qsize() > maxFeatureCalculationQueueSize:
             time.sleep(1)
         featureCalculationQueue.put(miniPool)
+        miniPoolList = tradePool.getInbetweenMiniPools(index, tp.TradePool('mini'), pid)
+        for miniPool in miniPoolList:
+            while featureCalculationQueue.qsize() > maxFeatureCalculationQueueSize:
+                time.sleep(1)
+            featureCalculationQueue.put(miniPool)
         makeMiniPoolQueue.task_done()
     makeMiniPoolQueue.task_done()
 
@@ -231,7 +239,7 @@ def openCsvFileForWriting(features, pid, outputFolder):
     csvWriter.writeheader()
     return csvFile, csvWriter
 
-def mergeAndSplitCsvs(fileSavePids, features, bucket, outputFolder):
+def mergeAndSplitCsvs(fileSavePids, features, bucket, outputFolder, isTest):
     dfs = []
     for pid in fileSavePids:
         fileName = f'{outputFolder}/{date.today()}-all-columns-{pid}.csv'
@@ -239,9 +247,9 @@ def mergeAndSplitCsvs(fileSavePids, features, bucket, outputFolder):
         os.remove(fileName)
     df = pd.concat(dfs)
     for fileName, columns in features.csvFiles.items():
-        destination = f'{outputFolder}/{date.today()}-{fileName}.csv'
+        destination = f'{outputFolder}/{date.today()}-{fileName}{isTest}.csv'
         df.to_csv(destination, columns=columns, index=False)
-        # bc.uploadFile(destination, bucket)
+        bc.uploadFile(destination, bucket)
         # os.remove(destination)
 
 def getDataFromBucket(fileName, bucket):

@@ -23,45 +23,57 @@ import memory_profiler
 from joblib import parallel_backend
 import bucketConnector as bc
 
-
-scalerFileName = '20230407scaler.gz'
-dataDate = '2023-04-04'
-workingFolder = '/home/admin/cryptoBot'
-featureDataFolder = f'{workingFolder}/csvFiles'
-imageFolder = f'{workingFolder}/images'
-csvNoNormalize = f'{featureDataFolder}/{dataDate}-noNormalize.csv'
-csvNormalize = f'{featureDataFolder}/{dataDate}-normalize.csv'
-s3bucket = 'crypto-bot-bucket'
-jobCount = 95
-
 # @profile
-def main():
+def main(
+    s3bucket,
+    useFullData,
+    workers,
+    workingFolder,
+    dataDate,
+    scalerDate
+  ):
+
+  isTest = ''
+  if not useFullData:
+    isTest = '-test'
+
+  scalerFileName = f'{scalerDate}scaler.gz'
+  featureDataFolder = f'{workingFolder}/csvFiles'
+  imageFolder = f'{workingFolder}/images'
+  csvNoNormalize = f'{featureDataFolder}/{dataDate}-noNormalize{isTest}.csv'
+  csvNormalize = f'{featureDataFolder}/{dataDate}-normalize{isTest}.csv'
+
   features = f.Features()
   normalizer = dn.DataNormalizer(features, scalerFileName)
 
   logging.info("begin loadin csv to normalize")
   # dfNorm = pd.read_csv( csvNormalize ).astype('float32')
   dfNorm = bc.downloadFile(csvNormalize, s3bucket)
-  normCols = list(dfNorm.columns)
+  normCols = list(dfNorm)
   dfNoNorm = bc.downloadFile(csvNoNormalize, s3bucket)
-  Xcols = list(dfNorm.columns, dfNoNorm.columns)
+  Xcols = list(dfNorm.columns) + list(dfNoNorm.columns)
   logging.info("norm csv loaded")
   logging.info("merge everything")
   allData = pd.concat([dfNorm, dfNoNorm], axis=1)
 
   for timeName, seconds in features.TIME_PERIODS.items():
-    csvY = f'{featureDataFolder}/{dataDate}-{timeName}.csv'
+    csvY = f'{featureDataFolder}/{dataDate}-{timeName}{isTest}.csv'
     Ydf = bc.downloadFile(csvY, s3bucket)
     allData = pd.concat([allData, Ydf], axis=1)
-    normCols.append(Ydf.columns)
+    normCols = normCols + Ydf.columns.tolist()
 
-  logging.info("drop outliers")
+  logging.info(f"drop outliers pre-row count: {allData.shape[0]} X {allData.shape[1]}")
   allData = normalizer.dropOutliers(allData, normCols)
-  logging.info("outliers dropped")
+  logging.info(f"outliers dropped new row count: {allData.shape[0]} X {allData.shape[1]}")
   logging.info("normalization")
-  with parallel_backend('threading', n_jobs=jobCount):
-    allData = normalizer.fitAndNormalizeAll(allData)
+  with parallel_backend('threading', n_jobs=workers):
+    allData = normalizer.fitAndNormalize(allData, normCols)
   logging.info("normalization complete")
+
+  logging.info(f'allData - Xcols check')
+  logging.info(list(set(allData.columns.tolist()) - set(Xcols)))
+  logging.info(f'Xcols - allData check')
+  logging.info(list(set(Xcols) - set(allData.columns.tolist())))
 
   Xdf = allData[Xcols]
 
@@ -74,24 +86,24 @@ def main():
 
     column = f'{timeName}_futurePrice'
     Ydf = allData[column]
-    filePath = f'{workingFolder}/{date.today()}-{column}_hist_drop_norm'
+    filePath = f'{workingFolder}/{date.today()}-{column}_hist_drop_norm-std2-test'
     logging.info(f'Making {filePath}')
     plt.gcf().set_size_inches(15, 15)
-    Ydf[column].plot(kind='hist', bins=100)
+    Ydf.plot(kind='hist', bins=100)
     plt.savefig(filePath, dpi=200)
     plt.close()
     bc.uploadFile(f'{filePath}.png', s3bucket)
 
-    x_train, x_test, y_train, y_test = train_test_split(Xdf,Ydf, test_size = 0.05, random_state = 42)
+    x_train, x_test, y_train, y_test = train_test_split(Xdf,Ydf, test_size = 0.25)
     del Ydf
     logging.info(f"Starting Fit {timeName} future price")
-    with parallel_backend('threading', n_jobs=jobCount):
-      LR = LinearRegression()
+    with parallel_backend('threading', n_jobs=workers):
+      LR = LinearRegression(copy_X=True)
       LR.fit(x_train,y_train)
 
     logging.info(f"Fit complete {timeName} future price")
 
-    with parallel_backend('threading', n_jobs=jobCount):
+    with parallel_backend('threading', n_jobs=workers):
       y_pred = LR.predict(x_test)
       score = r2_score(y_test,y_pred)
       meanSquaredError = mean_squared_error(y_test,y_pred)
@@ -101,7 +113,7 @@ def main():
     logging.info(f"root_mean_squared error of is== {rootMeanSquared:.5f}")
 
     plt.plot([-1.5, 1.5], [-1.5, 1.5], 'bo', linestyle="--")
-    plt.scatter(y_test,y_pred)
+    plt.scatter(y_test,y_pred, s=2)
     plt.grid(True)
     plt.xlabel('Actual')
     plt.ylabel('Predicted')
@@ -109,8 +121,8 @@ def main():
     plt.title(f'Y {timeName} r2score is {score:.5f}\n'
       f'mean_sqrd_error is {meanSquaredError:.5f}\n'
       f'root_mean_squared error of is {rootMeanSquared:.5f}\n'
-      f'-dropped-outliers -std-dev-3')
-    filePath = f'{imageFolder}/{date.today()}-{timeName}_predictedVsActual'
+      f'-dropped-outliers -std-dev-2')
+    filePath = f'{imageFolder}/{date.today()}-{timeName}_predictedVsActual-std2-test'
     plt.savefig(filePath, dpi=200)
     logging.info(f"Saved image for {timeName} future price")
     plt.close()
@@ -118,20 +130,55 @@ def main():
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+  parser = argparse.ArgumentParser()
 
-    parser.add_argument( '-log',
-                         '--loglevel',
-                         default='warning',
-                         help='Provide logging level. Example --loglevel debug, default=warning' )
+  parser.add_argument( '-log',
+                       '--loglevel',
+                       default='warning',
+                       help='Provide logging level. Example --loglevel debug, default=warning' )
 
-    args = parser.parse_args()
+  parser.add_argument( '-bucket',
+                       '--bucket',
+                       default='crypto-bot-bucket',
+                       help='Provide the name of the s3 bucket. Example -bucket crypto-bot-bucket, default=crypto-bot-bucket' )
 
-    logging.basicConfig( level=args.loglevel.upper() )
-    logging.info( 'Logging now setup.' )
-    timing.startTiming()
-    main()
-    logging.info("script end reached")
+  parser.add_argument( '-useFullData',
+                       '--useFullData',
+                       default=False,
+                       action=argparse.BooleanOptionalAction,
+                       help='Provide instruction to use full data or test data. Example --useFullData, default will use code testing dataset' )
+
+  parser.add_argument( '-workers',
+                       '--workers',
+                       default=12,
+                       help='Provide number of worker processes. ~1 pr cpu is reccomended. Example --workers 48, default 12' )
+
+  parser.add_argument( '-folder',
+                       '--folder',
+                       help='Provide temp local folder. Example --folder /home/admin/cryptoBot/csvFiles, required, there is no default' )
+
+  parser.add_argument( '-dataDate',
+                       '--dataDate',
+                       help='Provide dateData was computed. Example --dataDate 2023-04-14, required, there is no default' )
+
+  parser.add_argument( '-scalerDate',
+                       '--scalerDate',
+                       help='Provide scalerDate normalization scaler was computed, or a new date to rebuild scaler. Example --scalerDate 20230414, there is no default' )
+
+  args = parser.parse_args()
+
+  logging.basicConfig( level=args.loglevel.upper() )
+  logging.info( 'Logging now setup.' )
+  timing.startTiming()
+  main(
+    args.bucket,
+    args.useFullData,
+    args.workers,
+    args.folder,
+    args.dataDate,
+    args.scalerDate
+  )
+  logging.info("script end reached")
 
 
 
