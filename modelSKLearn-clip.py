@@ -9,7 +9,7 @@ from modelCore import logging
 from modelCore import args
 import numpy as np
 
-class ModelSKLearnDrop(modelCore.ModelCore):
+class ModelSKLearnClip(modelCore.ModelCore):
 
   def run(self):
 
@@ -25,7 +25,7 @@ class ModelSKLearnDrop(modelCore.ModelCore):
       target = f'{timeName}_futurePrice'
       ydf = self.allData[target]
       if self.makeHistograms is not False:
-        self.makeHistogramImage(ydf, target, f'hist_drop_norm-std2{self.isTest}')
+        self.makeHistogramImage(ydf, target, f'hist_clip_norm-std2{self.isTest}')
 
       xTrain, xTest, yTrain, yTest = train_test_split(xdf,ydf, test_size = 0.25)
       del ydf
@@ -49,7 +49,7 @@ class ModelSKLearnDrop(modelCore.ModelCore):
             timeName,
             yTest,
             yPredicted,
-            f'skLearnDrop-predictedVsActual-std2{self.isTest}',
+            f'skLearnClip-predictedVsActual-std2{self.isTest}',
             score,
             meanSquaredError,
             rootMeanSquared
@@ -57,13 +57,13 @@ class ModelSKLearnDrop(modelCore.ModelCore):
 
 if __name__ == '__main__':
   logging.info('script start')
-  model = ModelSKLearnDrop()
+  model = ModelSKLearnClip()
   model.initArgs(args)
   model.initFeatures()
   model.initNormalizer()
 
   model.downloadDataSet()
-  model.dropOutliersInDataSet()
+  model.clipOutliersInDataSet()
   model.normalizeDataSet()
 
   model.run()
