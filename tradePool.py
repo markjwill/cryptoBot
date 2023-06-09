@@ -90,7 +90,7 @@ class TradePool():
 
     def logPoolDetails(self):
         if self.maxIndex == 0:
-            logging.warning('Trade pool is empty')
+            logging.error('Trade pool is empty')
             return
 
         logging.debug(f'Pool max index {self.maxIndex}')
@@ -247,6 +247,28 @@ class TradePool():
         miniPool.logPoolDetails()
 
         return miniPool
+
+    def getLastNumberOfTrades(self, pivotIndex):
+        if self.isMiniPool:
+            logging.error( \
+                'getLastNumberOfTrades may not be called on a miniPool' \
+            )
+
+        collectedFeatures = {}
+        pivotTrade = self.getTradeAt(pivotIndex)
+        tradeFeatures = TradePool.features.FEATURE_INDEXES['exchange']
+
+        for negativeIndex in range(1,TradePool.features.PREVIOUS_TRADE_COUNT):
+            index = pivotIndex - negativeIndex
+            negativeTrade = self.getTradeAt(index)
+            key = f'trade-{negativeIndex}-price'
+            collectedFeatures[key] = negativeTrade[0] - pivotTrade[0]
+            key = f'trade-{negativeIndex}-volume'
+            collectedFeatures[key] = negativeTrade[1]
+            key = f'trade-{negativeIndex}-date_ms'
+            collectedFeatures[key] = negativeTrade[3] - pivotTrade[3]
+
+        return collectedFeatures
 
     def getInbetweenMiniPools(self, pivotIndex, miniPool, workerId):
         miniPoolList = []

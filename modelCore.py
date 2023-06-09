@@ -6,7 +6,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
-import features as f
 import dataNormalization as dn
 import bucketConnector as bc
 from joblib import parallel_backend
@@ -64,6 +63,11 @@ parser.add_argument( '-makeHistograms',
                      default=False,
                      help='Make histogram images of each feature. Example --makeHistograms True. The default is False.' )
 
+parser.add_argument( '-featuresDate',
+                     '--featuresDate',
+                     default='',
+                     help='Use the feature file named with this date. Example --featuresFile 2023-06-09 will use features-223-06-09.py to determine what features to use. The default is an empty string which by convention, is the latest feature file.' )
+
 args = parser.parse_args()
 
 logging.basicConfig( level=args.loglevel.upper() )
@@ -85,6 +89,7 @@ class ModelCore():
   workers = 1
   makeHistograms = False
   singleTarget = ''
+  featuresDate = ''
 
   featuresToNormalize = ''
   featuresDontNormalize = ''
@@ -120,8 +125,13 @@ class ModelCore():
     self.singleTarget = args.singleTarget
     self.makeHistograms = args.makeHistograms
     self.s3bucket = args.s3bucket
+    self.featuresDate = args.featuresDate
 
   def initFeatures(self):
+    featuresFile = 'features'
+    if self.featuresDate is not '':
+      featuresFile = f'features-{self.featuresDate}'
+    f = __import__(featuresFile)
     self.features = f.Features()
 
   def initNormalizer(self):

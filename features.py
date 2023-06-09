@@ -30,6 +30,8 @@ class Features:
 
     }
 
+    PREVIOUS_TRADE_COUNT = 100
+
     OFF_EXCHANGE_PERIOD_FEATURES = {
         'diffExchange'     : 0.0  # difference in price from exchange
     }
@@ -131,6 +133,15 @@ class Features:
             for featureName in self.PERIOD_FEATURES:
                 self.csvFiles['normalize'].append(f'{timeName}_{featureName}')
             self.csvFiles[timeName] = [f'{timeName}_futurePrice']
+
+        for negativeIndex in range(1,self.PREVIOUS_TRADE_COUNT):
+            key = f'trade-{negativeIndex}-price'
+            self.csvFiles['normalize'].append(key)
+            key = f'trade-{negativeIndex}-volume'
+            self.csvFiles['normalize'].append(key)
+            key = f'trade-{negativeIndex}-date_ms'
+            self.csvFiles['normalize'].append(key)
+
         logging.debug(self.csvFiles)
 
     def initFeaturesToNormalize(self):

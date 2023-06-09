@@ -22,13 +22,14 @@ class ModelAlpha(modelCore.ModelCore):
     return J
 
   # From coursera course
-  def gradientDescentMulti(self, X, y, theta, alpha, num_iters, J_history, count):
+  def gradientDescentMulti(self, X, y, theta, alpha, num_iters, J_history, count, thetaFileName):
     m = len(y)
     for i in range(num_iters):
       theta = theta - alpha*(1.0/m) * np.transpose(X).dot(X.dot(theta) - np.transpose([y]))
       iterationNumber = i + count
       J_history[iterationNumber] = self.computeCost(X, y, theta)
       logging.info(f'J @ {iterationNumber} {J_history[iterationNumber]}')
+    joblib.dump(theta, thetaFileName)
     return theta, J_history, count + num_iters
 
   def run(self):
@@ -48,7 +49,7 @@ class ModelAlpha(modelCore.ModelCore):
         theta = np.random.rand(len(self.xFeatures),1)
 
       alpha = 0.1
-      num_iters = 20
+      num_iters = 3
 
       xTrainDf, xTestDf, yTrainDf, yTestDf = train_test_split(xdf,ydf, test_size = 0.25)
 
@@ -64,19 +65,18 @@ class ModelAlpha(modelCore.ModelCore):
           alpha,
           num_iters,
           J_history,
-          count
+          count,
+          thetaFileName
         )
 
       # For interactive mode
-      # theta, J_history, count = self.gradientDescentMulti( xTrain, yTrain, theta, alpha, num_iters, J_history, count)
+      # theta, J_history, count = self.gradientDescentMulti( xTrain, yTrain, theta, alpha, num_iters, J_history, count, thetaFileName)
 
       # print("J history:", J_history[-50:])
 
       J = self.computeCost(xTrain, yTrain, theta)
 
       print("Test set cost: ", J)
-
-      joblib.dump(theta, thetaFileName)
 
       yPredictedDf = pd.DataFrame(np.array(xTestDf.to_numpy()).dot(theta), columns = [target] )
       with parallel_backend('threading', n_jobs=self.workers):
@@ -94,6 +94,8 @@ class ModelAlpha(modelCore.ModelCore):
         rootMeanSquared
       )
 
+      # For interactive mode
+      # self.makeModelPerformanceImage(timeName, yTestDf, yPredictedDf, f'gradientDecent{self.isTest}', score, meanSquaredError, rootMeanSquared)
       code.interact(local=locals())
 
 if __name__ == '__main__':

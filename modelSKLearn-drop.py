@@ -1,6 +1,7 @@
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_validate
 from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score
 from sklearn.metrics import mean_squared_error
 from joblib import parallel_backend
@@ -31,7 +32,7 @@ class ModelSKLearnDrop(modelCore.ModelCore):
       del ydf
       logging.info(f"Starting Fit {timeName} future price")
       with parallel_backend('threading', n_jobs=self.workers):
-        LR = LinearRegression(copy_X=True)
+        LR = RidgeCV()
         LR.fit(xTrain,yTrain)
 
       logging.info(f"Fit complete {timeName} future price")
