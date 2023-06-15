@@ -33,7 +33,8 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
     global tradePool, features
     features = setupFeatures()
     # tradeList = initTradeManager()
-    tradeList = getDataFromBucket(sourceBucketFileName, s3bucket)
+    filePath = f'{outputFolder}/{sourceBucketFileName}'
+    tradeList = getDataFromBucket(filePath, s3bucket)
     setupTradePool(tradeList, features)
     
     del tradeList
@@ -148,10 +149,11 @@ def makeMiniPoolWorker(makeMiniPoolQueue, featureCalculationQueue, featureCalcul
             time.sleep(1)
         featureCalculationQueue.put(miniPool)
         miniPoolList = tradePool.getInbetweenMiniPools(index, tp.TradePool('mini'), pid)
-        for miniPool in miniPoolList:
-            while featureCalculationQueue.qsize() > maxFeatureCalculationQueueSize:
-                time.sleep(1)
-            featureCalculationQueue.put(miniPool)
+        logging.debug(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} sQ       process {pid} Made {len(miniPoolList)} gap miniPools after index {index}')
+        # for miniPool in miniPoolList:
+        #     while featureCalculationQueue.qsize() > maxFeatureCalculationQueueSize:
+        #         time.sleep(1)
+        #     featureCalculationQueue.put(miniPool)
         makeMiniPoolQueue.task_done()
     makeMiniPoolQueue.task_done()
 

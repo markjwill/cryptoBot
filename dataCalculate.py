@@ -4,6 +4,7 @@ import datetime
 import numpy as np
 import pandas as pd
 import numpy as np
+import tradePool
 
 
 # update all trade[n] syntax to use named tradePool functions instead
@@ -156,6 +157,9 @@ def calculateAllFeatureGroups(tradePool, features):
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
         fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, tradePool, pivotPrice)
+
+    fileDestinations['normalize'] = fileDestinations['normalize'] \
+            | tradePool.getLastNumberOfTrades(tradePool.pivotIndex)
 
     logging.debug('All feature groups calculated')
     return fileDestinations

@@ -189,6 +189,14 @@ class Features:
                 self.COLUMNS.append(f'{timeName}_{featureName}')
             self.COLUMNS.append(f'{timeName}_futurePrice')
 
+        for negativeIndex in range(1,self.PREVIOUS_TRADE_COUNT):
+            key = f'trade-{negativeIndex}-price'
+            self.COLUMNS.append(key)
+            key = f'trade-{negativeIndex}-volume'
+            self.COLUMNS.append(key)
+            key = f'trade-{negativeIndex}-date_ms'
+            self.COLUMNS.append(key)
+
         logging.debug('COLUMNS:')
         logging.debug(self.COLUMNS) 
 

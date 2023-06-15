@@ -27,6 +27,7 @@ class TradePool():
         self.futureTrades = {}
         self.workerId = 0
         self.isMiniPool = False
+        self.pivotIndex = 0
         if poolType == 'mini':
             self.isMiniPool = True
         self.maxIndex = len(TradePool.tradeList)
@@ -215,7 +216,7 @@ class TradePool():
         # processStepStart = timing.startCalculation()
         # logging.info('getMiniPoolStart')
         # timing.progressCalculation(processStepStart)
-
+        self.pivotIndex = pivotIndex
         miniPool.workerId = workerId
         miniPool.isMiniPool = True
         # miniPool.features = self.features
@@ -249,9 +250,9 @@ class TradePool():
         return miniPool
 
     def getLastNumberOfTrades(self, pivotIndex):
-        if self.isMiniPool:
+        if not self.isMiniPool:
             logging.error( \
-                'getLastNumberOfTrades may not be called on a miniPool' \
+                'getLastNumberOfTrades may only be called on a miniPool' \
             )
 
         collectedFeatures = {}
@@ -285,7 +286,7 @@ class TradePool():
             pivotTimeMilliseconds = nextPivotTimeMilliseconds
             endTimeMilliseconds = pivotTimeMilliseconds
 
-            logging.debug(f'index: {pivotIndex} id: {pivotTrade[4]} second+: {i}')
+            logging.debug(f'GAP MINI POOL index: {pivotIndex} id: {pivotTrade[4]} second+: {i}')
 
             for timeName, periodMilliseconds in TradePool.features.TIME_PERIODS.items():
                 startTimeMilliseconds = pivotTimeMilliseconds - periodMilliseconds
