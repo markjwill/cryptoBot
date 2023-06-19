@@ -197,6 +197,8 @@ def fileSaveWorker(fileSaveQueue, features, outputFolder):
         row = dict(ChainMap(*fileDestinations.values()))
         del fileDestinations
         csvWriter.writerow(row)
+        if count % 10000:
+            csvFile, csvWriter = closeAndReopenFile(features, csvFile, csvWriter)
         fileSaveQueue.task_done()
     logging.info(f'Closing CSV file for process {pid}')
     csvFile.close()
@@ -229,11 +231,20 @@ def debugResourceUsage():
         f'The usage statistics of {os.getcwd()} is: \n' \
         f'{psutil.disk_usage(os.getcwd())}'
 
+def closeAndReopenFile(features, csvFile, csvWriter):
+    path = csvFile.name
+    csvFile.close()
+    del csvWriter
+    csvFile = open(path, 'a', buffering=65536)
+    fieldnames = [outputGroup for groupContents in features.csvFiles.values() for outputGroup in groupContents]
+    csvWriter = csv.DictWriter(csvFile, fieldnames=fieldnames)
+    return csvFile, csvWriter
+
 def openCsvFileForWriting(features, pid, outputFolder):
     fileName = f'{date.today()}-all-columns-{pid}'
     truncateAndCreateFile = open(f'{outputFolder}/{fileName}.csv', 'w+')
     truncateAndCreateFile.close()
-    csvFile = open(f'{outputFolder}/{fileName}.csv', 'a', buffering=1000000)
+    csvFile = open(f'{outputFolder}/{fileName}.csv', 'a', buffering=65536)
     fieldnames = [outputGroup for groupContents in features.csvFiles.values() for outputGroup in groupContents]
     csvWriter = csv.DictWriter(csvFile, fieldnames=fieldnames)
     csvWriter.writeheader()
