@@ -25,4 +25,4 @@ def downloadFile(fileName, bucket):
       s3_client.download_fileobj(bucket, objectName, fileSave)
 
   logging.info(f'{fileName} is saved locally')
-  return pd.read_csv(fileName).astype('float32')
+  return pd.read_csv(fileName)
