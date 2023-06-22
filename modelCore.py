@@ -79,8 +79,7 @@ class ModelCore():
   scalerFileName = ''
   featureDataFolder = ''
   imageFolder = ''
-  csvNoNormalize = ''
-  csvNormalize = ''
+  csvSource = ''
   logging = ''
   s3bucket = ''
   dataDate = ''
@@ -120,8 +119,7 @@ class ModelCore():
     self.scalerFileName = f'{args.scalerDate}scaler.gz'
     self.featureDataFolder = f'{args.projectFolder}/csvFiles'
     self.imageFolder = f'{args.projectFolder}/images'
-    self.csvNoNormalize = f'{self.featureDataFolder}/{self.dataDate}-noNormalize{self.isTest}.csv'
-    self.csvNormalize = f'{self.featureDataFolder}/{self.dataDate}-normalize{self.isTest}.csv'
+    self.csvSource = f'{self.featureDataFolder}/{self.dataDate}-all-columns{self.isTest}.csv'
     self.singleTarget = args.singleTarget
     self.makeHistograms = args.makeHistograms
     self.s3bucket = args.s3bucket
@@ -129,7 +127,7 @@ class ModelCore():
 
   def initFeatures(self):
     featuresFile = 'features'
-    if self.featuresDate is not '':
+    if self.featuresDate !='':
       featuresFile = f'features-{self.featuresDate}'
     f = __import__(featuresFile)
     self.features = f.Features()
@@ -145,7 +143,13 @@ class ModelCore():
 
   def downloadDataSet(self):
     logging.info("start loading data")
-    dfForNormalizing = bc.downloadFile(self.csvNormalize, self.s3bucket)
+    self.allData = bc.downloadFile(self.csvSource, self.s3bucket)
+    self.featuresToNormalize = self.features.featuresToNormalize
+    self.xFeatures = self.featuresToNormalize + self.features.
+
+
+    
+    dfForNormalizing = bc.downloadFile(self.csvSource, self.s3bucket)
     self.featuresToNormalize = list(dfForNormalizing)
     dfDontNormalize = bc.downloadFile(self.csvNoNormalize, self.s3bucket)
     self.xFeatures = list(dfForNormalizing.columns) + list(dfDontNormalize.columns)

@@ -163,6 +163,16 @@ def calculateAllFeatureGroups(miniPool, features):
     logging.debug('All feature groups calculated')
     return fileDestinations
 
+def calculateAllFeaturesToList(miniPool, features):
+    fileDestinations = calculateAllFeatureGroups(miniPool, features)
+    featuresDict = {}
+    for value in fileDestinations.values():
+        featuresDict = featuresDict | value
+
+    sortedFeatures = {key: value for key, value in sorted(featuresDict.items())}
+    featuresList = list(sortedFeatures.values())
+    return featuresList
+
 def calculatePastFeatureGroup(name, miniPool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features):
     logging.debug(f'Collecting trades and calculating Group past_{name}')
     periodTrades = miniPool.getTradeList(f'past_{name}')

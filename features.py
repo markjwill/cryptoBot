@@ -146,7 +146,7 @@ class Features:
 
     def initFeaturesToNormalize(self):
         futurePriceFeatures = [f'{timeName}_futurePrice' for timeName in self.TIME_PERIODS.keys()]
-        doNotNormalize = self.DO_NOT_NORMALIZE + futurePriceFeatures
+        doNotNormalize = self.DO_NOT_NORMALIZE
         self.featuresToNormalize = [i for i in self.COLUMNS if i not in doNotNormalize]
         logging.debug('featuresToNormalize:')
         logging.debug(self.featuresToNormalize)
@@ -189,6 +189,12 @@ class Features:
                 self.COLUMNS.append(f'{timeName}_{featureName}')
             self.COLUMNS.append(f'{timeName}_futurePrice')
 
+        for negativeIndex in range(1,self.PREVIOUS_TRADE_COUNT):
+            self.COLUMNS.append(f'trade-{negativeIndex}-price')
+            self.COLUMNS.append(f'trade-{negativeIndex}-volume')
+            self.COLUMNS.append(f'trade-{negativeIndex}-date_ms')
+
+        self.COLUMNS = sorted(self.COLUMNS, key=str.lower)
         logging.debug('COLUMNS:')
         logging.debug(self.COLUMNS) 
 
