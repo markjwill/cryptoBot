@@ -19,6 +19,7 @@ class TradePool():
     MILLISECONDS_GAP_TOLERATED = 240000
     tradeList = []
     features = False
+    pivotIndex = 0
 
     def __init__(self, poolType):
         self.maxIndex = 0
@@ -93,6 +94,9 @@ class TradePool():
         if self.maxIndex == 0:
             logging.error('Trade pool is empty')
             return
+
+        if self.isMiniPool:
+            logging.debug(f'miniPool pivot index: {self.pivotIndex}')
 
         logging.debug(f'Pool max index {self.maxIndex}')
         poolStartTime = self.logTime(self.getTradeMilliseconds(self.getFirstInPool()))
@@ -216,7 +220,7 @@ class TradePool():
         # processStepStart = timing.startCalculation()
         # logging.info('getMiniPoolStart')
         # timing.progressCalculation(processStepStart)
-        self.pivotIndex = pivotIndex
+        miniPool.pivotIndex = pivotIndex
         miniPool.workerId = workerId
         miniPool.isMiniPool = True
         # miniPool.features = self.features
@@ -249,27 +253,36 @@ class TradePool():
 
         return miniPool
 
-    def getLastNumberOfTrades(self, pivotIndex):
+    def getLastNumberOfTrades(self):
         if not self.isMiniPool:
             logging.error( \
                 'getLastNumberOfTrades may only be called on a miniPool' \
             )
 
         collectedFeatures = {}
-        pivotTrade = self.getTradeAt(pivotIndex)
+        pivotTrade = self.getTradeAt(self.pivotIndex)
         tradeFeatures = TradePool.features.FEATURE_INDEXES['exchange']
 
         for negativeIndex in range(1,TradePool.features.PREVIOUS_TRADE_COUNT):
-            index = pivotIndex - negativeIndex
+            index = self.pivotIndex - negativeIndex
             negativeTrade = self.getTradeAt(index)
-            key = f'trade-{negativeIndex}-price'
-            collectedFeatures[key] = negativeTrade[0] - pivotTrade[0]
-            key = f'trade-{negativeIndex}-volume'
-            collectedFeatures[key] = negativeTrade[1]
-            key = f'trade-{negativeIndex}-date_ms'
-            collectedFeatures[key] = negativeTrade[3] - pivotTrade[3]
+            # self.logTrade('negativeTrade', index, negativeTrade)
+            # self.logTrade('   pivotTrade', self.pivotIndex, pivotTrade)
+            priceKey = f'trade-{negativeIndex}-price'
+            collectedFeatures[priceKey] = negativeTrade[0] - pivotTrade[0]
+            volumeKey = f'trade-{negativeIndex}-volume'
+            collectedFeatures[volumeKey] = 0 - negativeTrade[1]
+            if negativeTrade[2] > 0:
+                collectedFeatures[volumeKey] = negativeTrade[1]
+            dateKey = f'trade-{negativeIndex}-date_ms'
+            collectedFeatures[dateKey] = negativeTrade[3] - pivotTrade[3]
 
         return collectedFeatures
+
+    def logTrade(self, name, index, trade):
+        logging.info(f'name: {name} index: {index} price: {trade[0]} volume: {trade[0]} type: {trade[2]} date_ms: {trade[3]}')
+
+
 
     def getInbetweenMiniPools(self, pivotIndex, miniPool, workerId):
         miniPoolList = []

@@ -124,9 +124,9 @@ def calculateNonPeriodFeatures(trade, features):
 
     return calculatedFeatures
 
-def calculateAllFeatureGroups(tradePool, features):
-    logging.debug(f'trade pool list len {len(tradePool.tradeList)}')
-    pivotTrade = tradePool.getPivotTrade()
+def calculateAllFeatureGroups(miniPool, features):
+    # logging.debug(f'trade pool list len {len(tradePool.tradeList)}')
+    pivotTrade = miniPool.getPivotTrade()
     tradeTimeMilliseconds = pivotTrade[3]
     pivotTradeId = pivotTrade[4]
     fileDestinations = {}
@@ -143,7 +143,7 @@ def calculateAllFeatureGroups(tradePool, features):
         endTimeMilliseconds = tradeTimeMilliseconds
         pastFeatures, pivotPrice = calculatePastFeatureGroup(
                 timeName, 
-                tradePool, 
+                miniPool, 
                 startTimeMilliseconds, 
                 pivotTradeId, 
                 endTimeMilliseconds, 
@@ -156,7 +156,10 @@ def calculateAllFeatureGroups(tradePool, features):
         timeGroup = 'future'
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
-        fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, tradePool, pivotPrice)
+        fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, miniPool, pivotPrice)
+
+    fileDestinations['normalize'] = fileDestinations['normalize'] \
+            | miniPool.getLastNumberOfTrades()
 
     fileDestinations['normalize'] = fileDestinations['normalize'] \
             | tradePool.getLastNumberOfTrades(tradePool.pivotIndex)
@@ -164,9 +167,19 @@ def calculateAllFeatureGroups(tradePool, features):
     logging.debug('All feature groups calculated')
     return fileDestinations
 
-def calculatePastFeatureGroup(name, tradePool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features):
+def calculateAllFeaturesToList(miniPool, features):
+    fileDestinations = calculateAllFeatureGroups(miniPool, features)
+    featuresDict = {}
+    for value in fileDestinations.values():
+        featuresDict = featuresDict | value
+
+    sortedFeatures = {key: value for key, value in sorted(featuresDict.items())}
+    featuresList = list(sortedFeatures.values())
+    return featuresList
+
+def calculatePastFeatureGroup(name, miniPool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features):
     logging.debug(f'Collecting trades and calculating Group past_{name}')
-    periodTrades = tradePool.getTradeList(f'past_{name}')
+    periodTrades = miniPool.getTradeList(f'past_{name}')
     pastFeatures, pivotPrice = calculatePastPeriodFeatures(periodTrades, endTimeMilliseconds - startTimeMilliseconds, features)
     pastFeatures = {f'{name}_{k}': v for k, v in pastFeatures.items()}
 
@@ -183,9 +196,9 @@ def calculateFuturePeriodFeatures(trades, pivotPrice):
     }
     return calculatedFeatures
 
-def calculateFutureFeatureGroup(name, tradePool, pivotPrice):
+def calculateFutureFeatureGroup(name, miniPool, pivotPrice):
     logging.debug(f'Collecting trades and calculating Group future_{name}')
-    periodTrades = tradePool.getFutureTrade(f'future_{name}')
+    periodTrades = miniPool.getFutureTrade(f'future_{name}')
     futureFeature = calculateFuturePeriodFeatures(periodTrades, pivotPrice)
     futureFeature = {f'{name}_{k}': v for k, v in futureFeature.items()}
 

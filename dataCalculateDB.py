@@ -36,7 +36,7 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
     filePath = f'{outputFolder}/{sourceBucketFileName}'
     tradeList = getDataFromBucket(filePath, s3bucket)
     setupTradePool(tradeList, features)
-    
+
     del tradeList
     viableIndexes = tradePool.mapGapIterable()
     if not viableIndexes:
@@ -48,31 +48,40 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
 
     makeMiniPoolQueue = JoinableQueue()
     featureCalculationQueue = JoinableQueue()
-    fileSaveQueue = JoinableQueue()
+    # fileSaveQueue = JoinableQueue()
 
     cpuPercent = multiprocessing.cpu_count() / 100
     makeMiniPoolProcessCount = max(round(3 * cpuPercent),1)
-    featureCalculationProcessCount = max(round(91 * cpuPercent),1)
-    fileSaveProcessCount = max(round(6 * cpuPercent),2)
+    featureCalculationProcessCount = max(round(97 * cpuPercent),1)
+    # fileSaveProcessCount = max(round(6 * cpuPercent),2)
 
     logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
     logging.info(f'featureCalculation cpus: {featureCalculationProcessCount}')
-    logging.info(f'   fileSaveProcess cpus: {fileSaveProcessCount}')
+    # logging.info(f'   fileSaveProcess cpus: {fileSaveProcessCount}')
 
-    fileSaveProcessors = []
-    for i in range(fileSaveProcessCount):
-        fileSaveProcessor = Process(target=fileSaveWorker, args=(fileSaveQueue, features, outputFolder, ))
-        fileSaveProcessors.append(fileSaveProcessor)
+    filePath = openCsvFileForWriting(features, outputFolder, isTest)
 
-    fileSavePids = []
-    for fileSaveProcessor in fileSaveProcessors:
-        fileSaveProcessor.start()
-        fileSavePids.append(fileSaveProcessor.pid)
+    # fileSaveProcessors = []
+    # for i in range(fileSaveProcessCount):
+    #     fileSaveProcessor = Process(target=fileSaveWorker, args=(fileSaveQueue, features, outputFolder, ))
+    #     fileSaveProcessors.append(fileSaveProcessor)
+
+    # fileSavePids = []
+    # for fileSaveProcessor in fileSaveProcessors:
+    #     fileSaveProcessor.start()
+    #     fileSavePids.append(fileSaveProcessor.pid)
 
     isLogger = True
     featureCalculationProcessors = []
     for i in range(featureCalculationProcessCount):
-        featureCalculationProcessor = Process(target=featureCalculationWorker, args=(featureCalculationQueue, fileSaveQueue, featureCalculationProcessCount, isLogger, makeMiniPoolQueue, recordsTotal, fileSaveProcessCount, ))
+        featureCalculationProcessor = Process(target=featureCalculationWorker, args=(
+                featureCalculationQueue,
+                featureCalculationProcessCount,
+                isLogger,
+                makeMiniPoolQueue,
+                recordsTotal,
+                filePath
+                ))
         isLogger = False
         featureCalculationProcessors.append(featureCalculationProcessor)
 
@@ -87,7 +96,7 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
     for makeMiniPoolProcessor in makeMiniPoolProcessors:
         makeMiniPoolProcessor.start()
 
-    workerIndexGroups = np.array((np.array_split(viableIndexes, makeMiniPoolProcessCount))).tolist()
+    workerIndexGroups = np.array((np.array_split(viableIndexes, makeMiniPoolProcessCount)), dtype=object).tolist()
     del viableIndexes
     for i in range(makeMiniPoolProcessCount):
         x = [makeMiniPoolQueue.put(index) for index in workerIndexGroups[i]]
@@ -95,17 +104,17 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
 
     logging.info('Mini pool queue full')
     while makeMiniPoolQueue.qsize() > 1000:
-        logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
-        logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
+        # logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
+        # logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
         logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
         # logging.info(f'globals: {globals().keys()} \nlocals: {locals().keys()}')
         logging.info(debugResourceUsage())
-        logging.info(debugChildProcess())
+        # logging.info(debugChildProcess())
         # logging.info(active_children())
         logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
-        logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
-        logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
-        time.sleep(30)
+        # logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
+        # logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
+        time.sleep(60)
 
     closeAndWaitForProcessors(makeMiniPoolProcessors, makeMiniPoolQueue)
 
@@ -114,15 +123,16 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
 
     timing.endCalculation(batchCalculationStart, recordsTotal, recordsTotal)
 
-    logging.info('Feature calculation queue emptied, File save queue full')
-    closeAndWaitForProcessors(fileSaveProcessors, fileSaveQueue)
+    # logging.info('Feature calculation queue emptied, File save queue full')
+    # closeAndWaitForProcessors(fileSaveProcessors, fileSaveQueue)
 
-    mergeAndSplitCsvs(fileSavePids, features, s3bucket, outputFolder, isTest)
+    # mergeAndSplitCsvs(fileSavePids, features, s3bucket, outputFolder, isTest)
+    uploadFinishedCsv(filePath, s3bucket)
 
-    logging.info('File save queue emptied')
+    # logging.info('File save queue emptied')
     logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
     logging.info(f'featureCalculation cpus: {featureCalculationProcessCount}')
-    logging.info(f'   fileSaveProcess cpus: {fileSaveProcessCount}')
+    # logging.info(f'   fileSaveProcess cpus: {fileSaveProcessCount}')
 
 def closeAndWaitForProcessors(processorList, queue):
     for processor in processorList:
@@ -157,53 +167,90 @@ def makeMiniPoolWorker(makeMiniPoolQueue, featureCalculationQueue, featureCalcul
         makeMiniPoolQueue.task_done()
     makeMiniPoolQueue.task_done()
 
-def featureCalculationWorker(featureCalculationQueue, fileSaveQueue, featureCalculationProcessCount, isLogger, makeMiniPoolQueue, recordsTotal, fileSaveProcessCount):
+def featureCalculationWorker(
+            featureCalculationQueue,
+            featureCalculationProcessCount,
+            isLogger,
+            makeMiniPoolQueue,
+            recordsTotal,
+            filePath
+        ):
     global tradePool, features
     pid = multiprocessing.current_process().pid
     logging.info(f'Feature calculation worker started {pid}')
     processStart = timing.startCalculation()
-    logAfter = 250
+    logAfter = 1000
     processed = 0
-    maxFileSaveQueueSize = fileSaveProcessCount * 1000
+    rows = []
     while True:
         miniPool = featureCalculationQueue.get()
         if miniPool is None:
             logging.info('None arrived in featureCalculationWorker')
             break
-        logging.debug(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} sQ {str(fileSaveQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
-        fileDestinations = dataCalculate.calculateAllFeatureGroups(miniPool, features)
-        del miniPool
-        while fileSaveQueue.qsize() > maxFileSaveQueueSize:
-            time.sleep(1)
-        fileSaveQueue.put(fileDestinations)
+        logging.debug(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
+        # fileDestinations = dataCalculate.calculateAllFeatureGroups(miniPool, features)
+        featuresListRow = dataCalculate.calculateAllFeaturesToList(miniPool, features)
+        if featuresListRow[0] == 'fifteenMinutes_binance_diffExchange':
+            logging.info('It\'s in the ROWS!')
+            os._exit(0)
+        rows.append(featuresListRow)
+        del miniPool, featuresListRow
+        # while fileSaveQueue.qsize() > maxFileSaveQueueSize:
+        #     time.sleep(1)
+        # fileSaveQueue.put(fileDestinations)
         processed += 1
         if processed % logAfter == 0 and isLogger:
-            logging.info(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} sQ {str(fileSaveQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
+            logging.info(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
             logging.info(debugResourceUsage())
             # logging.info(f'globals: {globals().keys()} \nlocals: {locals().keys()}')
             combinedProcessesCompleted = processed * featureCalculationProcessCount
             timing.endCalculation(processStart, combinedProcessesCompleted, recordsTotal)
+        if processed % 10000 == 0:
+            # logging.info(rows)
+            logging.info(f'Writing to file pid: {pid}')
+            multiTreadSafeWriteToFile(rows, filePath, pid)
+        # fileSaveQueue.task_done()
         featureCalculationQueue.task_done()
+
+    logging.info(f'Final writing to file pid: {pid}')
+    multiTreadSafeWriteToFile(rows, filePath, pid)
     featureCalculationQueue.task_done()
 
-def fileSaveWorker(fileSaveQueue, features, outputFolder):
-    pid = multiprocessing.current_process().pid
-    logging.info(f'File save worker started {pid}')
-    csvFile, csvWriter = openCsvFileForWriting(features, pid, outputFolder)
-    while True:
-        fileDestinations = fileSaveQueue.get()
-        if fileDestinations is None:
-            logging.info('None arrived in fileSaveWorker')
-            break
-        logging.debug(f'mQ       fQ       sQ {str(fileSaveQueue.qsize()).zfill(5)} process {pid} Saving file in queue')
-        row = dict(ChainMap(*fileDestinations.values()))
-        del fileDestinations
-        csvWriter.writerow(row)
-        fileSaveQueue.task_done()
-    logging.info(f'Closing CSV file for process {pid}')
-    csvFile.close()
-    logging.info(f'Worker finished for process {pid}')
-    fileSaveQueue.task_done()
+# def fileSaveWorker(fileSaveQueue, features, outputFolder):
+#     pid = multiprocessing.current_process().pid
+#     logging.info(f'File save worker started {pid}')
+#     csvFile, csvWriter = openCsvFileForWriting(features, pid, outputFolder)
+#     count = 0
+#     rows = []
+#     # while True:
+#     #     fileDestinations = fileSaveQueue.get()
+#     #     if fileDestinations is None:
+#     #         logging.info('None arrived in fileSaveWorker')
+#     #         break
+#     #     logging.debug(f'mQ       fQ       process {pid} Saving file in queue')
+#     #     row = dict(ChainMap(*fileDestinations.values()))
+#     #     del fileDestinations
+#     #     csvWriter.writerow(row)
+#     #     # if count % 10000:
+#     #     #     csvFile, csvWriter = closeAndReopenFile(features, csvFile, csvWriter)
+#     #     fileSaveQueue.task_done()
+#     while True:
+#         featureListRow = fileSaveQueue.get()
+#         if featureListRow is None:
+#             logging.info('None arrived in fileSaveWorker')
+#             break
+#         logging.debug(f'mQ       fQ       process {pid} Saving file in queue')
+#         rows.append(featureListRow)
+#         count += 1
+#         if count % 1000:
+#             csvWriter.writerows(rows)
+#             rows = []
+#         fileSaveQueue.task_done()
+#     csvWriter.writerows(rows)
+#     logging.info(f'Closing CSV file for process {pid}')
+#     csvFile.close()
+#     logging.info(f'Worker finished for process {pid}')
+#     fileSaveQueue.task_done()
 
 def debugChildProcess():
     current_process = psutil.Process(os.getpid())
@@ -231,32 +278,65 @@ def debugResourceUsage():
         f'The usage statistics of {os.getcwd()} is: \n' \
         f'{psutil.disk_usage(os.getcwd())}'
 
-def openCsvFileForWriting(features, pid, outputFolder):
-    fileName = f'{date.today()}-all-columns-{pid}'
-    truncateAndCreateFile = open(f'{outputFolder}/{fileName}.csv', 'w+')
-    truncateAndCreateFile.close()
-    csvFile = open(f'{outputFolder}/{fileName}.csv', 'a', buffering=1000000)
-    fieldnames = [outputGroup for groupContents in features.csvFiles.values() for outputGroup in groupContents]
-    csvWriter = csv.DictWriter(csvFile, fieldnames=fieldnames)
-    csvWriter.writeheader()
-    return csvFile, csvWriter
+# def closeAndReopenFile(features, csvFile, csvWriter):
+#     path = csvFile.name
+#     csvFile.close()
+#     del csvWriter
+#     csvFile = open(path, 'a', buffering=65536)
+#     fieldnames = [outputGroup for groupContents in features.csvFiles.values() for outputGroup in groupContents]
+#     csvWriter = csv.DictWriter(csvFile, fieldnames=fieldnames)
+#     return csvFile, csvWriter
 
-def mergeAndSplitCsvs(fileSavePids, features, bucket, outputFolder, isTest):
-    dfs = []
-    for pid in fileSavePids:
-        fileName = f'{outputFolder}/{date.today()}-all-columns-{pid}.csv'
-        dfs.append(pd.read_csv(fileName))
-        os.remove(fileName)
-    df = pd.concat(dfs)
-    for fileName, columns in features.csvFiles.items():
-        destination = f'{outputFolder}/{date.today()}-{fileName}{isTest}.csv'
-        df.to_csv(destination, columns=columns, index=False)
-        bc.uploadFile(destination, bucket)
-        # os.remove(destination)
+def multiTreadSafeWriteToFile(rows, filePath, pid):
+    threadWriteName = f'{filePath}.{pid}'
+    while True:
+        if not os.path.isfile(filePath):
+            time.sleep(1)
+            continue
+        try:
+            os.rename(filePath, threadWriteName)
+        except OSError as e:
+            continue
+        csvFile = open(threadWriteName, 'a')
+        csvWriter = csv.writer(csvFile)
+        csvWriter.writerows(rows)
+        csvFile.close()
+        os.rename(threadWriteName, filePath)
+        break
+
+    return
+
+def openCsvFileForWriting(features, outputFolder, isTest):
+    fileName = f'{date.today()}-all-columns'
+    filePath = f'{outputFolder}/{fileName}{isTest}.csv'
+    truncateAndCreateFile = open(filePath, 'w+')
+    truncateAndCreateFile.close()
+    csvFile = open(filePath, 'a', buffering=65536)
+    csvWriter = csv.writer(csvFile)
+    csvWriter.writerow(features.COLUMNS)
+    csvFile.close()
+    return filePath
+
+def uploadFinishedCsv(filePath, bucket):
+    bc.uploadFile(filePath, bucket)
+
+# def mergeAndSplitCsvs(fileSavePids, features, bucket, outputFolder, isTest):
+#     dfs = []
+#     for pid in fileSavePids:
+#         fileName = f'{outputFolder}/{date.today()}-all-columns-{pid}.csv'
+#         dfs.append(pd.read_csv(fileName))
+#         os.remove(fileName)
+#     df = pd.concat(dfs)
+#     for fileName, columns in features.csvFiles.items():
+#         destination = f'{outputFolder}/{date.today()}-{fileName}{isTest}.csv'
+#         df.to_csv(destination, columns=columns, index=False)
+#         bc.uploadFile(destination, bucket)
+#         # os.remove(destination)
 
 def getDataFromBucket(fileName, bucket):
     df = bc.downloadFile(fileName, bucket)
-    return tuple(df.itertuples(index=False, name=None))
+    tupleData = tuple(df.itertuples(index=False, name=None))
+    return tupleData
 
 def initTradeManager():
     tradeDbManager = tdm.TradeDbManager()

@@ -25,4 +25,7 @@ def downloadFile(fileName, bucket):
       s3_client.download_fileobj(bucket, objectName, fileSave)
 
   logging.info(f'{fileName} is saved locally')
-  return pd.read_csv(fileName).astype('float32')
+  df = pd.read_csv(fileName)
+  pd.set_option('display.max_rows', 20)
+  logging.debug(df.dtypes)
+  return df

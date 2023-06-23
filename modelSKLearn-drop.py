@@ -13,13 +13,14 @@ import numpy as np
 class ModelSKLearnDrop(modelCore.ModelCore):
 
   def run(self):
-
+    logging.info("Running model training")
     xdf = self.allData[self.xFeatures]
     xdf.columns = range(xdf.shape[1])
 
 
     for timeName, seconds in self.features.TIME_PERIODS.items():
-      if self.singleTarget is not False and self.singleTarget != timeName:
+      if self.singleTarget is True and self.singleTarget != timeName:
+        logging.info(f'skipping {timeName}')
         continue
       logging.info(f"Split test traing {timeName} future price")
 
