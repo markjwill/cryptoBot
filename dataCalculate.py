@@ -161,8 +161,8 @@ def calculateAllFeatureGroups(miniPool, features):
     fileDestinations['normalize'] = fileDestinations['normalize'] \
             | miniPool.getLastNumberOfTrades()
 
-    fileDestinations['normalize'] = fileDestinations['normalize'] \
-            | tradePool.getLastNumberOfTrades(tradePool.pivotIndex)
+    # fileDestinations['normalize'] = fileDestinations['normalize'] \
+    #         | tradePool.getLastNumberOfTrades(tradePool.pivotIndex)
 
     logging.debug('All feature groups calculated')
     return fileDestinations

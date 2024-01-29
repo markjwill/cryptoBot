@@ -91,7 +91,7 @@ class ModelCore():
   featuresDate = ''
 
   featuresToNormalize = ''
-  featuresDontNormalize = ''
+  # featuresDontNormalize = ''
 
   allData = ''
   xFeatures = ''
@@ -145,23 +145,23 @@ class ModelCore():
     logging.info("start loading data")
     self.allData = bc.downloadFile(self.csvSource, self.s3bucket)
     self.featuresToNormalize = self.features.featuresToNormalize
-    self.xFeatures = self.featuresToNormalize + self.features.
+    self.xFeatures = [item for item in self.features.COLUMNS if 'future' not in item]
 
 
     
-    dfForNormalizing = bc.downloadFile(self.csvSource, self.s3bucket)
-    self.featuresToNormalize = list(dfForNormalizing)
-    dfDontNormalize = bc.downloadFile(self.csvNoNormalize, self.s3bucket)
-    self.xFeatures = list(dfForNormalizing.columns) + list(dfDontNormalize.columns)
-    logging.info("merge everything")
-    self.allData = pd.concat([dfForNormalizing, dfDontNormalize], axis=1)
+    # dfForNormalizing = bc.downloadFile(self.csvSource, self.s3bucket)
+    # self.featuresToNormalize = list(dfForNormalizing)
+    # dfDontNormalize = bc.downloadFile(self.csvNoNormalize, self.s3bucket)
+    # self.xFeatures = list(dfForNormalizing.columns) + list(dfDontNormalize.columns)
+    # logging.info("merge everything")
+    # self.allData = pd.concat([dfForNormalizing, dfDontNormalize], axis=1)
 
-    for timeName, seconds in self.features.TIME_PERIODS.items():
-      csvY = f'{self.featureDataFolder}/{self.dataDate}-{timeName}{self.isTest}.csv'
-      Ydf = bc.downloadFile(csvY, self.s3bucket)
-      self.allData = pd.concat([self.allData, Ydf], axis=1)
-      self.featuresToNormalize = self.featuresToNormalize + Ydf.columns.tolist()
-    logging.info('data loading complete')
+    # for timeName, seconds in self.features.TIME_PERIODS.items():
+    #   csvY = f'{self.featureDataFolder}/{self.dataDate}-{timeName}{self.isTest}.csv'
+    #   Ydf = bc.downloadFile(csvY, self.s3bucket)
+    #   self.allData = pd.concat([self.allData, Ydf], axis=1)
+    #   self.featuresToNormalize = self.featuresToNormalize + Ydf.columns.tolist()
+    # logging.info('data loading complete')
 
   def normalizeDataSet(self):
     logging.info("start normalization")
@@ -181,7 +181,7 @@ class ModelCore():
 
   def makeHistogramImage(self, df, column, detail):
     fileName = f'{date.today()}-{column}{detail}{self.isTest}'
-    filePath = f'{self.workingFolder}/{fileName}'
+    filePath = f'{self.imageFolder}/{fileName}'
     if not os.path.isfile(f'{filePath}.png'):
       logging.info(f'Making {filePath}')
       plt.gcf().set_size_inches(15, 15)

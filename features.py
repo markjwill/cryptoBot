@@ -49,9 +49,9 @@ class Features:
         'volume'           : 0.0, #sum of trade amounts
         # 'volumePrMinute'   : 0.0, #sum of trade amounts per minute
         # 'sellsPrMinute'    : 0.0, #number of sells per minute
-        'sells'            : 0,   #number of sells
+        # 'sells'            : 0,   #number of sells
         # 'buysPrMinute'     : 0.0, #number of buys per minute
-        'buys'             : 0,   #number of buys
+        # 'buys'             : 0,   #number of buys
         'buyVsSell'        : 0,   #sum of buys as +1 and sells as -1
         'buyVsSellVolume'  : 0.0, #sum of buys as +volume and sells as -volume
         # 'tradesPrMinute'   : 0.0, #number of trades per minute
