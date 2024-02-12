@@ -84,10 +84,10 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
             calculatedFeatures[f'{sourceName}_highPrice'] -= pivotPrice[sourceName]
 
             calculatedFeatures[f'{sourceName}_volume'] = np.sum(tradeArray[:, index['volume']])
-            calculatedFeatures[f'{sourceName}_buys'] = \
-                np.sum(tradeArray[:,index['type']] == 1.0, axis=0)
-            calculatedFeatures[f'{sourceName}_sells'] = \
-                abs(calculatedFeatures[f'{sourceName}_buys'] - calculatedFeatures['tradeCount'])
+            # calculatedFeatures[f'{sourceName}_buys'] = \
+                # np.sum(tradeArray[:,index['type']] == 1.0, axis=0)
+            # calculatedFeatures[f'{sourceName}_sells'] = \
+                # abs(calculatedFeatures[f'{sourceName}_buys'] - calculatedFeatures['tradeCount'])
             calculatedFeatures[f'{sourceName}_buyVsSell'] = \
                 calculatedFeatures[f'{sourceName}_buys'] - calculatedFeatures[f'{sourceName}_sells']
             calculatedFeatures[f'{sourceName}_buyVsSellVolume'] = \
@@ -99,6 +99,10 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
         if sourceName != 'exchange':
             calculatedFeatures[f'{sourceName}_diffExchange'] = \
                 pivotPrice[sourceName] - pivotPrice['exchange']
+
+
+    logging.info('calculatedFeatures')
+    logging.info(calculatedFeatures)
 
     return calculatedFeatures, pivotPrice['exchange']
 
@@ -121,6 +125,7 @@ def calculateNonPeriodFeatures(trade, features):
     # calculatedFeatures['hoursIntoYearCos'] = np.cos(hourIntoYear * (2 * np.pi / 8760))
     calculatedFeatures['volume'] = trade[1] # amount_traded
     calculatedFeatures['type'] = trade[2] # type
+
 
     return calculatedFeatures
 

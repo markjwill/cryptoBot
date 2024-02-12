@@ -25,7 +25,7 @@ class ModelSKLearnClip(modelCore.ModelCore):
       target = f'{timeName}_futurePrice'
       ydf = self.allData[target]
       if self.makeHistograms is not False:
-        self.makeHistogramImage(ydf, target, f'hist_clip_norm-std2{self.isTest}')
+        self.makeHistogramImage(ydf, target, f'hist_clip_norm-std2')
 
       xTrain, xTest, yTrain, yTest = train_test_split(xdf,ydf, test_size = 0.25)
       del ydf
@@ -49,7 +49,7 @@ class ModelSKLearnClip(modelCore.ModelCore):
             timeName,
             yTest,
             yPredicted,
-            f'skLearnClip-predictedVsActual-std2{self.isTest}',
+            f'skLearnClip-predictedVsActual-std2',
             score,
             meanSquaredError,
             rootMeanSquared

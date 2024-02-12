@@ -1,4 +1,5 @@
 credentials.py
+awsCredentials
 images/*
 csvFiles/*
 .DS_Store

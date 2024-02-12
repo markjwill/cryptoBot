@@ -32,72 +32,6 @@ class ModelAlpha(modelCore.ModelCore):
     joblib.dump(theta, thetaFileName)
     return theta, J_history, count + num_iters
 
-  def run(self):
-    xdf = self.allData[self.xFeatures]
-
-    for timeName, seconds in self.features.TIME_PERIODS.items():
-      if self.singleTarget is not False and self.singleTarget != timeName:
-        continue
-      target = f'{timeName}_futurePrice'
-      ydf = self.allData[target]
-
-      thetaFileName = f'{self.modelDate}-theta-{timeName}.gz'
-
-      if os.path.isfile(thetaFileName):
-        theta = joblib.load(thetaFileName)
-      else:
-        theta = np.random.rand(len(self.xFeatures),1)
-
-      alpha = 0.1
-      num_iters = 3
-
-      xTrainDf, xTestDf, yTrainDf, yTestDf = train_test_split(xdf,ydf, test_size = 0.25)
-
-      xTrain = xTrainDf.to_numpy()
-      yTrain = yTrainDf.to_numpy()
-
-      count = 0
-      J_history = {}
-      theta, J_history, count = self.gradientDescentMulti(
-          xTrain,
-          yTrain,
-          theta,
-          alpha,
-          num_iters,
-          J_history,
-          count,
-          thetaFileName
-        )
-
-      # For interactive mode
-      # theta, J_history, count = self.gradientDescentMulti( xTrain, yTrain, theta, alpha, num_iters, J_history, count, thetaFileName)
-
-      # print("J history:", J_history[-50:])
-
-      J = self.computeCost(xTrain, yTrain, theta)
-
-      print("Test set cost: ", J)
-
-      yPredictedDf = pd.DataFrame(np.array(xTestDf.to_numpy()).dot(theta), columns = [target] )
-      with parallel_backend('threading', n_jobs=self.workers):
-        score = r2_score(yTestDf,yPredictedDf)
-        meanSquaredError = mean_squared_error(yTestDf,yPredictedDf)
-        rootMeanSquared = np.sqrt(meanSquaredError)
-
-      self.makeModelPerformanceImage(
-        timeName,
-        yTestDf,
-        yPredictedDf,
-        f'gradientDecent{self.isTest}',
-        score,
-        meanSquaredError,
-        rootMeanSquared
-      )
-
-      # For interactive mode
-      # self.makeModelPerformanceImage(timeName, yTestDf, yPredictedDf, f'gradientDecent{self.isTest}', score, meanSquaredError, rootMeanSquared)
-      code.interact(local=locals())
-
 if __name__ == '__main__':
   logging.info('script start')
   model = ModelAlpha()
@@ -109,11 +43,69 @@ if __name__ == '__main__':
   model.dropOutliersInDataSet()
   model.normalizeDataSet()
 
-  model.run()
-  print("script end reached")
+  xdf = model.allData[model.xFeatures]
 
+  for timeName, seconds in model.features.TIME_PERIODS.items():
+    if model.singleTarget is not False and model.singleTarget != timeName:
+      continue
+    target = f'{timeName}_futurePrice'
+    ydf = model.allData[target]
 
+    thetaFileName = f'{model.modelDate}-theta-{timeName}.gz'
 
+    if os.path.isfile(thetaFileName):
+      theta = joblib.load(thetaFileName)
+    else:
+      theta = np.random.rand(len(model.xFeatures),1)
+
+    alpha = 0.1
+    num_iters = 3
+
+    xTrainDf, xTestDf, yTrainDf, yTestDf = train_test_split(xdf,ydf, test_size = 0.25)
+
+    xTrain = xTrainDf.to_numpy()
+    yTrain = yTrainDf.to_numpy()
+
+    count = 0
+    J_history = {}
+    theta, J_history, count = model.gradientDescentMulti(
+        xTrain,
+        yTrain,
+        theta,
+        alpha,
+        num_iters,
+        J_history,
+        count,
+        thetaFileName
+      )
+
+    # For interactive mode
+    # theta, J_history, count = model.gradientDescentMulti( xTrain, yTrain, theta, alpha, num_iters, J_history, count, thetaFileName)
+
+    # print("J history:", J_history[-50:])
+
+    J = model.computeCost(xTrain, yTrain, theta)
+
+    print("Test set cost: ", J)
+
+    yPredictedDf = pd.DataFrame(np.array(xTestDf.to_numpy()).dot(theta), columns = [target] )
+    with parallel_backend('threading', n_jobs=model.workers):
+      score = r2_score(yTestDf,yPredictedDf)
+      meanSquaredError = mean_squared_error(yTestDf,yPredictedDf)
+      rootMeanSquared = np.sqrt(meanSquaredError)
+
+    model.makeModelPerformanceImage(
+      timeName,
+      yTestDf,
+      yPredictedDf,
+      f'gradientDecent{model.isTest}',
+      score,
+      meanSquaredError,
+      rootMeanSquared
+    )
+    # model.makeModelPerformanceImage(timeName,yTestDf,yPredictedDf,f'gradientDecent{model.isTest}',score,meanSquaredError,rootMeanSquared)
+
+    print("script end reached")
 
 
 

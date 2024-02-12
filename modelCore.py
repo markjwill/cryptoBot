@@ -1,7 +1,9 @@
+import os
 import argparse
 import logging
 import sys
 from datetime import date
+from datetime import datetime
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -105,6 +107,9 @@ class ModelCore():
   features = ''
   normalizer = ''
 
+  xdf = []
+  ydf = []
+
   def initArgs(self, args):
     self.isTest = ''
     if not args.useFullData:
@@ -180,15 +185,15 @@ class ModelCore():
     logging.info("outlier drop complete")
 
   def makeHistogramImage(self, df, column, detail):
-    fileName = f'{date.today()}-{column}{detail}{self.isTest}'
-    filePath = f'{self.imageFolder}/{fileName}'
+    fileName = f'{datetime.today().strftime('%Y%m%d-%H%M%S')}-{column}{detail}{self.isTest}'
+    filePath = f'{self.imageFolder}/../histograms/{fileName}'
     if not os.path.isfile(f'{filePath}.png'):
       logging.info(f'Making {filePath}')
       plt.gcf().set_size_inches(15, 15)
-      df[column].plot(kind='hist', bins=100)
-      plt.savefig(filePath, dpi=200)
+      df.plot(kind='hist', bins=100)
+      plt.savefig(f'{filePath}.png', dpi=200)
       plt.close()
-      bc.uploadFile(f'{filePath}.png', self.s3bucket)
+      # bc.uploadFile(f'{filePath}.png', self.s3bucket)
 
   def makeModelPerformanceImage(
       self,
@@ -200,10 +205,10 @@ class ModelCore():
       meanSquaredError,
       rootMeanSquared
     ):
-    fileName = f'{date.today()}-{yName}-predictedVsActual-{detail}{self.isTest}'
+    fileName = f'{datetime.today().strftime('%Y%m%d-%H%M%S')}-{yName}-predictedVsActual-{detail}{self.isTest}'
     filePath = f'{self.imageFolder }/{fileName}'
     logging.info(f'Making {filePath}')
-    plt.plot([-1.5, 1.5], [-1.5, 1.5], 'bo', linestyle="--")
+    plt.plot([-1.1, 1.1], [-1.1, 1.1], 'bo', linestyle="--")
     plt.scatter(yTest,yPredicted, s=2)
     plt.grid(True)
     plt.xlabel('Actual')
@@ -216,7 +221,7 @@ class ModelCore():
     plt.savefig(filePath, dpi=200)
     logging.info(f"Saved image for {yName} future price")
     plt.close()
-    bc.uploadFile(f'{filePath}.png', self.s3bucket)
+    # bc.uploadFile(f'{filePath}.png', self.s3bucket)
 
 
 

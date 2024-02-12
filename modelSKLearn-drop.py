@@ -14,8 +14,11 @@ class ModelSKLearnDrop(modelCore.ModelCore):
 
   def run(self):
     logging.info("Running model training")
-    xdf = self.allData[self.xFeatures]
-    xdf.columns = range(xdf.shape[1])
+    self.xdf = self.allData[self.xFeatures]
+    self.xdf.columns = range(self.xdf.shape[1])
+    if self.makeHistograms is not False:
+      for column in self.xdf.columns:
+        self.makeHistogramImage(self.xdf[column], column, f'hist_drop_norm-std2')
 
 
     for timeName, seconds in self.features.TIME_PERIODS.items():
@@ -25,23 +28,23 @@ class ModelSKLearnDrop(modelCore.ModelCore):
       logging.info(f"Split test traing {timeName} future price")
 
       target = f'{timeName}_futurePrice'
-      ydf = self.allData[target]
+      self.ydf = self.allData[target]
       if self.makeHistograms is not False:
-        self.makeHistogramImage(ydf, target, f'hist_drop_norm-std2{self.isTest}')
+        self.makeHistogramImage(self.ydf, target, f'hist_drop_norm-std2')
 
-      xTrain, xTest, yTrain, yTest = train_test_split(xdf,ydf, test_size = 0.25)
-      del ydf
+      self.xTrain, self.xTest, self.yTrain, self.yTest = train_test_split(self.xdf,self.ydf, test_size = 0.25)
+      del self.ydf
       logging.info(f"Starting Fit {timeName} future price")
       with parallel_backend('threading', n_jobs=self.workers):
         LR = RidgeCV()
-        LR.fit(xTrain,yTrain)
+        LR.fit(self.xTrain,self.yTrain)
 
       logging.info(f"Fit complete {timeName} future price")
 
       with parallel_backend('threading', n_jobs=self.workers):
-        yPredicted = LR.predict(xTest)
-        score = r2_score(yTest,yPredicted)
-        meanSquaredError = mean_squared_error(yTest,yPredicted)
+        yPredicted = LR.predict(self.xTest)
+        score = r2_score(self.yTest,yPredicted)
+        meanSquaredError = mean_squared_error(self.yTest,yPredicted)
         rootMeanSquared = np.sqrt(meanSquaredError)
       logging.info(f"Y {timeName} r2score is {score:.5f}")
       logging.info(f"mean_sqrd_error is== {meanSquaredError:.5f}")
@@ -49,9 +52,9 @@ class ModelSKLearnDrop(modelCore.ModelCore):
 
       self.makeModelPerformanceImage(
             timeName,
-            yTest,
+            self.yTest,
             yPredicted,
-            f'skLearnDrop-predictedVsActual-std2{self.isTest}',
+            f'skLearnDrop-predictedVsActual-std2',
             score,
             meanSquaredError,
             rootMeanSquared
