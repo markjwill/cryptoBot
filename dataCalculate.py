@@ -204,7 +204,7 @@ def calculateFuturePeriodFeatures(trades, pivotPrice):
 
 def calculateFutureFeatureGroup(name, miniPool, pivotPrice):
     logging.debug(f'Collecting trades and calculating Group future_{name}')
-    periodTrades = miniPool.getFutureTrade(f'future_{name}')
+    periodTrades = miniPool.getTradeList(f'future_{name}')
     futureFeature = calculateFuturePeriodFeatures(periodTrades, pivotPrice)
     futureFeature = {f'{name}_{k}': v for k, v in futureFeature.items()}
 

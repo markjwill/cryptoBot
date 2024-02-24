@@ -93,8 +93,6 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
     while makeMiniPoolQueue.qsize() > 1000:
         logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
         logging.info(debugResourceUsage())
-        # logging.info(debugChildProcess())
-        # logging.info(active_children())
         logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
         time.sleep(60)
 
@@ -153,7 +151,7 @@ def featureCalculationWorker(
     logging.info(f'Feature calculation worker started {pid}')
     csvFile, csvWriter = openCsvFile(features, outputFolder, pid)
     processStart = timing.startCalculation()
-    logAfter = 1000
+    logAfter = 500
     processed = 0
     while True:
         miniPool = featureCalculationQueue.get()
@@ -183,8 +181,6 @@ def openCsvFile(features, outputFolder, identifier = ''):
     truncateAndCreateFile.close()
     csvFile = open(filePath, 'a', buffering=65536)
     csvWriter = csv.writer(csvFile)
-    # csvWriter.writerow(features.COLUMNS)
-    # csvFile.close()
     return csvFile, csvWriter
 
 def getOutputFilePath(outputFolder, pid = ''):
@@ -203,12 +199,12 @@ def mergeCsvs(fileSavePids, features, bucket, outputFolder):
         appendFiles.append(getOutputFilePath(outputFolder, pid))
 
     with open(sourceFile,'wb') as wfd:
-        for f in appendFiles:
-            with open(f,'rb') as fd:
+        for file in appendFiles:
+            logging.info(f'Appending {file}')
+            with open(file,'rb') as fd:
                 shutil.copyfileobj(fd, wfd)
                 wfd.write(b"\n")
-            os.remove(f)
-
+            os.remove(file)
     # bc.uploadFile(sourceFile, bucket)
 
 def debugChildProcess():
