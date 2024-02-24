@@ -61,10 +61,10 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
 
     filePath = openCsvFileForWriting(features, outputFolder, isTest)
 
-    # fileSaveProcessors = []
-    # for i in range(fileSaveProcessCount):
-    #     fileSaveProcessor = Process(target=fileSaveWorker, args=(fileSaveQueue, features, outputFolder, ))
-    #     fileSaveProcessors.append(fileSaveProcessor)
+    fileSaveProcessors = []
+    for i in range(fileSaveProcessCount):
+        fileSaveProcessor = Process(target=fileSaveWorker, args=(fileSaveQueue, features, outputFolder, ))
+        fileSaveProcessors.append(fileSaveProcessor)
 
     # fileSavePids = []
     # for fileSaveProcessor in fileSaveProcessors:
@@ -178,43 +178,78 @@ def featureCalculationWorker(
     global tradePool, features
     pid = multiprocessing.current_process().pid
     logging.info(f'Feature calculation worker started {pid}')
+    csvFile, csvWriter = openCsvFile(features, outputFolder, pid)
     processStart = timing.startCalculation()
     logAfter = 1000
     processed = 0
-    rows = []
     while True:
         miniPool = featureCalculationQueue.get()
         if miniPool is None:
             logging.info('None arrived in featureCalculationWorker')
             break
         logging.debug(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
-        # fileDestinations = dataCalculate.calculateAllFeatureGroups(miniPool, features)
-        featuresListRow = dataCalculate.calculateAllFeaturesToList(miniPool, features)
-        if featuresListRow[0] == 'fifteenMinutes_binance_diffExchange':
-            logging.info('It\'s in the ROWS!')
-            os._exit(0)
-        rows.append(featuresListRow)
-        del miniPool, featuresListRow
-        # while fileSaveQueue.qsize() > maxFileSaveQueueSize:
-        #     time.sleep(1)
-        # fileSaveQueue.put(fileDestinations)
+        row = dataCalculate.calculateAllFeaturesToList(miniPool, features)
+        csvWriter.writerow(row)
+        del miniPool, row
+
         processed += 1
         if processed % logAfter == 0 and isLogger:
             logging.info(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
             logging.info(debugResourceUsage())
-            # logging.info(f'globals: {globals().keys()} \nlocals: {locals().keys()}')
             combinedProcessesCompleted = processed * featureCalculationProcessCount
             timing.endCalculation(processStart, combinedProcessesCompleted, recordsTotal)
-        if processed % 10000 == 0:
-            # logging.info(rows)
-            logging.info(f'Writing to file pid: {pid}')
-            multiTreadSafeWriteToFile(rows, filePath, pid)
-        # fileSaveQueue.task_done()
         featureCalculationQueue.task_done()
 
-    logging.info(f'Final writing to file pid: {pid}')
-    multiTreadSafeWriteToFile(rows, filePath, pid)
+    csvFile.close()
+    logging.info(f'Pid complete: {pid}')
     featureCalculationQueue.task_done()
+
+def openCsvFile(features, outputFolder, identifier = ''):
+    filePath = getOutputFilePath(outputFolder, identifier)
+    truncateAndCreateFile = open(filePath, 'w+')
+    truncateAndCreateFile.close()
+    csvFile = open(filePath, 'a', buffering=65536)
+    csvWriter = csv.writer(csvFile)
+    # csvWriter.writerow(features.COLUMNS)
+    # csvFile.close()
+    return csvFile, csvWriter
+
+def getOutputFilePath(outputFolder, pid = ''):
+    global isTest
+    if pid != '':
+        pid = f'.{pid}'
+    return f'{outputFolder}/{date.today()}-all-columns{isTest}.csv{pid}'
+
+def appendCsv(sourceFile, targetFile):
+    with open(sourceFile, 'r', newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        data_to_append = list(reader)
+
+    with open(targetFile, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerows(data_to_append)
+
+def mergeCsvs(fileSavePids, features, bucket, outputFolder):
+    csvFile, csvWriter = openCsvFile(features, outputFolder)
+    csvWriter.writerow(features.COLUMNS)
+    csvFile.close()
+    sourceFile = getOutputFilePath(outputFolder)
+    for pid in fileSavePids:
+        appendFile = getOutputFilePath(outputFolder, pid)
+        appendCsv(sourceFile, appendFile)
+        os.remove(appendFile)
+
+    bc.uploadFile(sourceFile, bucket)
+
+
+# def closeAndReopenFile(features, csvFile, csvWriter):
+#     path = csvFile.name
+#     csvFile.close()
+#     del csvWriter
+#     csvFile = open(path, 'a', buffering=65536)
+#     fieldnames = [outputGroup for groupContents in features.csvFiles.values() for outputGroup in groupContents]
+#     csvWriter = csv.DictWriter(csvFile, fieldnames=fieldnames)
+#     return csvFile, csvWriter
 
 # def fileSaveWorker(fileSaveQueue, features, outputFolder):
 #     pid = multiprocessing.current_process().pid
@@ -278,60 +313,35 @@ def debugResourceUsage():
         f'The usage statistics of {os.getcwd()} is: \n' \
         f'{psutil.disk_usage(os.getcwd())}'
 
-# def closeAndReopenFile(features, csvFile, csvWriter):
-#     path = csvFile.name
-#     csvFile.close()
-#     del csvWriter
-#     csvFile = open(path, 'a', buffering=65536)
-#     fieldnames = [outputGroup for groupContents in features.csvFiles.values() for outputGroup in groupContents]
-#     csvWriter = csv.DictWriter(csvFile, fieldnames=fieldnames)
-#     return csvFile, csvWriter
 
-def multiTreadSafeWriteToFile(rows, filePath, pid):
-    threadWriteName = f'{filePath}.{pid}'
-    while True:
-        if not os.path.isfile(filePath):
-            time.sleep(1)
-            continue
-        try:
-            os.rename(filePath, threadWriteName)
-        except OSError as e:
-            continue
-        csvFile = open(threadWriteName, 'a')
-        csvWriter = csv.writer(csvFile)
-        csvWriter.writerows(rows)
-        csvFile.close()
-        os.rename(threadWriteName, filePath)
-        break
 
-    return
+# def multiTreadSafeWriteToFile(rows, filePath, pid):
+#     threadWriteName = f'{filePath}.{pid}'
+#     while True:
+#         if not os.path.isfile(filePath):
+#             time.sleep(1)
+#             continue
+#         try:
+#             os.rename(filePath, threadWriteName)
+#         except OSError as e:
+#             continue
+#         csvFile = open(threadWriteName, 'a')
+#         csvWriter = csv.writer(csvFile)
+#         csvWriter.writerows(rows)
+#         csvFile.close()
+#         os.rename(threadWriteName, filePath)
+#         break
 
-def openCsvFileForWriting(features, outputFolder, isTest):
-    fileName = f'{date.today()}-all-columns'
-    filePath = f'{outputFolder}/{fileName}{isTest}.csv'
-    truncateAndCreateFile = open(filePath, 'w+')
-    truncateAndCreateFile.close()
-    csvFile = open(filePath, 'a', buffering=65536)
-    csvWriter = csv.writer(csvFile)
-    csvWriter.writerow(features.COLUMNS)
-    csvFile.close()
-    return filePath
+#     return
+
+
 
 def uploadFinishedCsv(filePath, bucket):
     bc.uploadFile(filePath, bucket)
 
-# def mergeAndSplitCsvs(fileSavePids, features, bucket, outputFolder, isTest):
-#     dfs = []
-#     for pid in fileSavePids:
-#         fileName = f'{outputFolder}/{date.today()}-all-columns-{pid}.csv'
-#         dfs.append(pd.read_csv(fileName))
-#         os.remove(fileName)
-#     df = pd.concat(dfs)
-#     for fileName, columns in features.csvFiles.items():
-#         destination = f'{outputFolder}/{date.today()}-{fileName}{isTest}.csv'
-#         df.to_csv(destination, columns=columns, index=False)
-#         bc.uploadFile(destination, bucket)
-#         # os.remove(destination)
+
+
+
 
 def getDataFromBucket(fileName, bucket):
     df = bc.downloadFile(fileName, bucket)
