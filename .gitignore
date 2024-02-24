@@ -1,6 +1,7 @@
 credentials.py
 awsCredentials
 images/*
+histograms/*
 csvFiles/*
 .DS_Store
 __pycache__

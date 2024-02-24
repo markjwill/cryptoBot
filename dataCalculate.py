@@ -88,8 +88,9 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
                 # np.sum(tradeArray[:,index['type']] == 1.0, axis=0)
             # calculatedFeatures[f'{sourceName}_sells'] = \
                 # abs(calculatedFeatures[f'{sourceName}_buys'] - calculatedFeatures['tradeCount'])
+            buyCount = np.sum(tradeArray[:,index['type']] == 1.0, axis=0)
             calculatedFeatures[f'{sourceName}_buyVsSell'] = \
-                calculatedFeatures[f'{sourceName}_buys'] - calculatedFeatures[f'{sourceName}_sells']
+                buyCount - abs(buyCount - calculatedFeatures['tradeCount'])
             calculatedFeatures[f'{sourceName}_buyVsSellVolume'] = \
                 np.sum(np.multiply(tradeArray[:, index['volume']], tradeArray[:, index['type']]))
             calculatedFeatures[f'{sourceName}_avgByVolumePrice'] = \
@@ -101,8 +102,8 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
                 pivotPrice[sourceName] - pivotPrice['exchange']
 
 
-    logging.info('calculatedFeatures')
-    logging.info(calculatedFeatures)
+    logging.debug('calculatedFeatures')
+    logging.debug(calculatedFeatures)
 
     return calculatedFeatures, pivotPrice['exchange']
 

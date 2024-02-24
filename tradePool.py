@@ -248,6 +248,7 @@ class TradePool():
             targetMilliseconds = pivotTimeMilliseconds + periodMilliseconds
             tradeItem = self.selectFutureTrade(name, targetMilliseconds)
             miniPool.futureTrades[name] = tradeItem
+            self.selectMultipleTrades(f'{miniPool.workerId}_{name}', pivotTimeMilliseconds, self.subPools[f'{self.workerId}_{name}']["startIndex"])
 
         miniPool.logPoolDetails()
 

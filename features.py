@@ -23,8 +23,22 @@ class Features:
         'twoHours'         : 7200001
     }
 
+    FUTURE_TIME_PERIODS = {
+        'fiveSeconds'       : 5000,
+        'tenSeconds'       : 10000,
+        'thirtySeconds'    : 30000,
+    }
+
+    FUTURE_FEATURES = {
+        'futureHighPrice'        : 0.0, #high price - pivot price
+        'futureLowPrice'         : 0.0, #low price - pivot price
+        'futurePrice'         : 0.0, #future price - pivot price 
+    }
+
     MAX_PERIOD = 7200001
     MAX_PERIOD_NAME = 'twoHours'
+    MAX_FUTURE_PERIOD = 30001
+    MAX_FUTURE_PERIOD_NAME = 'thirtySeconds'
 
     PRICE_PERIOD_FEATURES = {
 
@@ -104,14 +118,14 @@ class Features:
         self.initPeriodFeatures()
         self.initColumns()
         self.initFeaturesToNormalize()
-        self.initCsvFiles()
-        self.setStarterPercents()
+        # self.initCsvFiles()
+        # self.setStarterPercents()
 
-    def setStarterPercents(self):
-        for timeName, milliseconds in self.TIME_PERIODS.items():
-            self.starterPercents[timeName] = milliseconds / self.MAX_PERIOD
-        logging.debug('Starter Percents:')
-        logging.debug(self.starterPercents)
+    # def setStarterPercents(self):
+    #     for timeName, milliseconds in self.TIME_PERIODS.items():
+    #         self.starterPercents[timeName] = milliseconds / self.MAX_PERIOD
+    #     logging.debug('Starter Percents:')
+    #     logging.debug(self.starterPercents)
 
     def initCsvFiles(self):
         if self.csvFiles:
@@ -145,7 +159,7 @@ class Features:
         logging.debug(self.csvFiles)
 
     def initFeaturesToNormalize(self):
-        futurePriceFeatures = [f'{timeName}_futurePrice' for timeName in self.TIME_PERIODS.keys()]
+        # futurePriceFeatures = [f'{timeName}_futurePrice' for timeName in self.FUTURE_TIME_PERIODS.keys()]
         doNotNormalize = self.DO_NOT_NORMALIZE
         self.featuresToNormalize = [i for i in self.COLUMNS if i not in doNotNormalize]
         logging.debug('featuresToNormalize:')
@@ -187,7 +201,10 @@ class Features:
         for timeName in self.TIME_PERIODS:
             for featureName in self.PERIOD_FEATURES:
                 self.COLUMNS.append(f'{timeName}_{featureName}')
-            self.COLUMNS.append(f'{timeName}_futurePrice')
+
+        for timeName in self.FUTURE_TIME_PERIODS:
+            for featureName in self.FUTURE_FEATURES:
+                self.COLUMNS.append(f'{timeName}_{featureName}')
 
         for negativeIndex in range(1,self.PREVIOUS_TRADE_COUNT):
             self.COLUMNS.append(f'trade-{negativeIndex}-price')
@@ -197,11 +214,3 @@ class Features:
         self.COLUMNS = sorted(self.COLUMNS, key=str.lower)
         logging.debug('COLUMNS:')
         logging.debug(self.COLUMNS) 
-
-    def getDictForTableName(self):
-        return \
-            self.TIME_PERIODS | \
-            self.PRICE_PERIOD_FEATURES | \
-            self.RICH_PERIOD_FEATURES | \
-            self.FEATURE_INDEXES | \
-            self.NON_PERIOD_FEATURES
