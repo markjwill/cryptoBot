@@ -173,7 +173,7 @@ def calculateAllFeatureGroups(miniPool, features):
             | pastFeatures
         del pastFeatures
 
-        timeGroup = 'future'
+    for timeName, periodMilliseconds in features.FUTURE_TIME_PERIODS.items():
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
         fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, miniPool, pivotPrice, features)
