@@ -236,17 +236,15 @@ class TradePool():
 
         for timeName, periodMilliseconds in TradePool.features.FUTURE_TIME_PERIODS.items():
             targetMilliseconds = pivotTimeMilliseconds + periodMilliseconds
-            self.selectMultipleFutureTrades(f'{miniPool.workerId}_future_{timeName}', pivotTimeMilliseconds, pivotIndex)
+            self.selectMultipleFutureTrades(f'{miniPool.workerId}_future_{timeName}', targetMilliseconds, pivotIndex)
 
         logging.debug(self.subPools.items())
 
         for name, indexes in self.subPools.items():
-            if name.startswith(f'{miniPool.workerId}_past_'):
-                miniPoolName = name.replace(f'{miniPool.workerId}_','')
-                miniPool.subPools[miniPoolName] = {}
-                miniPool.subPools[miniPoolName]['startIndex'] = self.subPools[name]['startIndex']
-                miniPool.subPools[miniPoolName]['endIndex'] = pivotIndex
-
+            miniPoolName = name.replace(f'{miniPool.workerId}_','')
+            miniPool.subPools[miniPoolName] = {}
+            miniPool.subPools[miniPoolName]['startIndex'] = self.subPools[name]['startIndex']
+            miniPool.subPools[miniPoolName]['endIndex'] = pivotIndex
 
         miniPool.logPoolDetails()
 
@@ -306,7 +304,7 @@ class TradePool():
 
             for timeName, periodMilliseconds in TradePool.features.FUTURE_TIME_PERIODS.items():
                 targetMilliseconds = pivotTimeMilliseconds + periodMilliseconds
-                self.selectMultipleFutureTrades(f'{miniPool.workerId}_future_{timeName}', pivotTimeMilliseconds, pivotIndex)
+                self.selectMultipleFutureTrades(f'{miniPool.workerId}_future_{timeName}', targetMilliseconds, pivotIndex)
 
             logging.debug(self.subPools.items())
 
