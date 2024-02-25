@@ -108,6 +108,20 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
     return calculatedFeatures, pivotPrice['exchange']
 
 
+def calculateFuturePeriodFeatures(trades, pivotPrice, features):
+    if not trades:
+        raise AssertionError(
+            f'Empty trade list sent to future feature calculation.\n'
+        )
+    index = features.FEATURE_INDEXES['exchange']
+    tradeArray = np.array(trades)
+    calculatedFeatures = copy.copy(features.FUTURE_PERIOD_FEATURES)
+    calculatedFeatures['futurePrice'] = trades[-1][0] - pivotPrice
+    calculatedFeatures['highPrice'] = np.amax(tradeArray[:, index['price']], axis=0) - pivotPrice
+    calculatedFeatures['lowPrice'] = np.amin(tradeArray[:, index['price']], axis=0) - pivotPrice
+
+    return calculatedFeatures
+
 def calculateNonPeriodFeatures(trade, features):
     calculatedFeatures = copy.copy(features.NON_PERIOD_FEATURES)
     dt = datetime.datetime.fromtimestamp(trade[3]/1000)
@@ -162,7 +176,7 @@ def calculateAllFeatureGroups(miniPool, features):
         timeGroup = 'future'
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
-        fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, miniPool, pivotPrice)
+        fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, miniPool, pivotPrice, features)
 
     fileDestinations['normalize'] = fileDestinations['normalize'] \
             | miniPool.getLastNumberOfTrades()
@@ -191,22 +205,11 @@ def calculatePastFeatureGroup(name, miniPool, startTimeMilliseconds, pivotTradeI
 
     return pastFeatures, pivotPrice
 
-def calculateFuturePeriodFeatures(trades, pivotPrice):
-    if not trades:
-        raise AssertionError(
-            f'Empty trade list sent to future feature calculation.\n'
-        )
-
-    calculatedFeatures = {
-        'futurePrice' : trades[-1][0] - pivotPrice #end price
-    }
-    return calculatedFeatures
-
-def calculateFutureFeatureGroup(name, miniPool, pivotPrice):
+def calculateFutureFeatureGroup(name, miniPool, pivotPrice, features):
     logging.debug(f'Collecting trades and calculating Group future_{name}')
     periodTrades = miniPool.getTradeList(f'future_{name}')
-    futureFeature = calculateFuturePeriodFeatures(periodTrades, pivotPrice)
-    futureFeature = {f'{name}_{k}': v for k, v in futureFeature.items()}
+    futureFeatures = calculateFuturePeriodFeatures(periodTrades, pivotPrice, features)
+    futureFeatures = {f'{name}_{k}': v for k, v in futureFeature.items()}
 
     return futureFeature
 

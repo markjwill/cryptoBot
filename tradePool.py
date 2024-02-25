@@ -16,7 +16,7 @@ import memory_profiler
 
 class TradePool():
 
-    MILLISECONDS_GAP_TOLERATED = 240000
+    MILLISECONDS_GAP_TOLERATED = 100000
     tradeList = []
     features = False
     pivotIndex = 0
@@ -335,16 +335,17 @@ class TradePool():
         if name not in self.subPools:
             self.addPool(name)
 
-        initalStartTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[f'{self.workerId}_{name}']['startIndex'])))
+        initalStartTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]['startIndex'])))
         targetStartTime = self.logTime(targetMilliseconds)
         logging.debug(f'Inital startTime: {initalStartTime} Target startTime: {targetStartTime}')
 
         self.subPools[name]['startIndex'] = pivotIndex
 
-        while self.getTradeMilliseconds(self.getLastInPool(f'{self.workerId}_{name}')) > targetMilliseconds:
+        while self.getTradeMilliseconds(self.getLastInPool(name)) >= targetMilliseconds:
             self.subPools[name]['endIndex'] -= 1
+            logging.warning('A trade selection happened out of order!!')
 
-        while self.getTradeMilliseconds(self.getLastInPool(f'{self.workerId}_{name}')) < targetMilliseconds:
+        while self.getTradeMilliseconds(self.getLastInPool(name)) < targetMilliseconds:
             self.subPools[name]['endIndex'] += 1
 
         logging.debug(f'Final startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
