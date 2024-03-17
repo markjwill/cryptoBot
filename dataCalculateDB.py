@@ -153,7 +153,7 @@ def featureCalculationWorker(
     logging.info(f'x{pid} Feature calculation worker started {pid}')
     csvFile, csvWriter = openCsvFile(outputFolder, pid)
     processStart = timing.startCalculation()
-    logAfter = 50
+    logAfter = 500
     processed = 0
     while True:
         miniPool = featureCalculationQueue.get()
@@ -192,7 +192,7 @@ def getOutputFilePath(outputFolder, pid = ''):
     return f'{outputFolder}/{date.today()}-all-columns{isTest}.csv{pid}'
 
 def mergeCsvs(fileSavePids, features, bucket, outputFolder):
-    csvFile, csvWriter = openCsvFile(features, outputFolder)
+    csvFile, csvWriter = openCsvFile(outputFolder)
     csvWriter.writerow(features.COLUMNS)
     csvFile.close()
     sourceFile = getOutputFilePath(outputFolder)
@@ -200,7 +200,7 @@ def mergeCsvs(fileSavePids, features, bucket, outputFolder):
     for pid in fileSavePids:
         appendFiles.append(getOutputFilePath(outputFolder, pid))
 
-    with open(sourceFile,'wb') as wfd:
+    with open(sourceFile,'ab') as wfd:
         for file in appendFiles:
             logging.info(f'Appending {file}')
             with open(file,'rb') as fd:

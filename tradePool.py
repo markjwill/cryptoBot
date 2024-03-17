@@ -361,7 +361,7 @@ class TradePool():
 
         if self.getTradeMilliseconds(self.getLastInPool(name)) > endTimeMilliseconds:
             logging.debug(f'x{self.workerId} For: {name} Error startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
-            logging.warning(f'x{self.workerId} For: {name} A trade selection happened out of order!!')
+            logging.warning(f'x{self.workerId} For: {name} A FUTURE trade selection happened out of order!!')
             os._exit(0)
 
         while self.getTradeMilliseconds(self.getFirstAfterPool(name)) < endTimeMilliseconds:
@@ -371,7 +371,9 @@ class TradePool():
             self.subPools[name]['endIndex'] -= 1
 
         logging.debug(f'x{self.workerId} For: {name} Final startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
-        if self.subPools[name]["startIndex"] == self.subPools[name]["endIndex"]:
+        if self.subPools[name]["startIndex"] > self.subPools[name]["endIndex"]:
+            logging.debug(f'x{self.workerId} For: {name} Error startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
+            logging.warning(f'x{self.workerId} For: {name} A FUTURE end traded ended up before start!!')
             os._exit(0)
 
 
@@ -394,7 +396,7 @@ class TradePool():
         if self.getTradeMilliseconds(self.getFirstBeforePool(name)) > startTimeMilliseconds:
             while self.getTradeMilliseconds(self.getFirstInPool(name)) > startTimeMilliseconds:
                 self.subPools[name]['startIndex'] -= 1
-                logging.warning(f'x{self.workerId} A trade selection happened out of order!!')
+                logging.warning(f'x{self.workerId} For: {name} A PAST trade selection happened out of order!!')
                 os._exit(0)
 
         if self.getTradeMilliseconds(self.getSecondInPool(name)) < startTimeMilliseconds:
@@ -404,7 +406,10 @@ class TradePool():
         self.subPools[name]['endIndex'] = pivotIndex
 
         logging.debug(f'x{self.workerId} Final startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
-
+        if self.subPools[name]["startIndex"] > self.subPools[name]["endIndex"]:
+            logging.debug(f'x{self.workerId} For: {name} Error startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
+            logging.warning(f'x{self.workerId} For: {name} A PAST end traded ended up before start!!')
+            os._exit(0)
 
 
 
