@@ -24,15 +24,15 @@ class Features:
     }
 
     FUTURE_TIME_PERIODS = {
-        'fiveSeconds'       : 5000,
+        'fiveSeconds'      : 5000,
         'tenSeconds'       : 10000,
         'thirtySeconds'    : 30000,
     }
 
     FUTURE_FEATURES = {
-        'futureHighPrice'        : 0.0, #high price - pivot price
-        'futureLowPrice'         : 0.0, #low price - pivot price
-        'futurePrice'         : 0.0, #future price - pivot price 
+        'futureHighPrice'  : 0.0, #high price - pivot price
+        'futureLowPrice'   : 0.0, #low price - pivot price
+        'futurePrice'      : 0.0, #future price - pivot price 
     }
 
     MAX_PERIOD = 7200001
@@ -47,7 +47,9 @@ class Features:
     PREVIOUS_TRADE_COUNT = 100
 
     OFF_EXCHANGE_PERIOD_FEATURES = {
-        'diffExchange'     : 0.0  # difference in price from exchange
+        'diffExchange'     : 0.0,  # difference in price from exchange
+        'diffExchangeSq'   : 0.0,  # squared
+        'diffExchangeCu'   : 0.0
     }
 
     RICH_PERIOD_FEATURES = {

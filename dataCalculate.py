@@ -49,7 +49,7 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
     calculatedFeatures['tradeCount'] = len(trades)
 
     for sourceName, index in features.FEATURE_INDEXES.items():
-        logging.debug(index)
+        # logging.debug(index)
         pivotPrice[sourceName] = lastTrade[index['price']]
 
         if firstTrade[index['price']] == 0.0:
@@ -100,10 +100,15 @@ def calculatePastPeriodFeatures(trades, milliseconds, features):
         if sourceName != 'exchange':
             calculatedFeatures[f'{sourceName}_diffExchange'] = \
                 pivotPrice[sourceName] - pivotPrice['exchange']
+            calculatedFeatures[f'{sourceName}_diffExchangeSq'] = \
+                signed_power(calculatedFeatures[f'{sourceName}_diffExchange'], 2)
+            calculatedFeatures[f'{sourceName}_diffExchangeCu'] = \
+                signed_power(calculatedFeatures[f'{sourceName}_diffExchange'], 3)
 
 
-    logging.debug('calculatedFeatures')
-    logging.debug(calculatedFeatures)
+
+    # logging.debug('calculatedFeatures')
+    # logging.debug(calculatedFeatures)
 
     return calculatedFeatures, pivotPrice['exchange']
 
@@ -115,7 +120,7 @@ def calculateFuturePeriodFeatures(trades, pivotPrice, features):
         )
     index = features.FEATURE_INDEXES['exchange']
     tradeArray = np.array(trades)
-    calculatedFeatures = copy.copy(features.FUTURE_PERIOD_FEATURES)
+    calculatedFeatures = copy.copy(features.FUTURE_FEATURES)
     calculatedFeatures['futurePrice'] = trades[-1][0] - pivotPrice
     calculatedFeatures['highPrice'] = np.amax(tradeArray[:, index['price']], axis=0) - pivotPrice
     calculatedFeatures['lowPrice'] = np.amin(tradeArray[:, index['price']], axis=0) - pivotPrice
@@ -144,7 +149,7 @@ def calculateNonPeriodFeatures(trade, features):
 
     return calculatedFeatures
 
-def calculateAllFeatureGroups(miniPool, features):
+def calculateAllFeatureGroups(miniPool, features, pid):
     # logging.debug(f'trade pool list len {len(tradePool.tradeList)}')
     pivotTrade = miniPool.getPivotTrade()
     tradeTimeMilliseconds = pivotTrade[3]
@@ -167,7 +172,8 @@ def calculateAllFeatureGroups(miniPool, features):
                 startTimeMilliseconds, 
                 pivotTradeId, 
                 endTimeMilliseconds, 
-                features )
+                features,
+                pid )
 
         fileDestinations['normalize'] = fileDestinations['normalize'] \
             | pastFeatures
@@ -176,7 +182,7 @@ def calculateAllFeatureGroups(miniPool, features):
     for timeName, periodMilliseconds in features.FUTURE_TIME_PERIODS.items():
         startTimeMilliseconds = tradeTimeMilliseconds 
         endTimeMilliseconds = tradeTimeMilliseconds + periodMilliseconds
-        fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, miniPool, pivotPrice, features)
+        fileDestinations[timeName] = calculateFutureFeatureGroup(timeName, miniPool, pivotPrice, features, pid)
 
     fileDestinations['normalize'] = fileDestinations['normalize'] \
             | miniPool.getLastNumberOfTrades()
@@ -184,11 +190,11 @@ def calculateAllFeatureGroups(miniPool, features):
     # fileDestinations['normalize'] = fileDestinations['normalize'] \
     #         | tradePool.getLastNumberOfTrades(tradePool.pivotIndex)
 
-    logging.debug('All feature groups calculated')
+    logging.debug(f'x{pid} All feature groups calculated')
     return fileDestinations
 
-def calculateAllFeaturesToList(miniPool, features):
-    fileDestinations = calculateAllFeatureGroups(miniPool, features)
+def calculateAllFeaturesToList(miniPool, features, pid):
+    fileDestinations = calculateAllFeatureGroups(miniPool, features, pid)
     featuresDict = {}
     for value in fileDestinations.values():
         featuresDict = featuresDict | value
@@ -197,21 +203,21 @@ def calculateAllFeaturesToList(miniPool, features):
     featuresList = list(sortedFeatures.values())
     return featuresList
 
-def calculatePastFeatureGroup(name, miniPool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features):
-    logging.debug(f'Collecting trades and calculating Group past_{name}')
+def calculatePastFeatureGroup(name, miniPool, startTimeMilliseconds, pivotTradeId, endTimeMilliseconds, features, pid):
+    logging.debug(f'x{pid} Collecting trades and calculating Group past_{name}')
     periodTrades = miniPool.getTradeList(f'past_{name}')
     pastFeatures, pivotPrice = calculatePastPeriodFeatures(periodTrades, endTimeMilliseconds - startTimeMilliseconds, features)
     pastFeatures = {f'{name}_{k}': v for k, v in pastFeatures.items()}
 
     return pastFeatures, pivotPrice
 
-def calculateFutureFeatureGroup(name, miniPool, pivotPrice, features):
-    logging.debug(f'Collecting trades and calculating Group future_{name}')
+def calculateFutureFeatureGroup(name, miniPool, pivotPrice, features, pid):
+    logging.debug(f'x{pid} Collecting trades and calculating Group future_{name}')
     periodTrades = miniPool.getTradeList(f'future_{name}')
     futureFeatures = calculateFuturePeriodFeatures(periodTrades, pivotPrice, features)
-    futureFeatures = {f'{name}_{k}': v for k, v in futureFeature.items()}
+    futureFeatures = {f'{name}_{k}': v for k, v in futureFeatures.items()}
 
-    return futureFeature
+    return futureFeatures
 
 def splitFeatures(fileDestinations, featureGroup, features):
     fileDestinations['noNormalize'] = fileDestinations['noNormalize'] \
@@ -224,6 +230,11 @@ def splitFeatures(fileDestinations, featureGroup, features):
         if key not in features.DO_NOT_NORMALIZE])
     return fileDestinations
 
+def signed_power(x, power):
+    if x >= 0:
+        return x ** power
+    else:
+        return -(x ** power)
 
 
 

@@ -32,7 +32,7 @@ class TradePool():
         if poolType == 'mini':
             self.isMiniPool = True
         self.maxIndex = len(TradePool.tradeList)
-        logging.debug(f'New pool init, isMini: {self.isMiniPool} list len: {len(TradePool.tradeList)}')
+        logging.debug(f'x{self.workerId} New pool init, isMini: {self.isMiniPool} list len: {len(TradePool.tradeList)}')
 
     def getSecondInPool(self, name):
         return TradePool.tradeList[self.subPools[name]['startIndex']+1]
@@ -49,6 +49,12 @@ class TradePool():
         if not name:
             return TradePool.tradeList[-1]
         return TradePool.tradeList[self.subPools[name]['endIndex']]
+
+    def getSecondToLastInPool(self, name):
+        return TradePool.tradeList[self.subPools[name]['endIndex'] - 1]
+
+    def getFirstAfterPool(self, name):
+        return TradePool.tradeList[self.subPools[name]['endIndex'] + 1]
 
     def getPivotTrade(self):
         return self.getLastInPool(f'past_{TradePool.features.MAX_PERIOD_NAME}')
@@ -82,21 +88,23 @@ class TradePool():
         return TradePool.tradeList[startIndex:endIndex + 1]
 
 
-    def addPool(self, name):
+    def addPool(self, name, futurePool=False):
         if name not in self.subPools:
-            logging.debug(f'Adding index tracking for subPool: {name}')
+            logging.debug(f'x{self.workerId} Adding index tracking for subPool: {name}')
             self.subPools[name] = {
                 'startIndex': 0,
                 'endIndex': -1
             }
+            if futurePool:
+                self.subPools[name]['endIndex'] = 1
 
     def logPoolDetails(self):
         if self.maxIndex == 0:
-            logging.error('Trade pool is empty')
+            logging.error(f'x{self.workerId} Trade pool is empty')
             return
 
         if self.isMiniPool:
-            logging.debug(f'miniPool pivot index: {self.pivotIndex}')
+            logging.debug(f'x{self.workerId} miniPool pivot index: {self.pivotIndex}')
 
         logging.debug(f'Pool max index {self.maxIndex}')
         poolStartTime = self.logTime(self.getTradeMilliseconds(self.getFirstInPool()))
@@ -104,14 +112,14 @@ class TradePool():
         logging.debug(f'Pool startTime: {poolStartTime} endTime: {poolEndTime}')
         if logging.DEBUG == logging.getLogger().getEffectiveLevel():
             for name, indexes in self.subPools.items():
-                logging.debug(f'{name} startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
+                logging.debug(f'x{self.workerId} {name} startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
                 subPoolStartTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]['startIndex'])))
                 subPoolEndTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]['endIndex'])))
-                logging.debug(f'{name} startTime: {subPoolStartTime} endTime: {subPoolEndTime}')
+                logging.debug(f'x{self.workerId} {name} startTime: {subPoolStartTime} endTime: {subPoolEndTime}')
         logging.debug('logPoolDetails complete.')
 
     def mapGapIterable(self):
-        logging.debug('Starting gap mapping')
+        logging.debug(f'x{self.workerId} Starting gap mapping')
         previousTimeMilliseconds = 0
         gapStartMillieseconds = self.getTradeMilliseconds(self.getFirstInPool())
         poolEndMillieseconds = \
@@ -128,12 +136,12 @@ class TradePool():
                     previousTimeMilliseconds = tradeMilliseconds
                     continue
                 else:
-                    logging.debug(f'Gap ended {index}')
+                    logging.debug(f'x{self.workerId} Gap ended {index}')
                     inGap = False
 
             if ( tradeMilliseconds - self.MILLISECONDS_GAP_TOLERATED ) > previousTimeMilliseconds:
-                logging.debug(f'Gap started {index}')
-                logging.debug(f'( {tradeMilliseconds} - {self.MILLISECONDS_GAP_TOLERATED} ) > {previousTimeMilliseconds}')
+                logging.debug(f'x{self.workerId} Gap started {index}')
+                logging.debug(f'x{self.workerId} ( {tradeMilliseconds} - {self.MILLISECONDS_GAP_TOLERATED} ) > {previousTimeMilliseconds}')
 
                 gapStartMillieseconds = self.getTradeMilliseconds(self.getTradeAt(index - 1))
                 nonGapIndexes.pop()
@@ -160,34 +168,34 @@ class TradePool():
     def startIndexExistsCheck(self, listIndex, name, debug):
         if listIndex <= -1:
             logging.error(
-                f'For {name}, a trade farther in the past than the set of trades\n'
-                f'in the pool was requested by a start index at {listIndex}.\n'
-                'Calculation must always traverse trades from the past to the\n'
-                f'future. function debug: {debug}'
+                f'x{self.workerId} For {name}, a trade farther in the past than the set of trades\n'
+                f'x{self.workerId} in the pool was requested by a start index at {listIndex}.\n'
+                f'x{self.workerId} Calculation must always traverse trades from the past to the\n'
+                f'x{self.workerId} future. function debug: {debug}'
             )
             os._exit(0)
         if listIndex >= self.maxIndex:
             logging.error(
-                f'For {name}, a trade farther in the future than the set of trades\n'
-                f'in the pool was requested by a start index at {listIndex}.\n'
-                f'function debug: {debug}'
+                f'x{self.workerId} For {name}, a trade farther in the future than the set of trades\n'
+                f'x{self.workerId} in the pool was requested by a start index at {listIndex}.\n'
+                f'x{self.workerId} function debug: {debug}'
             )
             os._exit(0)
 
     def endIndexExistsCheck(self, listIndex, name, debug):
         if listIndex >= 0:
             logging.error(
-                f'For {name}, a trade farther in the future than the set of trades\n'
-                f'in the pool was requested by an end index at {listIndex}.\n'
-                f'function debug: {debug}'
+                f'x{self.workerId} For {name}, a trade farther in the future than the set of trades\n'
+                f'x{self.workerId} in the pool was requested by an end index at {listIndex}.\n'
+                f'x{self.workerId} function debug: {debug}'
             )
             os._exit(0)
         if listIndex < self.maxIndex * -1:
             logging.error(
-                f'For {name}, a trade farther in the past than the set of trades\n'
-                f'in the pool was requested by an end index at {listIndex}.\n'
-                'Calculation must always traverse trades from the past to the future\n'
-                f'function debug: {debug}'
+                f'x{self.workerId} For {name}, a trade farther in the past than the set of trades\n'
+                f'x{self.workerId} in the pool was requested by an end index at {listIndex}.\n'
+                f'x{self.workerId} Calculation must always traverse trades from the past to the future\n'
+                f'x{self.workerId} function debug: {debug}'
             )
             os._exit(0)
 
@@ -197,10 +205,10 @@ class TradePool():
             tradeDatetime = self.logTime(targetMilliseconds)
             poolStartDatetime = self.logTime(poolStartMilliseconds)
             logging.error(
-                f'Trade requested at {tradeDatetime}  Pool start at {poolStartDatetime}'
-                f'For {name}, a trade farther in the past than the set of trades in the pool was requested by milliseconds.  '
-                'Calculation must always traverse trades from the past to the future. '
-                f'function debug: {debug}'
+                f'x{self.workerId} Trade requested at {tradeDatetime}  Pool start at {poolStartDatetime}'
+                f'x{self.workerId} For {name}, a trade farther in the past than the set of trades in the pool was requested by milliseconds.  '
+                f'x{self.workerId} Calculation must always traverse trades from the past to the future. '
+                f'x{self.workerId} function debug: {debug}'
             )
             os._exit(0)
         poolEndMilliseconds = self.getTradeMilliseconds(self.getLastInPool())
@@ -208,10 +216,10 @@ class TradePool():
             tradeDatetime = self.logTime(targetMilliseconds)
             poolEndDatetime = self.logTime(poolEndMilliseconds)
             logging.error(
-                f'Trade requested at {tradeDatetime}  Pool end at {poolEndDatetime}\n'
-                f'For {name}, a trade farther in the future than the set of trades\n'
-                f'in the pool was requested by milliseconds.\n'
-                f'function debug: {debug}'
+                f'x{self.workerId} Trade requested at {tradeDatetime}  Pool end at {poolEndDatetime}\n'
+                f'x{self.workerId} For {name}, a trade farther in the future than the set of trades\n'
+                f'x{self.workerId} in the pool was requested by milliseconds.\n'
+                f'x{self.workerId} function debug: {debug}'
             )
             os._exit(0)
 
@@ -228,16 +236,17 @@ class TradePool():
         pivotTimeMilliseconds = self.getTradeMilliseconds(pivotTrade)
         endTimeMilliseconds = pivotTimeMilliseconds
 
-        logging.debug(f'index: {pivotIndex} id: {pivotTrade[4]}')
+        logging.debug(f'x{self.workerId} index: {pivotIndex} id: {pivotTrade[4]}')
 
         for timeName, periodMilliseconds in TradePool.features.TIME_PERIODS.items():
             startTimeMilliseconds = pivotTimeMilliseconds - periodMilliseconds
-            self.selectMultipleTrades(f'{miniPool.workerId}_past_{timeName}', startTimeMilliseconds, pivotIndex)
+            self.setPastIndexes(f'{miniPool.workerId}_past_{timeName}', startTimeMilliseconds, pivotIndex)
 
         for timeName, periodMilliseconds in TradePool.features.FUTURE_TIME_PERIODS.items():
-            targetMilliseconds = pivotTimeMilliseconds + periodMilliseconds
-            self.selectMultipleFutureTrades(f'{miniPool.workerId}_future_{timeName}', targetMilliseconds, pivotIndex)
+            endTimeMilliseconds = pivotTimeMilliseconds + periodMilliseconds
+            self.setFurureIndexes(f'{miniPool.workerId}_future_{timeName}', endTimeMilliseconds, pivotIndex)
 
+        logging.debug(f'x{self.workerId} subPools Items:')
         logging.debug(self.subPools.items())
 
         for name, indexes in self.subPools.items():
@@ -253,7 +262,7 @@ class TradePool():
     def getLastNumberOfTrades(self):
         if not self.isMiniPool:
             logging.error( \
-                'getLastNumberOfTrades may only be called on a miniPool' \
+                f'x{self.workerId} getLastNumberOfTrades may only be called on a miniPool' \
             )
 
         collectedFeatures = {}
@@ -277,7 +286,7 @@ class TradePool():
         return collectedFeatures
 
     def logTrade(self, name, index, trade):
-        logging.info(f'name: {name} index: {index} price: {trade[0]} volume: {trade[0]} type: {trade[2]} date_ms: {trade[3]}')
+        logging.info(f'x{self.workerId} name: {name} index: {index} price: {trade[0]} volume: {trade[0]} type: {trade[2]} date_ms: {trade[3]}')
 
 
 
@@ -296,16 +305,17 @@ class TradePool():
             pivotTimeMilliseconds = nextPivotTimeMilliseconds
             endTimeMilliseconds = pivotTimeMilliseconds
 
-            logging.debug(f'GAP MINI POOL index: {pivotIndex} id: {pivotTrade[4]} second+: {i}')
+            logging.debug(f'x{self.workerId} GAP MINI POOL index: {pivotIndex} id: {pivotTrade[4]} second+: {i}')
 
             for timeName, periodMilliseconds in TradePool.features.TIME_PERIODS.items():
                 startTimeMilliseconds = pivotTimeMilliseconds - periodMilliseconds
-                self.selectMultipleTrades(f'{miniPool.workerId}_past_{timeName}', startTimeMilliseconds, pivotIndex)
+                self.setPastIndexes(f'{miniPool.workerId}_past_{timeName}', startTimeMilliseconds, pivotIndex)
 
             for timeName, periodMilliseconds in TradePool.features.FUTURE_TIME_PERIODS.items():
                 targetMilliseconds = pivotTimeMilliseconds + periodMilliseconds
-                self.selectMultipleFutureTrades(f'{miniPool.workerId}_future_{timeName}', targetMilliseconds, pivotIndex)
+                self.setFurureIndexes(f'{miniPool.workerId}_future_{timeName}', targetMilliseconds, pivotIndex)
 
+            logging.debug(f'x{self.workerId} subPools Items:')
             logging.debug(self.subPools.items())
 
             for name, indexes in self.subPools.items():
@@ -325,7 +335,7 @@ class TradePool():
     def getFutureTrades(self, name):
         return self.futureTrades[name]
 
-    def selectFutureTrades(self, name, targetMilliseconds, pivotIndex):
+    def setFurureIndexes(self, name, endTimeMilliseconds, pivotIndex):
         if self.isMiniPool:
             logging.error(
                 'Trade selection attempt in miniPool\n'
@@ -333,26 +343,40 @@ class TradePool():
             )
             os._exit(0)
         if name not in self.subPools:
-            self.addPool(name)
+            self.addPool(name, True)
 
-        initalStartTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]['startIndex'])))
-        targetStartTime = self.logTime(targetMilliseconds)
-        logging.debug(f'Inital startTime: {initalStartTime} Target startTime: {targetStartTime}')
+        logging.debug(f'x{self.workerId} For: {name} Start startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
 
         self.subPools[name]['startIndex'] = pivotIndex
 
-        while self.getTradeMilliseconds(self.getLastInPool(name)) >= targetMilliseconds:
-            self.subPools[name]['endIndex'] -= 1
-            logging.warning('A trade selection happened out of order!!')
+        logging.debug(f'x{self.workerId} For: {name} Begin checks startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
 
-        while self.getTradeMilliseconds(self.getLastInPool(name)) < targetMilliseconds:
+        pivotTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(pivotIndex)))
+        initalEndTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]['endIndex'])))
+        targetEndTime = self.logTime(endTimeMilliseconds)
+        diff = endTimeMilliseconds - self.getTradeMilliseconds(self.getTradeAt(pivotIndex))
+        logging.debug(f'x{self.workerId} For: {name} PivotTimeDiff: {diff}')
+        logging.debug(f'x{self.workerId} For: {name} PivotTime: {pivotTime} Inital startTime: {initalEndTime} Target startTime: {targetEndTime}')
+
+
+        if self.getTradeMilliseconds(self.getLastInPool(name)) > endTimeMilliseconds:
+            logging.debug(f'x{self.workerId} For: {name} Error startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
+            logging.warning(f'x{self.workerId} For: {name} A trade selection happened out of order!!')
+            os._exit(0)
+
+        while self.getTradeMilliseconds(self.getFirstAfterPool(name)) < endTimeMilliseconds:
             self.subPools[name]['endIndex'] += 1
 
-        logging.debug(f'Final startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
+        if self.getTradeMilliseconds(self.getLastInPool(name)) > endTimeMilliseconds:
+            self.subPools[name]['endIndex'] -= 1
+
+        logging.debug(f'x{self.workerId} For: {name} Final startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
+        if self.subPools[name]["startIndex"] == self.subPools[name]["endIndex"]:
+            os._exit(0)
 
 
 
-    def selectMultipleTrades(self, name, startTimeMilliseconds, pivotIndex):
+    def setPastIndexes(self, name, startTimeMilliseconds, pivotIndex):
         if self.isMiniPool:
             logging.error(
                 'Trade selection attempt in miniPool\n'
@@ -363,14 +387,15 @@ class TradePool():
             self.addPool(name)
 
         initalStartTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]['startIndex'])))
-        logging.debug(f'Inital startTime: {initalStartTime}')
+        logging.debug(f'x{self.workerId} Inital startTime: {initalStartTime}')
         targetStartTime = self.logTime(startTimeMilliseconds)
-        logging.debug(f'Target startTime: {targetStartTime}')
+        logging.debug(f'x{self.workerId} Target startTime: {targetStartTime}')
 
         if self.getTradeMilliseconds(self.getFirstBeforePool(name)) > startTimeMilliseconds:
             while self.getTradeMilliseconds(self.getFirstInPool(name)) > startTimeMilliseconds:
                 self.subPools[name]['startIndex'] -= 1
-                logging.warning('A trade selection happened out of order!!')
+                logging.warning(f'x{self.workerId} A trade selection happened out of order!!')
+                os._exit(0)
 
         if self.getTradeMilliseconds(self.getSecondInPool(name)) < startTimeMilliseconds:
             while self.getTradeMilliseconds(self.getFirstInPool(name)) < startTimeMilliseconds:
@@ -378,7 +403,8 @@ class TradePool():
 
         self.subPools[name]['endIndex'] = pivotIndex
 
-        logging.debug(f'Final startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
+        logging.debug(f'x{self.workerId} Final startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
+
 
 
 

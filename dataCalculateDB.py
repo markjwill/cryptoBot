@@ -93,6 +93,8 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
     while makeMiniPoolQueue.qsize() > 1000:
         logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
         logging.info(debugResourceUsage())
+        logging.info(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} parent')
+        logging.info('pids: [' + ', '.join(str(item) for item in getPythonPids()) + ']')
         logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
         time.sleep(60)
 
@@ -121,20 +123,20 @@ def closeAndWaitForProcessors(processorList, queue):
 def makeMiniPoolWorker(makeMiniPoolQueue, featureCalculationQueue, featureCalculationProcessCount):
     global tradePool
     pid = multiprocessing.current_process().pid
-    logging.info(f'Make mini pool worker started {pid}')
+    logging.info(f'x{pid} Make mini pool worker started {pid}')
     maxFeatureCalculationQueueSize = featureCalculationProcessCount * 1000
     while True:
         index = makeMiniPoolQueue.get()
         if index is None:
-            logging.info('None arrived in makeMiniPoolWorker')
+            logging.info(f'x{pid} None arrived in makeMiniPoolWorker')
             break
-        logging.debug(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} sQ       process {pid} Making miniPool in queue for index {index}')
+        logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} sQ       process {pid} Making miniPool in queue for index {index}')
         miniPool = tradePool.getMiniPool(index, tp.TradePool('mini'), pid)
         while featureCalculationQueue.qsize() > maxFeatureCalculationQueueSize:
             time.sleep(1)
         featureCalculationQueue.put(miniPool)
         miniPoolList = tradePool.getInbetweenMiniPools(index, tp.TradePool('mini'), pid)
-        logging.debug(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} sQ       process {pid} Made {len(miniPoolList)} gap miniPools after index {index}')
+        logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} sQ       process {pid} Made {len(miniPoolList)} gap miniPools after index {index}')
         makeMiniPoolQueue.task_done()
     makeMiniPoolQueue.task_done()
 
@@ -148,38 +150,38 @@ def featureCalculationWorker(
         ):
     global tradePool, features
     pid = multiprocessing.current_process().pid
-    logging.info(f'Feature calculation worker started {pid}')
-    csvFile, csvWriter = openCsvFile(features, outputFolder, pid)
+    logging.info(f'x{pid} Feature calculation worker started {pid}')
+    csvFile, csvWriter = openCsvFile(outputFolder, pid)
     processStart = timing.startCalculation()
-    logAfter = 500
+    logAfter = 50
     processed = 0
     while True:
         miniPool = featureCalculationQueue.get()
         if miniPool is None:
-            logging.info('None arrived in featureCalculationWorker')
+            logging.info(f'x{pid} None arrived in featureCalculationWorker')
             break
-        logging.debug(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
-        row = dataCalculate.calculateAllFeaturesToList(miniPool, features)
+        logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
+        row = dataCalculate.calculateAllFeaturesToList(miniPool, features, pid)
         csvWriter.writerow(row)
         del miniPool, row
 
         processed += 1
         if processed % logAfter == 0 and isLogger:
-            logging.info(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
+            logging.info(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
             logging.info(debugResourceUsage())
             combinedProcessesCompleted = processed * featureCalculationProcessCount
             timing.endCalculation(processStart, combinedProcessesCompleted, recordsTotal)
         featureCalculationQueue.task_done()
 
     csvFile.close()
-    logging.info(f'Pid complete: {pid}')
+    logging.info(f'x{pid} Pid complete: {pid}')
     featureCalculationQueue.task_done()
 
-def openCsvFile(features, outputFolder, identifier = ''):
+def openCsvFile(outputFolder, identifier = ''):
     filePath = getOutputFilePath(outputFolder, identifier)
     truncateAndCreateFile = open(filePath, 'w+')
     truncateAndCreateFile.close()
-    csvFile = open(filePath, 'a', buffering=65536)
+    csvFile = open(filePath, 'a')
     csvWriter = csv.writer(csvFile)
     return csvFile, csvWriter
 
@@ -256,6 +258,13 @@ def setupTradePool(tradeList, features):
 def setupFeatures():
     features = f.Features()
     return features
+
+def getPythonPids():
+    pythonPids = []
+    for proc in psutil.process_iter(['pid', 'name']):
+        if 'python' in proc.info['name']:
+            pythonPids.append(proc.info['pid'])
+    return pythonPids
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
