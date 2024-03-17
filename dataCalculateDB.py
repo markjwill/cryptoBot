@@ -135,7 +135,8 @@ def makeMiniPoolWorker(makeMiniPoolQueue, featureCalculationQueue, featureCalcul
         while featureCalculationQueue.qsize() > maxFeatureCalculationQueueSize:
             time.sleep(1)
         featureCalculationQueue.put(miniPool)
-        miniPoolList = tradePool.getInbetweenMiniPools(index, tp.TradePool('mini'), pid)
+        # miniPoolList = tradePool.getInbetweenMiniPools(index, tp.TradePool('mini'), pid)
+        miniPoolList = []
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} sQ       process {pid} Made {len(miniPoolList)} gap miniPools after index {index}')
         makeMiniPoolQueue.task_done()
     makeMiniPoolQueue.task_done()

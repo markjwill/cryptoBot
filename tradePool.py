@@ -35,7 +35,11 @@ class TradePool():
         logging.debug(f'x{self.workerId} New pool init, isMini: {self.isMiniPool} list len: {len(TradePool.tradeList)}')
 
     def getSecondInPool(self, name):
-        return TradePool.tradeList[self.subPools[name]['startIndex']+1]
+        secondIn = TradePool.tradeList[self.subPools[name]['startIndex']+1]
+        lastIn = TradePool.tradeList[self.subPools[name]['endIndex']]
+        if secondIn > lastIn:
+            return lastIn
+        return secondIn
 
     def getFirstBeforePool(self, name):
         return TradePool.tradeList[self.subPools[name]['startIndex']-1]
@@ -51,7 +55,11 @@ class TradePool():
         return TradePool.tradeList[self.subPools[name]['endIndex']]
 
     def getSecondToLastInPool(self, name):
-        return TradePool.tradeList[self.subPools[name]['endIndex'] - 1]
+        secondToLast = TradePool.tradeList[self.subPools[name]['endIndex'] - 1]
+        firstIn = TradePool.tradeList[self.subPools[name]['startIndex']]
+        if secondToLast < firstIn:
+            return firstIn
+        return secondToLast
 
     def getFirstAfterPool(self, name):
         return TradePool.tradeList[self.subPools[name]['endIndex'] + 1]
@@ -388,6 +396,8 @@ class TradePool():
         if name not in self.subPools:
             self.addPool(name)
 
+        self.subPools[name]['endIndex'] = pivotIndex
+
         initalStartTime = self.logTime(self.getTradeMilliseconds(self.getTradeAt(self.subPools[name]['startIndex'])))
         logging.debug(f'x{self.workerId} Inital startTime: {initalStartTime}')
         targetStartTime = self.logTime(startTimeMilliseconds)
@@ -403,7 +413,9 @@ class TradePool():
             while self.getTradeMilliseconds(self.getFirstInPool(name)) < startTimeMilliseconds:
                 self.subPools[name]['startIndex'] += 1
 
-        self.subPools[name]['endIndex'] = pivotIndex
+        if self.subPools[name]["startIndex"] > self.subPools[name]["endIndex"]:
+            logging.debug(f'x{self.workerId} Single index pool?')
+            self.subPools[name]['startIndex'] -= 1
 
         logging.debug(f'x{self.workerId} Final startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
         if self.subPools[name]["startIndex"] > self.subPools[name]["endIndex"]:
