@@ -3,7 +3,7 @@ import datetime
 import os
 import math
 import timing
-import memory_profiler
+# import memory_profiler
 
 # trades[0] price
 # trades[1] amount

@@ -16,13 +16,17 @@ import time
 # import cProfile
 import psutil
 import shutil
-
+import os
 import dataCalculate
 import features as f
 import timing
 # import tradeDbManager as tdm
 import bucketConnector as bc
 import tradePool as tp
+
+if os.getuid() != 0:
+    logging.error("This program is not run as sudo or elevated this it will not work")
+    os._exit(0)
 
 tradePool = False
 features = False
@@ -207,6 +211,7 @@ def mergeCsvs(fileSavePids, features, bucket, outputFolder):
             with open(file,'rb') as fd:
                 shutil.copyfileobj(fd, wfd)
                 wfd.write(b"\n")
+            fd.close()
             os.remove(file)
     # bc.uploadFile(sourceFile, bucket)
 
@@ -302,3 +307,5 @@ if __name__ == '__main__':
     except StopIteration as error:
         logging.error(error)
     logging.info("script end reached")
+    if ( !isTest ):
+        os.system("shutdown now -h")
