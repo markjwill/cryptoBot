@@ -307,5 +307,7 @@ if __name__ == '__main__':
     except StopIteration as error:
         logging.error(error)
     logging.info("script end reached")
-    if ( !isTest ):
+    if ( not isTest ):
+        logging.info("production run ending in shutdown")
         os.system("shutdown now -h")
+    logging.info("test run ending")

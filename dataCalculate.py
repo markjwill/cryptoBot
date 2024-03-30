@@ -120,10 +120,12 @@ def calculateFuturePeriodFeatures(trades, pivotPrice, features):
         )
     index = features.FEATURE_INDEXES['exchange']
     tradeArray = np.array(trades)
+    logging.debug(f'tradeArray')
+    logging.debug(tradeArray)
     calculatedFeatures = copy.copy(features.FUTURE_FEATURES)
-    calculatedFeatures['futurePrice'] = trades[-1][0] - pivotPrice
-    calculatedFeatures['highPrice'] = np.amax(tradeArray[:, index['price']], axis=0) - pivotPrice
-    calculatedFeatures['lowPrice'] = np.amin(tradeArray[:, index['price']], axis=0) - pivotPrice
+    calculatedFeatures['futurePrice'] = trades[-1][index['price']] - pivotPrice
+    calculatedFeatures['futureHighPrice'] = np.amax(tradeArray[:, index['price']], axis=0) - pivotPrice
+    calculatedFeatures['futureLowPrice'] = np.amin(tradeArray[:, index['price']], axis=0) - pivotPrice
 
     return calculatedFeatures
 
@@ -214,6 +216,8 @@ def calculatePastFeatureGroup(name, miniPool, startTimeMilliseconds, pivotTradeI
 def calculateFutureFeatureGroup(name, miniPool, pivotPrice, features, pid):
     logging.debug(f'x{pid} Collecting trades and calculating Group future_{name}')
     periodTrades = miniPool.getTradeList(f'future_{name}')
+    logging.debug(f'x{pid} period trades')
+    logging.debug(periodTrades)
     futureFeatures = calculateFuturePeriodFeatures(periodTrades, pivotPrice, features)
     futureFeatures = {f'{name}_{k}': v for k, v in futureFeatures.items()}
 

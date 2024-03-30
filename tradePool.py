@@ -91,6 +91,13 @@ class TradePool():
     def getTradeList(self, name):
         startIndex = self.subPools[name]['startIndex']
         endIndex = self.subPools[name]['endIndex']
+        logging.debug(f'indexes startIndex {startIndex} endIndex {endIndex}')
+        logging.debug(f'start less one {self.getTradeMilliseconds(self.getFirstBeforePool(name))}')
+        logging.debug(f'start index {self.getTradeMilliseconds(self.getFirstInPool(name))}')
+        logging.debug(f'start plus one {self.getTradeMilliseconds(self.getSecondInPool(name))}')
+        logging.debug(f'end less one {self.getTradeMilliseconds(self.getSecondToLastInPool(name))}')
+        logging.debug(f'end index {self.getTradeMilliseconds(self.getLastInPool(name))}')
+        logging.debug(f'end plus one {self.getTradeMilliseconds(self.getFirstAfterPool(name))}')
         if endIndex == -1:
             return TradePool.tradeList[startIndex:]
         return TradePool.tradeList[startIndex:endIndex + 1]
@@ -364,7 +371,7 @@ class TradePool():
         targetEndTime = self.logTime(endTimeMilliseconds)
         diff = endTimeMilliseconds - self.getTradeMilliseconds(self.getTradeAt(pivotIndex))
         logging.debug(f'x{self.workerId} For: {name} PivotTimeDiff: {diff}')
-        logging.debug(f'x{self.workerId} For: {name} PivotTime: {pivotTime} Inital startTime: {initalEndTime} Target startTime: {targetEndTime}')
+        logging.debug(f'x{self.workerId} For: {name} PivotTime: {pivotTime} Inital endTime: {initalEndTime} Target endTime: {targetEndTime}')
 
 
         if self.getTradeMilliseconds(self.getLastInPool(name)) > endTimeMilliseconds:
@@ -372,7 +379,7 @@ class TradePool():
             logging.warning(f'x{self.workerId} For: {name} A FUTURE trade selection happened out of order!!')
             os._exit(0)
 
-        while self.getTradeMilliseconds(self.getFirstAfterPool(name)) < endTimeMilliseconds:
+        while self.getTradeMilliseconds(self.getFirstAfterPool(name)) <= endTimeMilliseconds:
             self.subPools[name]['endIndex'] += 1
 
         if self.getTradeMilliseconds(self.getLastInPool(name)) > endTimeMilliseconds:

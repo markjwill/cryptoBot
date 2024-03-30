@@ -40,10 +40,6 @@ class Features:
     MAX_FUTURE_PERIOD = 30001
     MAX_FUTURE_PERIOD_NAME = 'thirtySeconds'
 
-    PRICE_PERIOD_FEATURES = {
-
-    }
-
     PREVIOUS_TRADE_COUNT = 100
 
     OFF_EXCHANGE_PERIOD_FEATURES = {
@@ -129,36 +125,36 @@ class Features:
     #     logging.debug('Starter Percents:')
     #     logging.debug(self.starterPercents)
 
-    def initCsvFiles(self):
-        if self.csvFiles:
-            return
-        if not self.PERIOD_FEATURES:
-            self.initPeriodFeatures()
+    # def initCsvFiles(self):
+    #     if self.csvFiles:
+    #         return
+    #     if not self.PERIOD_FEATURES:
+    #         self.initPeriodFeatures()
 
-        self.csvFiles['noNormalize'] = []
-        self.csvFiles['normalize'] = []
+    #     self.csvFiles['noNormalize'] = []
+    #     self.csvFiles['normalize'] = []
 
-        self.csvFiles['noNormalize'] = [key for key \
-            in self.NON_PERIOD_FEATURES.keys() \
-            if key in self.DO_NOT_NORMALIZE]
-        self.csvFiles['normalize'] = [key for key in \
-            self.NON_PERIOD_FEATURES.keys() \
-            if key not in self.DO_NOT_NORMALIZE]
+    #     self.csvFiles['noNormalize'] = [key for key \
+    #         in self.NON_PERIOD_FEATURES.keys() \
+    #         if key in self.DO_NOT_NORMALIZE]
+    #     self.csvFiles['normalize'] = [key for key in \
+    #         self.NON_PERIOD_FEATURES.keys() \
+    #         if key not in self.DO_NOT_NORMALIZE]
 
-        for timeName in self.TIME_PERIODS:
-            for featureName in self.PERIOD_FEATURES:
-                self.csvFiles['normalize'].append(f'{timeName}_{featureName}')
-            self.csvFiles[timeName] = [f'{timeName}_futurePrice']
+    #     for timeName in self.TIME_PERIODS:
+    #         for featureName in self.PERIOD_FEATURES:
+    #             self.csvFiles['normalize'].append(f'{timeName}_{featureName}')
+    #         self.csvFiles[timeName] = [f'{timeName}_futurePrice']
 
-        for negativeIndex in range(1,self.PREVIOUS_TRADE_COUNT):
-            key = f'trade-{negativeIndex}-price'
-            self.csvFiles['normalize'].append(key)
-            key = f'trade-{negativeIndex}-volume'
-            self.csvFiles['normalize'].append(key)
-            key = f'trade-{negativeIndex}-date_ms'
-            self.csvFiles['normalize'].append(key)
+    #     for negativeIndex in range(1,self.PREVIOUS_TRADE_COUNT):
+    #         key = f'trade-{negativeIndex}-price'
+    #         self.csvFiles['normalize'].append(key)
+    #         key = f'trade-{negativeIndex}-volume'
+    #         self.csvFiles['normalize'].append(key)
+    #         key = f'trade-{negativeIndex}-date_ms'
+    #         self.csvFiles['normalize'].append(key)
 
-        logging.debug(self.csvFiles)
+    #     logging.debug(self.csvFiles)
 
     def initFeaturesToNormalize(self):
         # futurePriceFeatures = [f'{timeName}_futurePrice' for timeName in self.FUTURE_TIME_PERIODS.keys()]
@@ -175,9 +171,6 @@ class Features:
             self.PERIOD_FEATURES[featureName] = default
 
         for sourceName, index in self.FEATURE_INDEXES.items():
-            if index['price'] is not False:
-                for feature, default in self.PRICE_PERIOD_FEATURES.items():
-                    self.PERIOD_FEATURES[f'{sourceName}_{feature}'] = default
             if    index['price'] is not False and \
                  index['volume'] is not False and \
                    index['type'] is not False and \
