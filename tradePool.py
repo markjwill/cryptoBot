@@ -379,11 +379,13 @@ class TradePool():
             logging.warning(f'x{self.workerId} For: {name} A FUTURE trade selection happened out of order!!')
             os._exit(0)
 
-        while self.getTradeMilliseconds(self.getFirstAfterPool(name)) <= endTimeMilliseconds:
+        while self.getTradeMilliseconds(self.getFirstAfterPool(name)) < endTimeMilliseconds:
             self.subPools[name]['endIndex'] += 1
 
         if self.getTradeMilliseconds(self.getLastInPool(name)) > endTimeMilliseconds:
             self.subPools[name]['endIndex'] -= 1
+            if self.subPools[name]['endIndex'] < self.subPools[name]['startIndex']:
+                self.subPools[name]['endIndex'] = self.subPools[name]['startIndex']
 
         logging.debug(f'x{self.workerId} For: {name} Final startIndex: {self.subPools[name]["startIndex"]} endIndex: {self.subPools[name]["endIndex"]}')
         if self.subPools[name]["startIndex"] > self.subPools[name]["endIndex"]:
