@@ -3,6 +3,7 @@ awsCredentials
 images/*
 histograms/*
 csvFiles/*
+debianSetup.sh
 .DS_Store
 __pycache__
 *.gz

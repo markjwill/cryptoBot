@@ -23,6 +23,9 @@ import timing
 # import tradeDbManager as tdm
 import bucketConnector as bc
 import tradePool as tp
+import datetime
+import boto3
+import logToCloudwatch as cw
 
 if os.getuid() != 0:
     logging.error("This program is not run as sudo or elevated this it will not work")
@@ -30,6 +33,17 @@ if os.getuid() != 0:
 
 tradePool = False
 features = False
+
+# Configure AWS credentials and region
+awsRegion = 'us-west-2'
+logGroupName = 'ML-Log-Group'
+formattedNow = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
+logStreamName = f'{formattedNow}-stream'
+
+# Initialize Boto3 client for CloudWatch Logs
+cloudwatchClient = boto3.client('logs', region_name=awsRegion)
+
+cw.create_log_stream(cloudwatchClient, logGroupName, logStreamName)
 
 def main(s3bucket, sourceBucketFileName, outputFolder):
     global tradePool, features, isTest
@@ -74,10 +88,10 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
         isLogger = False
         featureCalculationProcessors.append(featureCalculationProcessor)
 
-    fileSavePids = []
+    # fileSavePids = []
     for featureCalculationProcessor in featureCalculationProcessors:
         featureCalculationProcessor.start()
-        fileSavePids.append(featureCalculationProcessor.pid)
+        # fileSavePids.append(featureCalculationProcessor.pid)
 
     makeMiniPoolProcessors = []
     for i in range(makeMiniPoolProcessCount):
@@ -94,13 +108,13 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
     del x
 
     logging.info('Mini pool queue full')
-    while makeMiniPoolQueue.qsize() > 1000:
-        logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
-        logging.info(debugResourceUsage())
-        logging.info(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} parent')
-        logging.info('pids: [' + ', '.join(str(item) for item in getPythonPids()) + ']')
-        logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
-        time.sleep(60)
+    # while makeMiniPoolQueue.qsize() > 1000:
+    #     logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
+    #     logging.info(debugResourceUsage())
+    #     logging.info(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} parent')
+    #     logging.info('pids: [' + ', '.join(str(item) for item in getPythonPids()) + ']')
+    #     logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
+    #     time.sleep(60)
 
     closeAndWaitForProcessors(makeMiniPoolProcessors, makeMiniPoolQueue)
 
@@ -109,7 +123,7 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
 
     timing.endCalculation(batchCalculationStart, recordsTotal, recordsTotal)
 
-    mergeCsvs(fileSavePids, features, s3bucket, outputFolder)
+    # mergeCsvs(fileSavePids, features, s3bucket, outputFolder)
 
     logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
     logging.info(f'featureCalculation cpus: {featureCalculationProcessCount}')
@@ -156,7 +170,7 @@ def featureCalculationWorker(
     global tradePool, features
     pid = multiprocessing.current_process().pid
     logging.info(f'x{pid} Feature calculation worker started {pid}')
-    csvFile, csvWriter = openCsvFile(outputFolder, pid)
+    # csvFile, csvWriter = openCsvFile(outputFolder, pid)
     processStart = timing.startCalculation()
     logAfter = 500
     processed = 0
@@ -167,7 +181,8 @@ def featureCalculationWorker(
             break
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
         row = dataCalculate.calculateAllFeaturesToList(miniPool, features, pid)
-        csvWriter.writerow(row)
+        cw.put_log_event(client, log_group_name, log_stream_name, row)
+        # csvWriter.writerow(row)
         del miniPool, row
 
         processed += 1
@@ -178,42 +193,78 @@ def featureCalculationWorker(
             timing.endCalculation(processStart, combinedProcessesCompleted, recordsTotal)
         featureCalculationQueue.task_done()
 
-    csvFile.close()
+    # csvFile.close()
     logging.info(f'x{pid} Pid complete: {pid}')
     featureCalculationQueue.task_done()
 
-def openCsvFile(outputFolder, identifier = ''):
-    filePath = getOutputFilePath(outputFolder, identifier)
-    truncateAndCreateFile = open(filePath, 'w+')
-    truncateAndCreateFile.close()
-    csvFile = open(filePath, 'a')
-    csvWriter = csv.writer(csvFile)
-    return csvFile, csvWriter
+# def openCsvFile(outputFolder, identifier = ''):
+#     filePath = getOutputFilePath(outputFolder, identifier)
+#     truncateAndCreateFile = open(filePath, 'w+')
+#     truncateAndCreateFile.close()
+#     csvFile = open(filePath, 'a')
+#     csvWriter = csv.writer(csvFile)
+#     return csvFile, csvWriter
 
-def getOutputFilePath(outputFolder, pid = ''):
-    global isTest
-    if pid != '':
-        pid = f'.{pid}'
-    return f'{outputFolder}/{date.today()}-all-columns{isTest}.csv{pid}'
+# def getOutputFilePath(outputFolder, pid = ''):
+#     global isTest
+#     if pid != '':
+#         pid = f'.{pid}'
+#     return f'{outputFolder}/{date.today()}-all-columns{isTest}.csv{pid}'
 
-def mergeCsvs(fileSavePids, features, bucket, outputFolder):
-    csvFile, csvWriter = openCsvFile(outputFolder)
-    csvWriter.writerow(features.COLUMNS)
-    csvFile.close()
-    sourceFile = getOutputFilePath(outputFolder)
-    appendFiles = []
-    for pid in fileSavePids:
-        appendFiles.append(getOutputFilePath(outputFolder, pid))
+# def mergeCsvs(fileSavePids, features, bucket, outputFolder):
+#     csvFile, csvWriter = openCsvFile(outputFolder)
+#     csvWriter.writerow(features.COLUMNS)
+#     csvFile.close()
+#     sourceFile = getOutputFilePath(outputFolder)
+#     appendFiles = []
+#     for pid in fileSavePids:
+#         appendFiles.append(getOutputFilePath(outputFolder, pid))
 
-    with open(sourceFile,'ab') as wfd:
-        for file in appendFiles:
-            logging.info(f'Appending {file}')
-            with open(file,'rb') as fd:
-                shutil.copyfileobj(fd, wfd)
-                wfd.write(b"\n")
-            fd.close()
-            os.remove(file)
-    # bc.uploadFile(sourceFile, bucket)
+#     with open(sourceFile,'ab') as wfd:
+#         for file in appendFiles:
+#             logging.info(f'Appending {file}')
+#             with open(file,'rb') as fd:
+#                 shutil.copyfileobj(fd, wfd)
+#                 wfd.write(b"\n")
+#             fd.close()
+#             os.remove(file)
+#     # bc.uploadFile(sourceFile, bucket)
+
+def create_log_stream(client, log_group_name, log_stream_name):
+    try:
+        client.create_log_group(logGroupName=log_group_name)
+        print(f'Log group {log_group_name} created successfully.')
+    except client.exceptions.ResourceAlreadyExistsException:
+        print(f'Log group {log_group_name} already exists.')
+    try:
+        client.create_log_stream(logGroupName=log_group_name, logStreamName=log_stream_name)
+        print(f'Log stream {log_stream_name} created successfully.')
+    except client.exceptions.ResourceAlreadyExistsException:
+        print(f'Log stream {log_stream_name} already exists.')
+
+def put_log_event(client, log_group_name, log_stream_name, message):
+    timestamp = int(time.time() * 1000)
+    response = client.describe_log_streams(logGroupName=log_group_name, logStreamNamePrefix=log_stream_name)
+    log_stream = response['logStreams'][0]
+    
+    sequence_token = log_stream.get('uploadSequenceToken')
+
+    log_event = {
+        'logGroupName': log_group_name,
+        'logStreamName': log_stream_name,
+        'logEvents': [
+            {
+                'timestamp': timestamp,
+                'message': message
+            }
+        ],
+    }
+
+    if sequence_token:
+        log_event['sequenceToken'] = sequence_token
+
+    response = client.put_log_events(**log_event)
+    print(f'Log event sent successfully: {response}')
 
 def debugChildProcess():
     current_process = psutil.Process(os.getpid())
@@ -241,8 +292,8 @@ def debugResourceUsage():
         f'The usage statistics of {os.getcwd()} is: \n' \
         f'{psutil.disk_usage(os.getcwd())}'
 
-def uploadFinishedCsv(filePath, bucket):
-    bc.uploadFile(filePath, bucket)
+# def uploadFinishedCsv(filePath, bucket):
+#     bc.uploadFile(filePath, bucket)
 
 def getDataFromBucket(fileName, bucket):
     df = bc.downloadFile(fileName, bucket)
