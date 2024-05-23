@@ -34,18 +34,7 @@ if os.getuid() != 0:
 tradePool = False
 features = False
 
-# Configure AWS credentials and region
-awsRegion = 'us-west-2'
-logGroupName = 'ML-Log-Group'
-formattedNow = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
-logStreamName = f'{formattedNow}-stream'
-
-# Initialize Boto3 client for CloudWatch Logs
-cloudwatchClient = boto3.client('logs', region_name=awsRegion)
-
-cw.create_log_stream(cloudwatchClient, logGroupName, logStreamName)
-
-def main(s3bucket, sourceBucketFileName, outputFolder):
+def main(s3bucket, sourceBucketFileName, outputFolder, cloudLogger):
     global tradePool, features, isTest
     isTest=""
     if "test" in sourceBucketFileName:
@@ -83,7 +72,8 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
                 isLogger,
                 makeMiniPoolQueue,
                 recordsTotal,
-                outputFolder
+                outputFolder,
+                cloudLogger
                 ))
         isLogger = False
         featureCalculationProcessors.append(featureCalculationProcessor)
@@ -165,7 +155,8 @@ def featureCalculationWorker(
             isLogger,
             makeMiniPoolQueue,
             recordsTotal,
-            outputFolder
+            outputFolder,
+            cloudLogger
         ):
     global tradePool, features
     pid = multiprocessing.current_process().pid
@@ -181,7 +172,7 @@ def featureCalculationWorker(
             break
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
         row = dataCalculate.calculateAllFeaturesToList(miniPool, features, pid)
-        cw.put_log_event(client, log_group_name, log_stream_name, row)
+        cloudLogger.log(",".join(row))
         # csvWriter.writerow(row)
         del miniPool, row
 
@@ -229,42 +220,6 @@ def featureCalculationWorker(
 #             fd.close()
 #             os.remove(file)
 #     # bc.uploadFile(sourceFile, bucket)
-
-def create_log_stream(client, log_group_name, log_stream_name):
-    try:
-        client.create_log_group(logGroupName=log_group_name)
-        print(f'Log group {log_group_name} created successfully.')
-    except client.exceptions.ResourceAlreadyExistsException:
-        print(f'Log group {log_group_name} already exists.')
-    try:
-        client.create_log_stream(logGroupName=log_group_name, logStreamName=log_stream_name)
-        print(f'Log stream {log_stream_name} created successfully.')
-    except client.exceptions.ResourceAlreadyExistsException:
-        print(f'Log stream {log_stream_name} already exists.')
-
-def put_log_event(client, log_group_name, log_stream_name, message):
-    timestamp = int(time.time() * 1000)
-    response = client.describe_log_streams(logGroupName=log_group_name, logStreamNamePrefix=log_stream_name)
-    log_stream = response['logStreams'][0]
-    
-    sequence_token = log_stream.get('uploadSequenceToken')
-
-    log_event = {
-        'logGroupName': log_group_name,
-        'logStreamName': log_stream_name,
-        'logEvents': [
-            {
-                'timestamp': timestamp,
-                'message': message
-            }
-        ],
-    }
-
-    if sequence_token:
-        log_event['sequenceToken'] = sequence_token
-
-    response = client.put_log_events(**log_event)
-    print(f'Log event sent successfully: {response}')
 
 def debugChildProcess():
     current_process = psutil.Process(os.getpid())
@@ -352,9 +307,13 @@ if __name__ == '__main__':
     logging.info( 'Logging now setup.' )
     timing.startTiming()
 
+    awsRegion = 'us-west-2'
+    logGroupName = 'ML-Log-Group'
+    cloudLogger = cw.cloudLogger(awsRegion, logGroupName)
+
     try:
         # cProfile.runctx('main()',globals(),locals())
-        main(args.bucket, args.source, args.folder)
+        main(args.bucket, args.source, args.folder, cloudLogger)
     except StopIteration as error:
         logging.error(error)
     logging.info("script end reached")
