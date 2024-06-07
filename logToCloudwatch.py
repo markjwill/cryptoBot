@@ -2,18 +2,16 @@ import boto3
 import time
 import json
 import datetime
-import configparser
-import os
+from threading import Thread
 
-config = configparser.ConfigParser()
-
-
-os.environ['AWS_ACCESS_KEY_ID'] = config.get('default', 'aws_access_key_id')
-os.environ['AWS_SECRET_ACCESS_KEY'] = config.get('default', 'aws_secret_access_key')
-
-class cloudLogger:
+class CloudLogger:
     def __init__(self, aws_region, log_group_name):
-        self.client = boto3.client('logs', region_name=aws_region)
+        self.client = boto3.client(
+            'logs', 
+            region_name=aws_region,
+            aws_access_key_id='Key',
+            aws_secret_access_key='Secret'
+        )
         self.log_group_name = log_group_name
         self.log_stream_name = f'{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}-stream'
         self.create_log_stream()
@@ -33,12 +31,14 @@ class cloudLogger:
             print(f'Log stream {self.log_stream_name} already exists.')
 
     def log(self, message):
-        timestamp = int(time.time() * 1000)
-        response = self.client.describe_log_streams(logGroupName=self.log_group_name, logStreamNamePrefix=self.log_stream_name)
-        log_stream = response['logStreams'][0]
-        
-        sequence_token = log_stream.get('uploadSequenceToken')
+        Thread(target=self.threaded_log, args=(message, )).start()
+        # print(f'Log event sent successfully: {response}')
 
+    def threaded_log(self, message):
+        attempts = 0
+        logSuccess = False
+        exceptionToken = False
+        timestamp = int(time.time() * 1000)
         log_event = {
             'logGroupName': self.log_group_name,
             'logStreamName': self.log_stream_name,
@@ -49,12 +49,33 @@ class cloudLogger:
                 }
             ],
         }
+        while not logSuccess:
+            attempts += 1
+            if attempts > 10:
+                print("production run ending in shutdown")
+                return False
+                # os.system("shutdown now -h")
+            try:
+                response = self.client.describe_log_streams(logGroupName=self.log_group_name, logStreamNamePrefix=self.log_stream_name)
+                print('got stream response')
+                log_stream = response['logStreams'][0]
+                print('got log stream')
+                sequence_token = log_stream.get('uploadSequenceToken')
+                print('got sequence token')
+                exceptionToken = False
 
-        if sequence_token:
-            log_event['sequenceToken'] = sequence_token
+                if sequence_token:
+                    log_event['sequenceToken'] = sequence_token
+                    print('inserted sequence token')
 
-        response = self.client.put_log_events(**log_event)
-        print(f'Log event sent successfully: {response}')
+                    response = self.client.put_log_events(**log_event)
+                    logSuccess = True
+                    print(f'Log event sent successfully: {response}')
+                print(f'sequence token didn\'t')
+            except Exception as e:
+                print(f'Error logging event: {e}')
+
+
 
 # cloudLogger = cloudLogger('us-west-2', 'ML-Log-Group')
 # cloudLogger.log("test,log,row")

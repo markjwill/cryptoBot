@@ -3,8 +3,8 @@ import json
 
 # Configure AWS credentials and region
 aws_region = 'us-west-2'  # Change to your region
-log_group_name = 'your-log-group'
-log_stream_name = 'your-log-stream'
+log_group_name = 'ML-Log-Group'
+log_stream_name = '2024-05-30-06-09-stream'
 output_file = 'log_messages.txt'
 
 # Initialize Boto3 client for CloudWatch Logs

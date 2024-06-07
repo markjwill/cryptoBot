@@ -63,6 +63,8 @@ def main(s3bucket, sourceBucketFileName, outputFolder, cloudLogger):
     logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
     logging.info(f'featureCalculation cpus: {featureCalculationProcessCount}')
 
+    cloudLogger.log(",".join(features.COLUMNS))
+    logging.info('Cloud Logged column names');
     isLogger = True
     featureCalculationProcessors = []
     for i in range(featureCalculationProcessCount):
@@ -172,7 +174,9 @@ def featureCalculationWorker(
             break
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
         row = dataCalculate.calculateAllFeaturesToList(miniPool, features, pid)
-        cloudLogger.log(",".join(row))
+        significant_digits = 8
+        rounded_row = [round_to_significant_digits(x, significant_digits) for x in row]
+        cloudLogger.log(",".join(f"{x:.{significant_digits}g}" for x in rounded_row))
         # csvWriter.writerow(row)
         del miniPool, row
 
@@ -187,6 +191,12 @@ def featureCalculationWorker(
     # csvFile.close()
     logging.info(f'x{pid} Pid complete: {pid}')
     featureCalculationQueue.task_done()
+
+def round_to_significant_digits(value, digits):
+    if value == 0:
+        return 0
+    else:
+        return round(value, digits - int(np.floor(np.log10(abs(value)))) - 1)
 
 # def openCsvFile(outputFolder, identifier = ''):
 #     filePath = getOutputFilePath(outputFolder, identifier)
@@ -309,7 +319,7 @@ if __name__ == '__main__':
 
     awsRegion = 'us-west-2'
     logGroupName = 'ML-Log-Group'
-    cloudLogger = cw.cloudLogger(awsRegion, logGroupName)
+    cloudLogger = cw.CloudLogger(awsRegion, logGroupName)
 
     try:
         # cProfile.runctx('main()',globals(),locals())
