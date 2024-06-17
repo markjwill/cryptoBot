@@ -4,7 +4,7 @@ import json
 # Configure AWS credentials and region
 aws_region = 'us-west-2'  # Change to your region
 log_group_name = 'ML-Log-Group'
-log_stream_name = '2024-05-30-06-09-stream'
+log_stream_name = '-stream-name-'
 output_file = 'log_messages.txt'
 
 # Initialize Boto3 client for CloudWatch Logs
@@ -13,6 +13,7 @@ client = boto3.client('logs', region_name=aws_region)
 def get_log_events(client, log_group_name, log_stream_name):
     log_events = []
     next_token = None
+    previous_token = None
 
     while True:
         if next_token:
@@ -24,6 +25,7 @@ def get_log_events(client, log_group_name, log_stream_name):
             )
         else:
             response = client.get_log_events(
+                startFromHead=True,
                 logGroupName=log_group_name,
                 logStreamName=log_stream_name,
                 limit=10000
@@ -33,9 +35,17 @@ def get_log_events(client, log_group_name, log_stream_name):
         next_token = response.get('nextForwardToken')
 
         # Break if no new logs are available
-        if not next_token or next_token == response['nextForwardToken']:
+        if previous_token == response['nextForwardToken']:
+            print("previous_token == response['nextForwardToken']")
+        if not next_token:
+            print("not next_token")
+        if not next_token or previous_token == response['nextForwardToken']:
+            print("break")
             break
 
+        previous_token = next_token
+
+    print(f'log_events len {len(log_events)}')
     return log_events
 
 def save_log_messages(log_events, output_file):

@@ -31,14 +31,14 @@ class CloudLogger:
             print(f'Log stream {self.log_stream_name} already exists.')
 
     def log(self, message):
-        Thread(target=self.threaded_log, args=(message, )).start()
-        # print(f'Log event sent successfully: {response}')
-
-    def threaded_log(self, message):
-        attempts = 0
-        logSuccess = False
-        exceptionToken = False
         timestamp = int(time.time() * 1000)
+        response = self.client.describe_log_streams(logGroupName=self.log_group_name, logStreamNamePrefix=self.log_stream_name)
+        if not response['logStreams']:
+            print(f'{response}')
+
+        log_stream = response['logStreams'][0]
+        sequence_token = log_stream.get('uploadSequenceToken')
+        
         log_event = {
             'logGroupName': self.log_group_name,
             'logStreamName': self.log_stream_name,
@@ -49,31 +49,10 @@ class CloudLogger:
                 }
             ],
         }
-        while not logSuccess:
-            attempts += 1
-            if attempts > 10:
-                print("production run ending in shutdown")
-                return False
-                # os.system("shutdown now -h")
-            try:
-                response = self.client.describe_log_streams(logGroupName=self.log_group_name, logStreamNamePrefix=self.log_stream_name)
-                print('got stream response')
-                log_stream = response['logStreams'][0]
-                print('got log stream')
-                sequence_token = log_stream.get('uploadSequenceToken')
-                print('got sequence token')
-                exceptionToken = False
+        if sequence_token:
+            log_event['sequenceToken'] = sequence_token
 
-                if sequence_token:
-                    log_event['sequenceToken'] = sequence_token
-                    print('inserted sequence token')
-
-                    response = self.client.put_log_events(**log_event)
-                    logSuccess = True
-                    print(f'Log event sent successfully: {response}')
-                print(f'sequence token didn\'t')
-            except Exception as e:
-                print(f'Error logging event: {e}')
+        response = self.client.put_log_events(**log_event)
 
 
 

@@ -51,7 +51,7 @@ def main(s3bucket, sourceBucketFileName, outputFolder, cloudLogger):
         os._exit(0)
     recordsTotal = len(viableIndexes)
     batchCalculationStart = timing.startCalculation()
-    logging.info('Setup complete, beginning iteration')
+    logging.info(f'Setup complete, beginning iteration on {recordsTotal} records')
 
     makeMiniPoolQueue = JoinableQueue()
     featureCalculationQueue = JoinableQueue()
@@ -163,7 +163,6 @@ def featureCalculationWorker(
     global tradePool, features
     pid = multiprocessing.current_process().pid
     logging.info(f'x{pid} Feature calculation worker started {pid}')
-    # csvFile, csvWriter = openCsvFile(outputFolder, pid)
     processStart = timing.startCalculation()
     logAfter = 500
     processed = 0
@@ -198,39 +197,6 @@ def round_to_significant_digits(value, digits):
     else:
         return round(value, digits - int(np.floor(np.log10(abs(value)))) - 1)
 
-# def openCsvFile(outputFolder, identifier = ''):
-#     filePath = getOutputFilePath(outputFolder, identifier)
-#     truncateAndCreateFile = open(filePath, 'w+')
-#     truncateAndCreateFile.close()
-#     csvFile = open(filePath, 'a')
-#     csvWriter = csv.writer(csvFile)
-#     return csvFile, csvWriter
-
-# def getOutputFilePath(outputFolder, pid = ''):
-#     global isTest
-#     if pid != '':
-#         pid = f'.{pid}'
-#     return f'{outputFolder}/{date.today()}-all-columns{isTest}.csv{pid}'
-
-# def mergeCsvs(fileSavePids, features, bucket, outputFolder):
-#     csvFile, csvWriter = openCsvFile(outputFolder)
-#     csvWriter.writerow(features.COLUMNS)
-#     csvFile.close()
-#     sourceFile = getOutputFilePath(outputFolder)
-#     appendFiles = []
-#     for pid in fileSavePids:
-#         appendFiles.append(getOutputFilePath(outputFolder, pid))
-
-#     with open(sourceFile,'ab') as wfd:
-#         for file in appendFiles:
-#             logging.info(f'Appending {file}')
-#             with open(file,'rb') as fd:
-#                 shutil.copyfileobj(fd, wfd)
-#                 wfd.write(b"\n")
-#             fd.close()
-#             os.remove(file)
-#     # bc.uploadFile(sourceFile, bucket)
-
 def debugChildProcess():
     current_process = psutil.Process(os.getpid())
     mem = current_process.memory_percent()
@@ -256,9 +222,6 @@ def debugResourceUsage():
         f'The CPU usage is : {round(cpu_usage,2)} \n' \
         f'The usage statistics of {os.getcwd()} is: \n' \
         f'{psutil.disk_usage(os.getcwd())}'
-
-# def uploadFinishedCsv(filePath, bucket):
-#     bc.uploadFile(filePath, bucket)
 
 def getDataFromBucket(fileName, bucket):
     df = bc.downloadFile(fileName, bucket)
