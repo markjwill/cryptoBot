@@ -32,20 +32,19 @@ if os.getuid() != 0:
     logging.error("This program is not run as sudo or elevated this it will not work")
     os._exit(0)
 
-tradePool = False
-features = False
 
 def main(s3bucket, sourceBucketFileName, outputFolder):
-    global tradePool, features, isTest
+
     isTest=""
     if "test" in sourceBucketFileName:
         isTest="-test"
     features = setupFeatures()
     filePath = f'{outputFolder}/{sourceBucketFileName}'
     tradeList = getDataFromBucket(filePath, s3bucket)
-    setupTradePool(tradeList, features)
+    tradePool = setupTradePool(tradeList, features)
 
     del tradeList
+    logging.info(f'Getting viable indexes')
     viableIndexes = tradePool.mapGapIterable()
     if not viableIndexes:
         logging.error('No viable indexes found.  Check data source and gaps.')
@@ -68,7 +67,7 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
     awsRegion = 'us-west-2'
     logGroupName = 'ML-Log-Group'
     columnNames = ",".join(features.COLUMNS)
-    cloudLogger = cw.CloudLogger(awsRegion, logGroupName, columnNames)
+    cloudLogger = cw.CloudLogger(awsRegion, logGroupName, columnNames, logging)
     logging.info('Cloud Logged column names');
 
     resultLoggerProcessor = Process(target=resultLoggerWorker, args=(
@@ -87,6 +86,7 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
                 resultLoggerQueue,
                 recordsTotal,
                 outputFolder,
+                features,
             ))
         isLogger = False
         featureCalculationProcessors.append(featureCalculationProcessor)
@@ -100,7 +100,14 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
 
     makeMiniPoolProcessors = []
     for i in range(makeMiniPoolProcessCount):
-        makeMiniPoolProcessor = Process(target=makeMiniPoolWorker, args=(makeMiniPoolQueue,featureCalculationQueue, featureCalculationProcessCount, ))
+        makeMiniPoolProcessor = Process(target=makeMiniPoolWorker, 
+            args=(
+                makeMiniPoolQueue,
+                featureCalculationQueue,
+                featureCalculationProcessCount,
+                tradePool,
+            )
+        )
         makeMiniPoolProcessors.append(makeMiniPoolProcessor)
 
     for makeMiniPoolProcessor in makeMiniPoolProcessors:
@@ -150,9 +157,10 @@ def closeAndWaitForProcessors(processorList, queue):
 def makeMiniPoolWorker(
             makeMiniPoolQueue,
             featureCalculationQueue,
-            featureCalculationProcessCount
+            featureCalculationProcessCount,
+            tradePool
         ):
-    global tradePool
+
     pid = multiprocessing.current_process().pid
     logging.info(f'x{pid} Make mini pool worker started {pid}')
     maxFeatureCalculationQueueSize = featureCalculationProcessCount * 1000
@@ -163,8 +171,8 @@ def makeMiniPoolWorker(
             break
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ        sQ       process {pid} Making miniPool in queue for index {index}')
         miniPool = tradePool.getMiniPool(index, tp.TradePool('mini'), pid)
-        while featureCalculationQueue.qsize() > maxFeatureCalculationQueueSize:
-            time.sleep(1)
+        # while featureCalculationQueue.qsize() > maxFeatureCalculationQueueSize:
+        #     time.sleep(1)
         featureCalculationQueue.put(miniPool)
         # miniPoolList = tradePool.getInbetweenMiniPools(index, tp.TradePool('mini'), pid)
         miniPoolList = []
@@ -179,32 +187,49 @@ def featureCalculationWorker(
             makeMiniPoolQueue,
             resultLoggerQueue,
             recordsTotal,
-            outputFolder
+            outputFolder,
+            features
         ):
-    global tradePool, features
+
     pid = multiprocessing.current_process().pid
     logging.info(f'x{pid} Feature calculation worker started {pid}')
     processStart = timing.startCalculation()
     logAfter = 50
     processed = 0
     significant_digits = 8
+    lengths = []
+    started = time.time()
     while True:
         miniPool = featureCalculationQueue.get()
         if miniPool is None:
             logging.info(f'x{pid} None arrived in featureCalculationWorker')
             break
+
+        lengths.append(miniPool.subPools['past_twoHours']['endIndex'] - miniPool.subPools['past_twoHours']['startIndex'])
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ {str(resultLoggerQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
         row = dataCalculate.calculateAllFeaturesToList(miniPool, features, pid)
         rounded_row = [round_to_significant_digits(x, significant_digits) for x in row]
         message = ",".join(f"{x:.{significant_digits}g}" for x in rounded_row)
         resultLoggerQueue.put(message)
-        del miniPool, row
+        # del miniPool, row
 
         processed += 1
         if processed % logAfter == 0 and isLogger:
-            logging.info(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ {str(resultLoggerQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
+            # logging.info(f'{miniPool.subPools}')
             combinedProcessesCompleted = processed * featureCalculationProcessCount
             timing.endCalculation(processStart, combinedProcessesCompleted, recordsTotal)
+            now = time.time()
+            elapsed = now - started
+            started = now
+            event = {}
+            timeElapsed = timing.secondsToStr(elapsed, True)
+            avgLength = np.average(lengths)
+            timePrLength = elapsed / avgLength
+            event["time elapsed"] = timeElapsed
+            event["avg length"] = avgLength
+            event["time pr length"] = timePrLength * 1000
+            logging.info(f'Time to Process{event}')
+            logging.info(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ {str(resultLoggerQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
         featureCalculationQueue.task_done()
 
     logging.info(f'x{pid} Pid complete: {pid}')
@@ -268,8 +293,8 @@ def initTradeManager():
 def setupTradePool(tradeList, features):
     tp.TradePool.tradeList = tradeList
     tp.TradePool.features = features
-    global tradePool
     tradePool = tp.TradePool('parent')
+    return tradePool
 
 def setupFeatures():
     features = f.Features()
@@ -317,7 +342,7 @@ if __name__ == '__main__':
     except StopIteration as error:
         logging.error(error)
     logging.info("script end reached")
-    if ( not isTest ):
+    if "test" not in args.source:
         logging.info("production run ending in shutdown")
-        os.system("shutdown now -h")
+        # os.system("shutdown now -h")
     logging.info("test run ending")

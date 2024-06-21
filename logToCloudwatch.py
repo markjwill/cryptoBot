@@ -3,15 +3,16 @@ import time
 import json
 import datetime
 from threading import Thread
-
+import timing
 
 
 class CloudLogger:
-    def __init__(self, aws_region, log_group_name, columns):
+    def __init__(self, aws_region, log_group_name, columns, logging):
         self.client = boto3.client(
             'logs', 
             region_name=aws_region
         )
+        self.logging = logging
         self.log_group_name = log_group_name
         self.log_stream_name = f'{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}-stream'
         self.sequence_token = None
@@ -57,8 +58,11 @@ class CloudLogger:
         }
         if self.sequence_token:
             kwargs['sequenceToken'] = self.sequence_token
-
+        started = time.time()
         response = self.client.put_log_events(**kwargs)
+        elapsed = time.time() - started
+        self.logging.info(f'Time to Dump {len(self.log_events)} events: {timing.secondsToStr(elapsed, True)}')
+
         self.sequence_token = response['nextSequenceToken']
         self.log_events = []
 
