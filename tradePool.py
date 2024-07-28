@@ -178,7 +178,7 @@ class TradePool():
         #     logging.debug(f'Gap from {self.logTime(self.getTradeMilliseconds(self.getTradeAt(startIndex)))}')
         #     logging.debug(f'To {self.logTime(self.getTradeMilliseconds(self.getTradeAt(endIndex)))}')
 
-        return tuple(nonGapIndexes)
+        return nonGapIndexes
 
     def startIndexExistsCheck(self, listIndex, name, debug):
         if listIndex <= -1:

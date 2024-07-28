@@ -59,16 +59,17 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
 
     cpuPercent = multiprocessing.cpu_count() / 100
     makeMiniPoolProcessCount = max(round(3 * cpuPercent),1)
-    featureCalculationProcessCount = max(round(97 * cpuPercent),1)
+    featureCalculationProcessCount = max(round(75 * cpuPercent),1)
 
     logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
     logging.info(f'featureCalculation cpus: {featureCalculationProcessCount}')
 
-    awsRegion = 'us-west-2'
+    awsRegion = 'ca-central-1'
     logGroupName = 'ML-Log-Group'
     columnNames = ",".join(features.COLUMNS)
     cloudLogger = cw.CloudLogger(awsRegion, logGroupName, columnNames, logging)
     logging.info('Cloud Logged column names');
+    maxQueueSize = 10000
 
     resultLoggerProcessor = Process(target=resultLoggerWorker, args=(
             resultLoggerQueue,
@@ -87,6 +88,7 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
                 recordsTotal,
                 outputFolder,
                 features,
+                maxQueueSize,
             ))
         isLogger = False
         featureCalculationProcessors.append(featureCalculationProcessor)
@@ -104,8 +106,8 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
             args=(
                 makeMiniPoolQueue,
                 featureCalculationQueue,
-                featureCalculationProcessCount,
                 tradePool,
+                maxQueueSize,
             )
         )
         makeMiniPoolProcessors.append(makeMiniPoolProcessor)
@@ -113,20 +115,23 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
     for makeMiniPoolProcessor in makeMiniPoolProcessors:
         makeMiniPoolProcessor.start()
 
-    workerIndexGroups = np.array((np.array_split(viableIndexes, makeMiniPoolProcessCount)), dtype=object).tolist()
-    del viableIndexes
-    for i in range(makeMiniPoolProcessCount):
-        x = [makeMiniPoolQueue.put(index) for index in workerIndexGroups[i]]
-    del x
+    time.sleep(1)
+    logging.info('Throttled sending of indexes to Mini pool queue')
+
+    pointer = 0
+    endPointer = 0
+    while endPointer < len(viableIndexes):
+        endPointer = pointer + maxQueueSize
+        if endPointer > len(viableIndexes):
+            endPointer = len(viableIndexes)
+        listChunk = viableIndexes[pointer:endPointer]
+        [makeMiniPoolQueue.put(index) for index in listChunk]
+        while makeMiniPoolQueue.qsize() > maxQueueSize:
+            # logging.info('MAX MINI QUEUE HIT')
+            time.sleep(0.1)
+        pointer = endPointer
 
     logging.info('Mini pool queue full')
-    # while makeMiniPoolQueue.qsize() > 1000:
-    #     logging.info('>>>>>>>>>>>> Parent Process Debug Start <<<<<<<<<<')
-    #     # logging.info(debugResourceUsage())
-    #     logging.info(f'mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ {str(resultLoggerQueue.qsize()).zfill(5)} parent')
-    #     # logging.info('pids: [' + ', '.join(str(item) for item in getPythonPids()) + ']')
-    #     logging.info('>>>>>>>>>>>> Parent Process Debug End <<<<<<<<<<<<')
-    #     time.sleep(10)
 
     closeAndWaitForProcessors(makeMiniPoolProcessors, makeMiniPoolQueue)
 
@@ -157,13 +162,12 @@ def closeAndWaitForProcessors(processorList, queue):
 def makeMiniPoolWorker(
             makeMiniPoolQueue,
             featureCalculationQueue,
-            featureCalculationProcessCount,
-            tradePool
+            tradePool,
+            maxQueueSize
         ):
 
     pid = multiprocessing.current_process().pid
     logging.info(f'x{pid} Make mini pool worker started {pid}')
-    maxFeatureCalculationQueueSize = featureCalculationProcessCount * 1000
     while True:
         index = makeMiniPoolQueue.get()
         if index is None:
@@ -171,8 +175,8 @@ def makeMiniPoolWorker(
             break
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ        sQ       process {pid} Making miniPool in queue for index {index}')
         miniPool = tradePool.getMiniPool(index, tp.TradePool('mini'), pid)
-        # while featureCalculationQueue.qsize() > maxFeatureCalculationQueueSize:
-        #     time.sleep(1)
+        while featureCalculationQueue.qsize() > maxQueueSize:
+            time.sleep(0.1)
         featureCalculationQueue.put(miniPool)
         # miniPoolList = tradePool.getInbetweenMiniPools(index, tp.TradePool('mini'), pid)
         miniPoolList = []
@@ -188,7 +192,8 @@ def featureCalculationWorker(
             resultLoggerQueue,
             recordsTotal,
             outputFolder,
-            features
+            features,
+            maxQueueSize
         ):
 
     pid = multiprocessing.current_process().pid
@@ -211,6 +216,8 @@ def featureCalculationWorker(
         rounded_row = [round_to_significant_digits(x, significant_digits) for x in row]
         message = ",".join(f"{x:.{significant_digits}g}" for x in rounded_row)
         resultLoggerQueue.put(message)
+        while resultLoggerQueue.qsize() > (maxQueueSize / 4):
+            time.sleep(0.1)
         # del miniPool, row
 
         processed += 1
