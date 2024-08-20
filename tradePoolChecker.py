@@ -13,6 +13,7 @@ import numpy as np
 import os
 import pandas as pd
 import time
+import math
 # import cProfile
 import psutil
 import shutil
@@ -27,10 +28,6 @@ import datetime
 import boto3
 import logToCloudwatch as cw
 import random
-import sys
-import multiprocessing
-from queue import Empty
-import code
 
 if os.getuid() != 0:
     logging.error("This program is not run as sudo or elevated this it will not work")
@@ -39,42 +36,45 @@ if os.getuid() != 0:
 
 def main(s3bucket, sourceBucketFileName, outputFolder):
 
-    multiprocessing.set_start_method("spawn")
-
     isTest=""
     if "test" in sourceBucketFileName:
         isTest="-test"
+    features = setupFeatures()
     filePath = f'{outputFolder}/{sourceBucketFileName}'
     tradeList = getDataFromBucket(filePath, s3bucket)
-    tradePool = setupTradePool(tradeList)
-
-    print(f'Getting viable indexes')
+    tradePool = setupTradePool(tradeList, features)
+    tradePool.logPoolDetails()
+    del tradeList
+    logging.info(f'Getting viable indexes')
     viableIndexes = tradePool.mapGapIterable()
     if not viableIndexes:
         logging.error('No viable indexes found.  Check data source and gaps.')
         os._exit(0)
     recordsTotal = len(viableIndexes)
     batchCalculationStart = timing.startCalculation()
-    print(f'Setup complete, beginning iteration on {recordsTotal} records')
+    logging.info(f'Setup complete, beginning iteration on {recordsTotal} records')
 
     makeMiniPoolQueue = JoinableQueue()
     featureCalculationQueue = JoinableQueue()
     resultLoggerQueue = JoinableQueue()
 
     cpuPercent = multiprocessing.cpu_count() / 100
-    makeMiniPoolProcessCount = max(round(3 * cpuPercent),1)
-    featureCalculationProcessCount = max(round(75 * cpuPercent),1)
+    makeMiniPoolProcessCount = max(math.floor(75 * cpuPercent),1)
+    featureCalculationProcessCount = max(math.floor(1 * cpuPercent),1)
 
-    print(f'          miniPool cpus: {makeMiniPoolProcessCount}')
-    print(f'featureCalculation cpus: {featureCalculationProcessCount}')
+    logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
+    logging.info(f'featureCalculation cpus: {featureCalculationProcessCount}')
 
-
-    columnNames = ",".join(f.Features().COLUMNS)
+    awsRegion = 'ca-central-1'
+    logGroupName = 'ML-Log-Group'
+    columnNames = ",".join(features.COLUMNS)
+    cloudLogger = cw.CloudLogger(awsRegion, logGroupName, columnNames, logging)
+    logging.info('Cloud Logged column names');
     maxQueueSize = 10000
 
     resultLoggerProcessor = Process(target=resultLoggerWorker, args=(
             resultLoggerQueue,
-            columnNames,
+            cloudLogger,
         ))
 
     isLogger = True
@@ -88,8 +88,8 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
                 resultLoggerQueue,
                 recordsTotal,
                 outputFolder,
+                features,
                 maxQueueSize,
-                tradeList,
             ))
         isLogger = False
         featureCalculationProcessors.append(featureCalculationProcessor)
@@ -107,7 +107,7 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
             args=(
                 makeMiniPoolQueue,
                 featureCalculationQueue,
-                tradeList,
+                tradePool,
                 maxQueueSize,
             )
         )
@@ -117,7 +117,7 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
         makeMiniPoolProcessor.start()
 
     time.sleep(1)
-    print('Throttled sending of indexes to Mini pool queue')
+    logging.info('Throttled sending of indexes to Mini pool queue')
 
     pointer = 0
     endPointer = 0
@@ -128,72 +128,63 @@ def main(s3bucket, sourceBucketFileName, outputFolder):
         listChunk = viableIndexes[pointer:endPointer]
         [makeMiniPoolQueue.put(index) for index in listChunk]
         while makeMiniPoolQueue.qsize() > maxQueueSize:
-            # print('MAX MINI QUEUE HIT')
-            time.sleep(0.01)
+            # logging.info('MAX MINI QUEUE HIT')
+            time.sleep(0.1)
         pointer = endPointer
 
-    print('Mini pool queue full')
+    logging.info('Mini pool queue full')
+
     closeAndWaitForProcessors(makeMiniPoolProcessors, makeMiniPoolQueue)
 
-    print('Mini pool queue emptied, Feature calculation queue full')
+    logging.info('Mini pool queue emptied, Feature calculation queue full')
     closeAndWaitForProcessors(featureCalculationProcessors, featureCalculationQueue)
 
-    print('Feature calculation queue emptied, Logger queue full')
-    closeAndWaitForProcessors([resultLoggerProcessor], resultLoggerQueue)
+    resultLoggerQueue.put(None)
+    resultLoggerProcessor.join()
+    resultLoggerQueue.join()
 
     timing.endCalculation(batchCalculationStart, recordsTotal, recordsTotal)
 
     # mergeCsvs(fileSavePids, features, s3bucket, outputFolder)
 
-    print(f'          miniPool cpus: {makeMiniPoolProcessCount}')
-    print(f'featureCalculation cpus: {featureCalculationProcessCount}')
+    logging.info(f'          miniPool cpus: {makeMiniPoolProcessCount}')
+    logging.info(f'featureCalculation cpus: {featureCalculationProcessCount}')
 
 
 def closeAndWaitForProcessors(processorList, queue):
-    print(f'1. closeAndWait Queue {queue.qsize()}')
-    time.sleep(30)
     for processor in processorList:
         queue.put(None)
-    print('None\'s put')
-    print(f'2. closeAndWait Queue {queue.qsize()}')
+
     for processor in processorList:
         processor.join()
-        print('Processor joined')
-    print('All Processor\'s joined')
-    print(f'3. closeAndWait Queue {queue.qsize()}')
+
     queue.join()
-    print('Queue joined')
 
 def makeMiniPoolWorker(
             makeMiniPoolQueue,
             featureCalculationQueue,
-            tradeList,
+            tradePool,
             maxQueueSize
         ):
-    tp.TradePool.initialize_trade_list(tradeList)
-    tp.TradePool.initialize_features(f.Features())
-    tradePool = tp.TradePool('parent')
 
     pid = multiprocessing.current_process().pid
-    print(f'x{pid} Make mini pool worker started {pid}')
+    logging.info(f'x{pid} Make mini pool worker started {pid}')
     while True:
         index = makeMiniPoolQueue.get()
         if index is None:
-            print(f'x{pid} None arrived in makeMiniPoolWorker')
+            logging.info(f'x{pid} None arrived in makeMiniPoolWorker')
             break
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ        sQ       process {pid} Making miniPool in queue for index {index}')
         miniPool = tradePool.getMiniPool(index, tp.TradePool('mini'), pid)
-        while featureCalculationQueue.qsize() > maxQueueSize:
-            time.sleep(0.1)
+        miniPool.logPoolDetails()
+        # while featureCalculationQueue.qsize() > maxQueueSize:
+        #     time.sleep(0.1)
         featureCalculationQueue.put(miniPool)
         # miniPoolList = tradePool.getInbetweenMiniPools(index, tp.TradePool('mini'), pid)
         miniPoolList = []
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ        sQ       process {pid} Made {len(miniPoolList)} gap miniPools after index {index}')
         makeMiniPoolQueue.task_done()
     makeMiniPoolQueue.task_done()
-    print(f'last mini pool worker {pid} task done')
-    print(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)}')
-
 
 def featureCalculationWorker(
             featureCalculationQueue,
@@ -203,14 +194,12 @@ def featureCalculationWorker(
             resultLoggerQueue,
             recordsTotal,
             outputFolder,
-            maxQueueSize,
-            tradeList
+            features,
+            maxQueueSize
         ):
-    features = f.Features()
-    tp.TradePool.initialize_features(features)
-    tp.TradePool.initialize_trade_list(tradeList)
+
     pid = multiprocessing.current_process().pid
-    print(f'x{pid} Feature calculation worker started {pid}')
+    logging.info(f'x{pid} Feature calculation worker started {pid}')
     processStart = timing.startCalculation()
     logAfter = 50
     processed = 0
@@ -220,30 +209,22 @@ def featureCalculationWorker(
     while True:
         miniPool = featureCalculationQueue.get()
         if miniPool is None:
-            print(f'x{pid} None arrived in featureCalculationWorker')
+            logging.info(f'x{pid} None arrived in featureCalculationWorker')
             break
+
         lengths.append(miniPool.subPools['past_twoHours']['endIndex'] - miniPool.subPools['past_twoHours']['startIndex'])
         logging.debug(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ {str(resultLoggerQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
-        row = dataCalculate.calculateAllFeaturesToList(miniPool, features, pid)
-        rounded_row = [round_to_significant_digits(x, significant_digits) for x in row]
-        message = ",".join(f"{x:.{significant_digits}g}" for x in rounded_row)
-        resultLoggerQueue.put(message)
-        while resultLoggerQueue.qsize() > (maxQueueSize / 4):
-            time.sleep(0.1)
+        # row = dataCalculate.calculateAllFeaturesToList(miniPool, features, pid)
+        # rounded_row = [round_to_significant_digits(x, significant_digits) for x in row]
+        # message = ",".join(f"{x:.{significant_digits}g}" for x in rounded_row)
+        # resultLoggerQueue.put(message)
+        # while resultLoggerQueue.qsize() > (maxQueueSize / 4):
+        #     time.sleep(0.1)
         # del miniPool, row
 
         processed += 1
         if processed % logAfter == 0 and isLogger:
-            # print(f'{miniPool.subPools}')
-            size_in_bytes = get_queue_size(makeMiniPoolQueue)
-            size_in_mb = size_in_bytes / 1024
-            print(f"Mini Pool Queue size: {size_in_mb:.2f} KB")
-            size_in_bytes = get_queue_size(featureCalculationQueue)
-            size_in_mb = size_in_bytes / 1024
-            print(f"Feature Calculation Queue size: {size_in_mb:.2f} KB")
-            size_in_bytes = get_queue_size(resultLoggerQueue)
-            size_in_mb = size_in_bytes / 1024
-            print(f"Result Logger Queue size: {size_in_mb:.2f} KB")
+            # logging.info(f'{miniPool.subPools}')
             combinedProcessesCompleted = processed * featureCalculationProcessCount
             timing.endCalculation(processStart, combinedProcessesCompleted, recordsTotal)
             now = time.time()
@@ -256,54 +237,24 @@ def featureCalculationWorker(
             event["time elapsed"] = timeElapsed
             event["avg length"] = avgLength
             event["time pr length"] = timePrLength * 1000
-            print(f'Time to Process{event}')
-            print(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ {str(resultLoggerQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
+            logging.info(f'Time to Process{event}')
+            logging.info(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ {str(resultLoggerQueue.qsize()).zfill(5)} process {pid} Calculating features in queue')
         featureCalculationQueue.task_done()
 
-    print(f'x{pid} Pid complete: {pid}')
+    logging.info(f'x{pid} Pid complete: {pid}')
     featureCalculationQueue.task_done()
-    print(f'last feature worker {pid} task done')
-    print(f'x{pid} mQ {str(makeMiniPoolQueue.qsize()).zfill(5)} fQ {str(featureCalculationQueue.qsize()).zfill(5)} rQ {str(resultLoggerQueue.qsize()).zfill(5)}')
 
-
-def get_queue_size(queue):
-    queue_size = sys.getsizeof(queue)
-    contents_size = 0
-
-    # To avoid modifying the original queue, make a copy of its contents
-    temp_list = []
-    while True:
-        try:
-            item = queue.get_nowait()
-            contents_size += sys.getsizeof(item)
-            temp_list.append(item)
-        except Empty:
-            break
-
-    # Put the items back into the queue
-    for item in temp_list:
-        queue.put(item)
-
-    total_size = queue_size + contents_size
-    return total_size
-
-def resultLoggerWorker(resultLoggerQueue, columnNames):
-    awsRegion = 'ca-central-1'
-    logGroupName = 'ML-Log-Group'
-    # cloudLogger = cw.CloudLogger(awsRegion, logGroupName, columnNames, logging)
-    print('Cloud Logged column names');
+def resultLoggerWorker(resultLoggerQueue, cloudLogger):
     while True:
         message = resultLoggerQueue.get()
         if message is None:
-            print(f'None arrived in resultLoggerWorker')
+            logging.info(f'None arrived in resultLoggerWorker')
             break
-        # cloudLogger.log(message)
+        cloudLogger.log(message)
         resultLoggerQueue.task_done()
-    # cloudLogger.flush()
-    print(f'logger queue complete')
+    cloudLogger.flush()
+    logging.info(f'logger queue complete')
     resultLoggerQueue.task_done()
-    print(f'last logger worker {pid} task done')
-
 
 def round_to_significant_digits(value, digits):
     if value == 0:
@@ -348,10 +299,15 @@ def initTradeManager():
     del tradeDbManager
     return tradeList
 
-def setupTradePool(tradeList):
-    tp.TradePool.initialize_trade_list(tradeList)
-    tp.TradePool.initialize_features(f.Features())
-    return tp.TradePool('parent')
+def setupTradePool(tradeList, features):
+    tp.TradePool.tradeList = tradeList
+    tp.TradePool.features = features
+    tradePool = tp.TradePool('parent')
+    return tradePool
+
+def setupFeatures():
+    features = f.Features()
+    return features
 
 def getPythonPids():
     pythonPids = []
@@ -386,7 +342,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logging.basicConfig( level=args.loglevel.upper() )
-    print( 'Logging now setup.' )
+    logging.info( 'Logging now setup.' )
     timing.startTiming()
 
     try:
@@ -394,8 +350,8 @@ if __name__ == '__main__':
         main(args.bucket, args.source, args.folder)
     except StopIteration as error:
         logging.error(error)
-    print("script end reached")
+    logging.info("script end reached")
     if "test" not in args.source:
-        print("production run ending in shutdown")
+        logging.info("production run ending in shutdown")
         # os.system("shutdown now -h")
-    print("test run ending")
+    logging.info("test run ending")

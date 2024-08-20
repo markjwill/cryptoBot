@@ -3,6 +3,7 @@ import datetime
 import os
 import math
 import timing
+
 # import memory_profiler
 
 # trades[0] price
@@ -33,6 +34,14 @@ class TradePool():
             self.isMiniPool = True
         self.maxIndex = len(TradePool.tradeList)
         logging.debug(f'x{self.workerId} New pool init, isMini: {self.isMiniPool} list len: {len(TradePool.tradeList)}')
+
+    @staticmethod
+    def initialize_trade_list(trades):
+        TradePool.tradeList = trades
+
+    @staticmethod
+    def initialize_features(features):
+        TradePool.features = features
 
     def getSecondInPool(self, name):
         secondIn = TradePool.tradeList[self.subPools[name]['startIndex']+1]
@@ -65,7 +74,7 @@ class TradePool():
         return TradePool.tradeList[self.subPools[name]['endIndex'] + 1]
 
     def getPivotTrade(self):
-        return self.getLastInPool(f'past_{TradePool.features.MAX_PERIOD_NAME}')
+        return self.getLastInPool(f'past_{self.features.MAX_PERIOD_NAME}')
 
     def getTradePrice(self, trade):
         return trade[0]
